@@ -38,10 +38,10 @@ My goal with Bitwise is to show that these things can be done much more simply a
 simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
 the goal is to show how things work with real working examples.
 
-Despite the hardware focus, I want to make it clear almost everything does not require any special hardware or FPGA development boards
-for you to participate. All our development will be done with free tools that run on a normal Windows, Linux or Mac computers. I will
+Despite the hardware focus, I want to make it clear almost nothing we do will require any special hardware or FPGA development boards
+for you to participate. All our development will be done with free tools that run on normal Windows, Linux or Mac computers. I will
 periodically demonstrate code running on real FPGA boards, but it mostly be for debugging purposes. In fact, we want to minimize the
-time we spend dealing with real hardware since it's usually painful and time intensive compared to running in simulation during development.
+time we spend dealing with real hardware since it's usually painful and time intensive compared to running in simulation.
 
 # Structure
 
