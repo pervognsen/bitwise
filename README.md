@@ -121,8 +121,6 @@ Eventually we will end up with a simple desktop-class operating system with a gr
 applications we've written. We might eventually try to bring up Linux on the computer once we've implemented MMU support, but that
 is not a primary goal.
 
-# Project Goals
-
 My goal with Bitwise is to show that these things can be done much more simply and quickly than people realize if we strongly favor
 simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
 the goal is to show how things work with live, working examples.
@@ -131,9 +129,6 @@ Despite the hardware focus, I want to make it clear that nothing we're doing req
 boards. All our development will be done with free tools that run on a normal Windows, Linux or Mac machine. I will periodically demonstrate
 code running on a real FPGA board, but it mostly be for debugging and demonstration purposes. In fact, we want to minimize the time we
 spend dealing with real hardware since it's time inefficient in most cases compared to running in simulation during development.
-
-Examples of areas I will teach by example:
-
 
 # Links
 
