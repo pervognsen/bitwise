@@ -21,7 +21,7 @@ with the kernel programmer. In my own progression, I started with game programmi
 and have gradually expanded my understanding up and down the stack. It's only in the last few years I've really gotten
 down to the nuts and bolts at the hardware design level, particularly with FPGAs and digital logic design. So
 that's what will define the bottom for us in practical terms, although I do plan to explain some of the theory pertaining
-to analog circuits and transistors at the IC level, so there's an understanding of what's being abstracted out.
+to analog circuits and transistors at the IC level.
 
 # Structure
 
@@ -29,7 +29,7 @@ _NOTE:_ This is highly subject to change based on feedback from the community.
 
 My plan is to treat Bitwise as a full-time commitment for several years. Avoiding burnout is a major priority.
 
-I will be streaming daily or bidaily on Twitch, at least two hours per session. Videos will be posted later on YouTube.
+I will be streaming daily or bidaily on Twitch, one or two hours per session. Videos will be posted later on YouTube.
 
 When I'm not streaming, I will be working full-time on the project: programming, writing and other related activities.
 
@@ -37,7 +37,7 @@ I will be writing weekly or biweekly blog posts summarizing the progress since t
 
 Code streams will begin with a code review and walk-through of the diffs that were committed since last stream. Thus,
 even though a lot of the code will necessarily be written off stream, you won't miss out on a single line of code. After
-each review, I will be push the latest changes to the GitHub repository.
+each review, I will push the latest changes to the GitHub repository, where everyone can download them.
 
 To keep things fun for myself and viewers, the streams will frequently alternate between different development tracks. In a
 given week, streams might alternate between the primary software and hardware development tasks, but you can expect streams on
@@ -117,7 +117,7 @@ spend dealing with real hardware since it's time inefficient in most cases compa
 
 # Links
 
-Please follow on Twitch, YouTube and Twitter see when streams go live and when new videos are uploaded.
+Please follow on Twitch, YouTube and Twitter to see when streams go live and when new videos are uploaded.
 
 There is a Discord chat server if you have questions or just want to hang out and chat.
 
