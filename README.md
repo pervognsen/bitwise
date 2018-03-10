@@ -20,8 +20,7 @@ would have qualms with that definition, and electrical engineers who design inte
 with the kernel programmer. In my own progression, I started with game programming at a time where that was low level,
 and have gradually expanded my understanding up and down the stack. It's only in the last few years I've really gotten
 down to the nuts and bolts at the hardware design level, particularly with FPGAs and digital logic design. So
-that's what will define the bottom for us in practical terms, although I do plan to explain some of the theory pertaining
-to analog circuits and transistors at the IC level.
+that's what will define the bottom for us in practical terms.
 
 Bitwise will consist of educational videos, articles, and software/hardware source code. The code will be released into
 the public domain for everyone to study and extend as they see fit. Everything produced as part of the project is free of
@@ -34,6 +33,15 @@ Here are some examples of what you will learn to build:
 - Systems libraries, including GUIs, memory allocators, etc.
 - Systems applications, including compilers, assemblers, disassemblers, profilers, debuggers, etc
 - Test infrastructure, including property-based testing, directed randomized testing, fuzz testing, etc.
+
+My goal with Bitwise is to show that these things can be done much more simply and quickly than people realize if we strongly favor
+simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
+the goal is to show how things work with real working examples.
+
+Despite the hardware focus, I want to make it clear almost everything does not require any special hardware or FPGA development boards
+for you to participate. All our development will be done with free tools that run on a normal Windows, Linux or Mac computers. I will
+periodically demonstrate code running on real FPGA boards, but it mostly be for debugging purposes. In fact, we want to minimize the
+time we spend dealing with real hardware since it's usually painful and time intensive compared to running in simulation during development.
 
 # Structure
 
@@ -66,8 +74,9 @@ most people to catch up by watching archived streams.
 
 # Prerequisites
 
-The intended audience are fluent C programmers. The pace will be quick; while I will give overviews of many different topics,
-not everything can be covered in depth, so pointers to additional reading material will be provided whenever possible.
+The intended audience are fluent C programmers. Python is used as a secondary language, but knowing Python in advance is not
+a prerequisite. The pace will be quick; while I will give overviews of many different topics, not everything can be covered
+in depth, so pointers to additional reading material will be provided whenever possible.
 
 # Schedule
 
@@ -121,14 +130,7 @@ Eventually we will end up with a simple desktop-class operating system with a gr
 applications we've written. We might eventually try to bring up Linux on the computer once we've implemented MMU support, but that
 is not a primary goal.
 
-My goal with Bitwise is to show that these things can be done much more simply and quickly than people realize if we strongly favor
-simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
-the goal is to show how things work with live, working examples.
-
-Despite the hardware focus, I want to make it clear that nothing we're doing requires you to own any special hardware or FPGA development
-boards. All our development will be done with free tools that run on a normal Windows, Linux or Mac machine. I will periodically demonstrate
-code running on a real FPGA board, but it mostly be for debugging and demonstration purposes. In fact, we want to minimize the time we
-spend dealing with real hardware since it's time inefficient in most cases compared to running in simulation during development.
+And this is only the beginning!
 
 # Links
 
