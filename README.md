@@ -1,4 +1,4 @@
-= Announcing Bitwise
+# Announcing Bitwise
 
 Feynman's blackboard quote "What I cannot create, I do not understand" never fails to give me goosebumps.
 
@@ -23,7 +23,7 @@ down to the nuts and bolts at the hardware design level, particularly with FPGAs
 that's what will define the bottom for us in practical terms, although I do plan to explain some of the theory pertaining
 to analog circuits and transistors at the IC level, so you have an idea of what we're abstracting out.
 
-= Structure
+# Structure
 
 NOTE: This is highly subject to change based on feedback from the community.
 
@@ -51,7 +51,7 @@ write them more quickly than if I had to start with a blank page. The audience f
 extend our reach, and it helps prospective or lapsed viewers to catch up to the streams; it's not practical for most people
 to catch up by watching archived streams. 
 
-= Schedule
+# Schedule
 
 The currently planned stream schedule is Monday through Friday, 5 PM PST/8 PM EST/2 AM CET.
 
@@ -59,7 +59,7 @@ I'm located in Thailand, and this is my vain attempt at balancing timezone diffe
 streams to Saturdays or Sundays during morning or noon hours for Europeans. I will be spending a month in Europe each year
 in August, which will force a rotation of the schedule.
 
-= Roadmap
+# Roadmap
 
 NOTE: This is subject to change, but it gives you an idea of what I have planned.
 
@@ -71,7 +71,7 @@ On the hardware side of things, we will be designing a computer from scratch tha
 IO interface controllers for [DDR3](https://en.wikipedia.org/wiki/DDR3_SDRAM) memory, HDMI video/audio, Ethernet networking, and more.
 
 But before getting there, we will need to learn about digital logic and how to design hardware with a hardware description language
-[HDL](https://en.wikipedia.org/wiki/Hardware_description_language]. In fact, we will designing our own HDL and the associated
+[HDL](https://en.wikipedia.org/wiki/Hardware_description_language). In fact, we will designing our own HDL and the associated
 toolchain, including software-based simulators and debugging tools. Along the way we'll be doing lots of fun mini-projects,
 like designing a version of [Pong](https://en.wikipedia.org/wiki/Pong) entirely using logic gates, and implementing a variant of the
 toy parallel computer used in the Zachtronics game [TIS-100](https://en.wikipedia.org/wiki/TIS-100).
@@ -112,8 +112,8 @@ Please follow me on Twitch, YouTube and Twitter if you want to see when streams 
 
 I created a Discord chat server, so if you have questions or just want to hang out and chat, you can do it there.
 
-GitHub repository: https://github.com/pervognsen/bitwise
-Discord chat server: https://discord.gg/7TSA6ZF
-Twitch channel: https://twitch.tv/pervognsen
-YouTube channel: https://youtube.com/c/pervognsen
-Twitter: https://twitter.com/pervognsen
+- GitHub repository: https://github.com/pervognsen/bitwise
+- Discord chat server: https://discord.gg/7TSA6ZF
+- Twitch channel: https://twitch.tv/pervognsen
+- YouTube channel: https://youtube.com/c/pervognsen
+- Twitter: https://twitter.com/pervognsen
