@@ -13,19 +13,6 @@ Tools and most recently Oculus, I decided it was time to take a break from profe
 pursuing a long-time dream of mine, a project I've dubbed Bitwise, where I want to share my passion and try to demonstrate
 by example how to build systems from scratch, with a low-level computing focus.
 
-"From scratch" is a loaded phrase, so let me clarify. There's a pragmatic limit to how low we can go. Different people
-have different notions of where the bottom lies. The popular term "full stack engineer" refers to programmers for whom
-the stack's bottom is application-level server programming in a language like JavaScript or Python. A kernel programmer
-would have qualms with that definition, and electrical engineers who design integrated circuits would in turn have qualms
-with the kernel programmer. In my own progression, I started with game programming at a time where that was low level,
-and have gradually expanded my understanding up and down the stack. It's only in the last few years I've really gotten
-down to the nuts and bolts at the hardware design level, particularly with FPGAs and digital logic design. So
-that's what will define the bottom for us in practical terms.
-
-Bitwise will consist of educational videos, articles, and software/hardware source code. The code will be released into
-the public domain for everyone to study and extend as they see fit. Everything produced as part of the project is free of
-charge. I'm doing this project as a service to the community and neither ask nor accept financial donations.
-
 Here are some examples of what you will learn to build:
 - Hardware description language compilers and simulators
 - FPGA-based hardware, including CPU, GPU, HDMI controller, Ethernet MAC, DDR3 PHY, etc
@@ -36,7 +23,11 @@ Here are some examples of what you will learn to build:
 
 My goal with Bitwise is to show that these things can be done much more simply and quickly than people realize if we strongly favor
 simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
-the goal is to show how things work with real working examples.
+the goal is to show how things work with real hardware and software.
+
+Bitwise will consist of educational videos, articles, and software/hardware source code. The code will be released into
+the public domain for everyone to study and extend as they see fit. Everything produced as part of the project is free of
+charge. I'm doing this project as a service to the community and neither ask nor accept financial donations.
 
 Despite the hardware focus, I want to make it clear almost nothing we do will require any special hardware or FPGA development boards
 for you to participate. All our development will be done with free tools that run on normal Windows, Linux or Mac computers. I will
@@ -61,10 +52,9 @@ each review, I will push the latest changes to the GitHub repository, where ever
 
 To keep things fun for myself and viewers, the streams will frequently alternate between different development tracks. In a
 given week, streams might alternate between the primary software and hardware development tasks, but you can expect streams on
-random, hopefully interesting side topics to be commonplace. If you're not interested in some topics, there will hopefully
-be others you find interesting.
+random side topics to be commonplace. If you're not interested in some topics, there will likely be others to your liking.
 
-Most streams will be focused on live coding but others will be in a more traditional, semi-prepared presentation format.
+Most streams will be focused on live coding, while others will be in a more conventional presentation format.
 
 Aside from the progress summary blog posts, I will try to distill what I cover on stream into standalone articles. Writing
 articles is a lot of work, but my hope is that by using my overviews from the stream as a template, I will be able to
