@@ -23,6 +23,18 @@ down to the nuts and bolts at the hardware design level, particularly with FPGAs
 that's what will define the bottom for us in practical terms, although I do plan to explain some of the theory pertaining
 to analog circuits and transistors at the IC level.
 
+Bitwise will consist of educational videos, articles, and software/hardware source code. The code will be released into
+the public domain for everyone to study and extend as they see fit. Everything produced as part of the project is free of
+charge. I'm doing this project as a service to the community and neither ask nor accept financial donations.
+
+Here are some examples of what you will learn to build:
+- Hardware description language compilers and simulators
+- FPGA-based hardware, including CPU, GPU, HDMI controller, Ethernet MAC, DDR3 PHY, etc
+- Kernels, including drivers, hardware abstraction layer, scheduler, virtual memory manager, file systems, TCP/IP stack, etc
+- Systems libraries, including GUIs, memory allocators, etc.
+- Systems applications, including compilers, assemblers, disassemblers, profilers, debuggers, etc
+- Test infrastructure, including property-based testing, directed randomized testing, fuzz testing, etc.
+
 # Structure
 
 _NOTE:_ This is highly subject to change based on feedback from the community.
@@ -41,7 +53,8 @@ each review, I will push the latest changes to the GitHub repository, where ever
 
 To keep things fun for myself and viewers, the streams will frequently alternate between different development tracks. In a
 given week, streams might alternate between the primary software and hardware development tasks, but you can expect streams on
-random, hopefully interesting side topics to be commonplace.
+random, hopefully interesting side topics to be commonplace. If you're not interested in some topics, there will hopefully
+be others you find interesting.
 
 Most streams will be focused on live coding but others will be in a more traditional, semi-prepared presentation format.
 
@@ -60,17 +73,19 @@ not everything can be covered in depth, so pointers to additional reading materi
 
 The expected stream schedule is Monday through Friday, 5 PM PST/8 PM EST/2 AM CET.
 
-The kick-off stream is planned for March 12. I expect it will an overview and Q&A.
+The kick-off stream is planned for March 12. I expect it will mainly be an overview and Q&A.
 
-The first major project will be the C-like systems language compiler.
+The first major project will be the C-like systems language compiler. I expect the initial work on this to be a few weeks,
+after which we will start working on the hardware track as well.
 
-I'm located in Thailand, and this is my vain attempt at balancing time zone differences. I may balance it out by moving some
+I'm located in Thailand, so the schedule is my attempt at juggling time zone differences. I may balance it out by moving some
 streams to Saturdays or Sundays during morning or noon hours for Europeans. I will be spending a month in Europe each year
 in August, which will force a rotation of the schedule.
 
 # Roadmap
 
-_NOTE:_ This is subject to change, but it gives you an idea of what I have planned.
+_NOTE:_ This is subject to change, but it gives you an idea of what I have planned. The outline corresponds to an estimated six
+months of work, depending on my productivity and how much we decide to focus on the critical path versus side topics.
 
 We will be building not only software but hardware.
 
@@ -79,15 +94,15 @@ On the hardware side of things, we will be designing a computer from scratch tha
 [RISC-V](https://en.wikipedia.org/wiki/RISC-V) CPU, [GPU](https://en.wikipedia.org/wiki/Graphics_processing_unit),
 IO interface controllers for [DDR3](https://en.wikipedia.org/wiki/DDR3_SDRAM) memory, HDMI video/audio, Ethernet networking, and more.
 
-But before getting there, we will need to learn about digital logic and how to design hardware with a hardware description language
+But before getting there, we will need to learn about digital logic and how to design hardware with an
 [HDL](https://en.wikipedia.org/wiki/Hardware_description_language). In fact, we will designing our own HDL and the associated
 toolchain, including software-based simulators and debugging tools. Along the way we'll be doing lots of fun mini-projects,
 like designing a version of [Pong](https://en.wikipedia.org/wiki/Pong) entirely using logic gates, and implementing a variant of the
 toy parallel computer used in the Zachtronics game [TIS-100](https://en.wikipedia.org/wiki/TIS-100).
 
-In tandem, we will also be building the software stack. This includes both the PC host-side tooling as well as the software that
-runs on the Bitwise computer. Eventually most the host-side tooling will be portable to the Bitwise computer itself! The host-side
-tooling will start with a simple but powerful C-like systems programming language that will initially be bootstrapped to run on the host
+In tandem, we will also be building the software stack. This includes both the host-side tooling as well as the software that
+runs on the Bitwise computer. Eventually most of the host tooling will be portable to the Bitwise computer itself! This toolchain
+will start with a simple but powerful C-like systems programming language that will initially be bootstrapped to run on the host
 and which we will use to construct all the other software. As we first bring up the CPU, we will be writing the emulator, assembler,
 disassembler and debugger in this language.
 
@@ -106,6 +121,8 @@ Eventually we will end up with a simple desktop-class operating system with a gr
 applications we've written. We might eventually try to bring up Linux on the computer once we've implemented MMU support, but that
 is not a primary goal.
 
+# Project Goals
+
 My goal with Bitwise is to show that these things can be done much more simply and quickly than people realize if we strongly favor
 simplicity over marginal gains in feature completeness or performance. The goal is not to outdo or compete with any existing product;
 the goal is to show how things work with live, working examples.
@@ -114,6 +131,9 @@ Despite the hardware focus, I want to make it clear that nothing we're doing req
 boards. All our development will be done with free tools that run on a normal Windows, Linux or Mac machine. I will periodically demonstrate
 code running on a real FPGA board, but it mostly be for debugging and demonstration purposes. In fact, we want to minimize the time we
 spend dealing with real hardware since it's time inefficient in most cases compared to running in simulation during development.
+
+Examples of areas I will teach by example:
+
 
 # Links
 
