@@ -21,19 +21,19 @@ with the kernel programmer. In my own progression, I started with game programmi
 and have gradually expanded my understanding up and down the stack. It's only in the last few years I've really gotten
 down to the nuts and bolts at the hardware design level, particularly with FPGAs and digital logic design. So
 that's what will define the bottom for us in practical terms, although I do plan to explain some of the theory pertaining
-to analog circuits and transistors at the IC level, so you have an idea of what we're abstracting out.
+to analog circuits and transistors at the IC level, so there's an understanding of what's being abstracted out.
 
 # Structure
 
-NOTE: This is highly subject to change based on feedback from the community.
+_NOTE:_ This is highly subject to change based on feedback from the community.
 
 My plan is to treat Bitwise as a full-time commitment for several years. Avoiding burnout is a major priority.
 
 I will be streaming daily or bidaily on Twitch, at least two hours per session. Videos will be posted later on YouTube.
 
-When I'm not streaming, I will be working full-time on the project: programming, writing or doing other related activities.
+When I'm not streaming, I will be working full-time on the project: programming, writing and other related activities.
 
-I will be writing weekly or biweekly blog posts summarizing the progress since the last progress update.
+I will be writing weekly or biweekly blog posts summarizing the progress since the last update.
 
 Code streams will begin with a code review and walk-through of the diffs that were committed since last stream. Thus,
 even though a lot of the code will necessarily be written off stream, you won't miss out on a single line of code. After
@@ -46,28 +46,37 @@ random, hopefully interesting side topics to be commonplace.
 Most streams will be focused on live coding but others will be in a more traditional, semi-prepared presentation format.
 
 Aside from the progress summary blog posts, I will try to distill what I cover on stream into standalone articles. Writing
-articles is a lot of work, but my hope is that by using my explanations from the stream as a template, I will be able to
+articles is a lot of work, but my hope is that by using my overviews from the stream as a template, I will be able to
 write them more quickly than if I had to start with a blank page. The audience for articles is much larger, so this will
-extend our reach, and it helps prospective or lapsed viewers to catch up to the streams; it's not practical for most people
-to catch up by watching archived streams. 
+extend the project's reach, and it helps prospective or lapsed viewers to catch up to the streams; it's not practical for
+most people to catch up by watching archived streams. 
+
+# Prerequisites
+
+The intended audience are fluent C programmers. The pace will be quick; while I will give overviews of many different topics,
+not everything can be covered in depth, so pointers to additional reading material will be provided whenever possible.
 
 # Schedule
 
-The currently planned stream schedule is Monday through Friday, 5 PM PST/8 PM EST/2 AM CET.
+The expected stream schedule is Monday through Friday, 5 PM PST/8 PM EST/2 AM CET.
 
-I'm located in Thailand, and this is my vain attempt at balancing timezone differences. I may balance it out by moving some
+The kick-off stream is planned for March 12. I expect it will an overview and Q&A.
+
+The first major project will be the C-like systems language compiler.
+
+I'm located in Thailand, and this is my vain attempt at balancing time zone differences. I may balance it out by moving some
 streams to Saturdays or Sundays during morning or noon hours for Europeans. I will be spending a month in Europe each year
 in August, which will force a rotation of the schedule.
 
 # Roadmap
 
-NOTE: This is subject to change, but it gives you an idea of what I have planned.
+_NOTE:_ This is subject to change, but it gives you an idea of what I have planned.
 
 We will be building not only software but hardware.
 
 On the hardware side of things, we will be designing a computer from scratch that can be synthesized and deployed on a real
 [FPGA](https://en.wikipedia.org/wiki/Field-programmable_gate_array). This will include a
-[RISC-V](https://en.wikipedia.org/wiki/RISC-V), [GPU](https://en.wikipedia.org/wiki/Graphics_processing_unit),
+[RISC-V](https://en.wikipedia.org/wiki/RISC-V) CPU, [GPU](https://en.wikipedia.org/wiki/Graphics_processing_unit),
 IO interface controllers for [DDR3](https://en.wikipedia.org/wiki/DDR3_SDRAM) memory, HDMI video/audio, Ethernet networking, and more.
 
 But before getting there, we will need to learn about digital logic and how to design hardware with a hardware description language
@@ -106,11 +115,11 @@ boards. All our development will be done with free tools that run on a normal Wi
 code running on a real FPGA board, but it mostly be for debugging and demonstration purposes. In fact, we want to minimize the time we
 spend dealing with real hardware since it's time inefficient in most cases compared to running in simulation during development.
 
-= Links
+# Links
 
-Please follow me on Twitch, YouTube and Twitter if you want to see when streams go live and when new videos are uploaded.
+Please follow on Twitch, YouTube and Twitter see when streams go live and when new videos are uploaded.
 
-I created a Discord chat server, so if you have questions or just want to hang out and chat, you can do it there.
+There is a Discord chat server if you have questions or just want to hang out and chat.
 
 - GitHub repository: https://github.com/pervognsen/bitwise
 - Discord chat server: https://discord.gg/7TSA6ZF
