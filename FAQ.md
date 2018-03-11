@@ -16,9 +16,15 @@ Q: What languages will we be using?
 
 Most systems-level software will be written in our own C-like systems programming language, which
 will be implemented in C. We'll also be writing a smattering of RISC V assembly language by hand.
-Along the way, I plan to show implementations of other kinds of languages, like Forth, Lisp, and
+Along the way, we'll demonstrate how to implement other kinds of languages, like Forth, Lisp, and
 an embeddable scripting language. But the only language you need to know fluently in advance is C.
 
 For hardware design, we'll be using a hardware description language (HDL) of our own design. It will
 compile to Verilog, so we will to learn to read and write a basic subset of Verilog. It's not assumed
 you know Verilog or any other HDL in advance.
+
+Python is used as a jack-of-all-trades language for ad-hoc scripting and prototyping. It will also be
+used heavily as a language and platform for everything related to hardware design. Our custom HDL
+will be implemented as an embedded domain-specific language in Python. It helps to know Python in
+advance, but if you have experience with similar languages, you should be able to pick it up along the way.
+
