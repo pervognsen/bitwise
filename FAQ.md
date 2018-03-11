@@ -25,6 +25,10 @@ I've always wanted something like this to exist, and now felt like the right tim
 There have been some similar projects in the past. A big influence is Niklaus Wirth's
 Oberon system, and Wirth's work in general.
 
+**Q: What license is it released under?**
+
+The code and associated artifacts will be released into the public domain.
+
 **Q: How are you funding it?**
 
 Bitwise is funded by self-sustaining savings. There is no need for financial support.
@@ -80,7 +84,7 @@ long after the project has ended.
 **Q: What languages will we be using?**
 
 Most systems-level software will be written in our own C-like systems programming language, which
-will be implemented in C. We'll also be writing a smattering of RISC V assembly language by hand.
+will be implemented in C99. We'll also be writing a smattering of RISC V assembly language by hand.
 Along the way, we'll learn how to implement other kinds of languages, like Forth, Lisp, and an
 embeddable scripting language. But the only language you need to know fluently in advance is C.
 
@@ -97,7 +101,7 @@ advance, but if you have experience with similar languages, you should be able t
 
 You need a C compiler. I will be using Visual C++ for Windows, but you can use GCC and Clang on
 your operating system of choice. [Visual Studio Community](https://www.visualstudio.com/downloads/)
-is free to use for individuals and contains a fully featured C++ compiler and IDE.
+is free to use for individuals and contains a fully featured C/C++ compiler and IDE.
 
 We'll be using Python 3.6 with the [Conda](https://conda.io/miniconda.html) package manager
 to manage the Python environment and its package dependencies.
