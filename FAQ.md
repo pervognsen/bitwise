@@ -95,11 +95,11 @@ advance, but if you have experience with similar languages, you should be able t
 
 **Q: What major supporting software is required?**
 
-You need a C compiler. Per will be using Visual C++ for Windows, but you can use GCC and Clang on
+You need a C compiler. I will be using Visual C++ for Windows, but you can use GCC and Clang on
 your operating system of choice. [Visual Studio Community](https://www.visualstudio.com/downloads/)
 is free to use for individuals and contains a fully featured C++ compiler and IDE.
 
-For Python, we'll be using Python 3.6 with the [Conda](https://conda.io/miniconda.html) package manager
+We'll be using Python 3.6 with the [Conda](https://conda.io/miniconda.html) package manager
 to manage the Python environment and its package dependencies.
 
 For Verilog, we'll be using Verilator for cycle-accurate simulation and the free WebPACK version of
