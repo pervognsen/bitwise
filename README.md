@@ -131,5 +131,5 @@ There is a Discord chat server if you have questions or just want to hang out an
 - GitHub repository: https://github.com/pervognsen/bitwise
 - Discord chat server: https://discord.gg/7TSA6ZF
 - Twitch channel: https://twitch.tv/pervognsen
-- YouTube channel: https://youtube.com/c/pervognsen
+- YouTube channel: https://youtube.com/pervognsen
 - Twitter: https://twitter.com/pervognsen
