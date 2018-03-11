@@ -20,8 +20,8 @@ Along the way, we'll demonstrate how to implement other kinds of languages, like
 an embeddable scripting language. But the only language you need to know fluently in advance is C.
 
 For hardware design, we'll be using a hardware description language (HDL) of our own design. It will
-compile to Verilog, so we will to learn to read and write a basic subset of Verilog. It's not assumed
-you know Verilog or any other HDL in advance.
+target Verilog as an intermediate language for the synthesis compiler, so we will need to learn to
+read and write a basic subset of Verilog. It's not assumed you know Verilog or any other HDL in advance.
 
 Python is used as a jack-of-all-trades language for ad-hoc scripting and prototyping. It will also be
 used heavily as a language and platform for everything related to hardware design. Our custom HDL
