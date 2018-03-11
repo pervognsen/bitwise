@@ -8,16 +8,46 @@ Q: How is Bitwise different from something like Handmade Hero?
 
 Q: What do I need to know in advance to follow along?
 
+The only hard requirement is fluency in the C programming language and familiarity with
+the commonplace ideas of computer science and computers.
+
 Q: Seeing there is hardware involved, how much money do I need to spend to participate?
 
+Bitwise is designed so that you will as close to the complete experience as possible even if
+you don't own any FPGA development boards. We will be creating simulators and cycle-accurate
+models of the major peripherals like DDR3 DRAM and other IO interfaces. Even if you own
+FPGA boards, you wouldn't want to use them directly very often during development. That said,
+if after progressing through the hardware design track you decide to spend some money to
+be able to test your code on a real FPGA, we are targeting an entry-level board with a price
+around $100 and higher-end board for the serious enthusiast with a price around $400. But
+it must be emphasized this is not at all required. More information on the recommended
+boards will be available once we progress through the hardware design track.
+
 Q: How much time should I expect to spend per week to keep up?
+
+Bitwise is structured so people can participate with different levels of commitment depending
+on their free time and interest. At one extreme, if you're only casually curious about Bitwise,
+you might choose to just follow the blog and read the weekly summaries and articles, and maybe
+watch an occasional video. That would only take about an hour per week. At the other extreme,
+you could treat Bitwise like a high-intensity college course and devote several hours to it
+per day, between watching the streams, studying the code, and doing your own coding. 
+
+With the piecewise design and construction of the Bitwise software and hardware, you can decide
+to drop off at any natural stopping point, having acquired some new self-contained knowledge and
+skills. The goal is to have natural milestones every few weeks. And conversely, if you weren't
+following from the beginning, past summaries and articles can help you fast-forward and get up
+to speed quickly without having to go through all the old content if you don't want to.
+
+It's also totally valid to follow along at your own pace without trying to keep up with the
+real-time release of new material. All Bitwise materials will be kept available free of charge
+long after the project has ended.
 
 Q: What languages will we be using?
 
 Most systems-level software will be written in our own C-like systems programming language, which
 will be implemented in C. We'll also be writing a smattering of RISC V assembly language by hand.
-Along the way, we'll demonstrate how to implement other kinds of languages, like Forth, Lisp, and
-an embeddable scripting language. But the only language you need to know fluently in advance is C.
+Along the way, we'll learn how to implement other kinds of languages, like Forth, Lisp, and an
+embeddable scripting language. But the only language you need to know fluently in advance is C.
 
 For hardware design, we'll be using a hardware description language (HDL) of our own design. It will
 target Verilog as an intermediate language for the synthesis compiler, so we will need to learn to
