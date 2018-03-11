@@ -109,7 +109,7 @@ From there we'll be writing test programs in the assembly language to validate t
 code a backend for our systems language compiler that targets our CPU and so start running simple compiled programs on it. At that point
 we will build a simple microcontroller-class task-switching operating system and some simple applications on top of it.
 
-At first, the CPU will be a simple RV32IM microcontroller-class core with limited features and performance, and the only IO peripheral
+At first, the CPU will be a simple RV32I microcontroller-class core with limited features and performance, and the only IO peripheral
 will be a [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) for communicating with the host. Over time
 we will make this more capable. We will extend the CPU to eventually support RISC-V's RV32G profile, which includes suppport for integer
 multiply/divide and floating point instructions. To improve performance we will add instruction pipelining and branch prediction,
