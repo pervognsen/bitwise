@@ -1,10 +1,10 @@
-Q: What is Bitwise?
+**Q: What is Bitwise?**
 
-Q: Who are you?
+**Q: Who are you?**
 
-Q: Why are you doing this project?
+**Q: Why are you doing this project?**
 
-Q: What do I need to know in advance to follow along?
+**Q: What do I need to know in advance to follow along?**
 
 The only hard requirement is fluency in the C programming language and understanding
 the foundational ideas of computer science and computers that you'd typically pick up
@@ -15,7 +15,7 @@ easy. Be ready to wrestle with deep, new ideas on a recurring basis. Some topics
 out of necessity be covered at a rapid pace, with pointers to additional reading material
 for people who need or want to learn more.
 
-Q: Do I need to spend money on hardware?
+**Q: Do I need to spend money on hardware?**
 
 Bitwise is designed so that you will get as close to the complete experience as possible even if
 you don't own any FPGA development boards. We will be creating simulators and cycle-accurate
@@ -27,7 +27,7 @@ around $100 and a higher-end board for the serious enthusiast with a price aroun
 it must be strongly emphasized that this is not required. More information on the recommended
 boards will be available once we progress through the hardware design track.
 
-Q: How much time should I expect to spend per week to keep up?
+**Q: How much time should I expect to spend per week to keep up?**
 
 Bitwise is structured so people can participate with different levels of commitment depending
 on their free time and interest. At one extreme, if you're only casually curious about Bitwise,
@@ -46,7 +46,7 @@ It's also totally valid to follow along at your own pace without trying to keep 
 real-time release of new material. All Bitwise materials will be kept available free of charge
 long after the project has ended.
 
-Q: What languages will we be using?
+**Q: What languages will we be using?**
 
 Most systems-level software will be written in our own C-like systems programming language, which
 will be implemented in C. We'll also be writing a smattering of RISC V assembly language by hand.
@@ -62,7 +62,7 @@ used heavily as a language and platform for everything related to hardware desig
 will be implemented as an embedded domain-specific language in Python. It helps to know Python in
 advance, but if you have experience with similar languages, you should be able to pick it up along the way.
 
-Q: What major supporting software is required?
+**Q: What major supporting software is required?**
 
 You need a C compiler. Per will be using Visual C++ for Windows, but you can use GCC and Clang on
 your operating system of choice. [Visual Studio Community](https://www.visualstudio.com/downloads/)
