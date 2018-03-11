@@ -4,12 +4,12 @@ Q: Who are you?
 
 Q: Why are you doing this project?
 
-Q: How is Bitwise different from something like Handmade Hero?
-
 Q: What do I need to know in advance to follow along?
 
 The only hard requirement is fluency in the C programming language and familiarity with
-the commonplace ideas of computer science and computers.
+the commonplace ideas of computer science and computers. But the more you know, the
+easier it will be. Some topics will be covered at a rapid pace, with pointers to additional
+reading material for people who need or want to learn more.
 
 Q: Do I need to spend money on hardware?
 
@@ -19,7 +19,7 @@ models of the major peripherals like DDR3 DRAM and other IO interfaces. Even if 
 FPGA boards, you wouldn't want to use them directly very often during development. That said,
 if after progressing through the hardware design track you decide to spend some money to
 be able to test your code on a real FPGA, we are targeting an entry-level board with a price
-around $100 and higher-end board for the serious enthusiast with a price around $400. But
+around $100 and a higher-end board for the serious enthusiast with a price around $400. But
 it must be strongly emphasized that this is not required. More information on the recommended
 boards will be available once we progress through the hardware design track.
 
