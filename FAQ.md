@@ -21,9 +21,9 @@ to pursue this project.
 
 **Q: Why are you doing this project?**
 
-I've always wanted something like this to exist, "full stack" development in
-the truest sense. There have been some similar projects in the past.
-A big influence is Niklaus Wirth's Oberon system, and Wirth's work in general.
+I've always wanted something like this to exist, and now felt like the right time.
+There have been some similar projects in the past. A big influence is Niklaus Wirth's
+Oberon system, and Wirth's work in general.
 
 **Q: How are you funding it?**
 
