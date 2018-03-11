@@ -70,7 +70,7 @@ in depth, so pointers to additional reading material will be provided whenever p
 
 # Schedule
 
-The expected stream schedule is Monday through Friday, 5 PM PST/8 PM EST/2 AM CET.
+The expected stream schedule is Monday through Friday, 6 PM PDT/9 PM EDT/2 AM CET.
 
 The kick-off stream is planned for March 12. I expect it will mainly be an overview and Q&A.
 
