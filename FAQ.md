@@ -7,12 +7,13 @@ Q: Why are you doing this project?
 Q: What do I need to know in advance to follow along?
 
 The only hard requirement is fluency in the C programming language and understanding
-the foundational ideas of computer science and computers you'd pick up as a computer science
-undergraduate student or as a working programmer, e.g. standard textbook algorithms and data
-structures. But the more you already know, the easier it will be. While the formal prerequisites
-for Bitwise are minimal, don't expect it to be easy. You have to be ready to wrestle with deep,
-new ideas. Some topics will out of necessity be covered at a rapid pace, with pointers to additional
-reading material for people who need or want to learn more.
+the foundational ideas of computer science and computers that you'd typically pick up
+as a computer science undergraduate student or as a working programmer, e.g. standard
+textbook algorithms and data structures. But the more you already know, the easier it
+will be. While the formal prerequisites for Bitwise are minimal, don't expect it to be
+easy. Be ready to wrestle with deep, new ideas on a recurring basis. Some topics will
+out of necessity be covered at a rapid pace, with pointers to additional reading material
+for people who need or want to learn more.
 
 Q: Do I need to spend money on hardware?
 
