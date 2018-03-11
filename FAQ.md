@@ -62,3 +62,14 @@ used heavily as a language and platform for everything related to hardware desig
 will be implemented as an embedded domain-specific language in Python. It helps to know Python in
 advance, but if you have experience with similar languages, you should be able to pick it up along the way.
 
+Q: What major supporting software is required?
+
+You need a C compiler. Per will be using Visual C++ for Windows, but you can use GCC and Clang on
+your operating system of choice. [Visual Studio Community](https://www.visualstudio.com/downloads/)
+is free to use for individuals and contains a fully featured C++ compiler and IDE.
+
+For Python, we'll be using Python 3.6 with the [Conda](https://conda.io/miniconda.html) package manager
+to manage the Python environment and its package dependencies.
+
+For Verilog, we'll be using Verilator for cycle-accurate simulation and the free WebPACK version of
+Xilinx's FPGA toolchain Vivado for everything related to Xilinx FPGAs.
