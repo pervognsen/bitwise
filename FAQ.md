@@ -11,16 +11,16 @@ Q: What do I need to know in advance to follow along?
 The only hard requirement is fluency in the C programming language and familiarity with
 the commonplace ideas of computer science and computers.
 
-Q: Seeing there is hardware involved, how much money do I need to spend to participate?
+Q: Do I need to spend money on hardware?
 
-Bitwise is designed so that you will as close to the complete experience as possible even if
+Bitwise is designed so that you will get as close to the complete experience as possible even if
 you don't own any FPGA development boards. We will be creating simulators and cycle-accurate
 models of the major peripherals like DDR3 DRAM and other IO interfaces. Even if you own
 FPGA boards, you wouldn't want to use them directly very often during development. That said,
 if after progressing through the hardware design track you decide to spend some money to
 be able to test your code on a real FPGA, we are targeting an entry-level board with a price
 around $100 and higher-end board for the serious enthusiast with a price around $400. But
-it must be emphasized this is not at all required. More information on the recommended
+it must be strongly emphasized that this is not required. More information on the recommended
 boards will be available once we progress through the hardware design track.
 
 Q: How much time should I expect to spend per week to keep up?
