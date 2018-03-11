@@ -1,8 +1,39 @@
 **Q: What is Bitwise?**
 
+Bitwise is my free educational project about building the software and hardware
+stack for a simple computer from scratch, running on an FPGA. This includes all the
+systems software, including operating system, compiler, etc, as well as the
+HDL source code for the CPU, graphics chip, peripheral controllers, etc.
+
+By watching daily or bidaily streams on Twitch, uploaded later as videos to YouTube,
+reading blog posts and articles, and studying code pushed daily to GitHub, you will get
+to watch over my shoulder as I build the system from scratch, starting with an empty
+source control repository, and you will learn how everything works so you can build it
+yourself too. Most code will be written off stream, but every new line of code will
+be covered during code reviews at the beginning of each stream.
+
 **Q: Who are you?**
 
+I'm Per Vognsen. I've worked as a game engine programmer and systems programmer
+at companies like Epic Games, NVIDIA, RAD Game Tools and Oculus for more than
+15 years. In 2017, I decided to take a break from professional programming, partly
+to pursue this project.
+
 **Q: Why are you doing this project?**
+
+I've always wanted something like this to exist, "full stack" development in
+the truest sense. There have been some similar projects in the past.
+A big influence is Niklaus Wirth's Oberon system, and Wirth's work in general.
+
+**Q: How are you funding it?**
+
+Bitwise is funded by self-sustaining savings. There is no need for financial support.
+
+**Q: How can I help?**
+
+For now, the biggest help would be tuning in, spreading the word, and participating
+in the community. My long-term motivation will be largely driven by the community's
+response.
 
 **Q: What do I need to know in advance to follow along?**
 
@@ -11,7 +42,7 @@ the foundational ideas of computer science and computers that you'd typically pi
 as a computer science undergraduate student or as a working programmer, e.g. standard
 textbook algorithms and data structures. But the more you already know, the easier it
 will be. While the formal prerequisites for Bitwise are minimal, don't expect it to be
-easy. Be ready to wrestle with deep, new ideas on a recurring basis. Some topics will
+easy. Be ready to wrestle with new ideas on a recurring basis. Some topics will
 out of necessity be covered at a rapid pace, with pointers to additional reading material
 for people who need or want to learn more.
 
