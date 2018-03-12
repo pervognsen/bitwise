@@ -111,7 +111,7 @@ we will build a simple microcontroller-class task-switching operating system and
 
 At first, the CPU will be a simple RV32I microcontroller-class core with limited features and performance, and the only IO peripheral
 will be a [UART](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) for communicating with the host. Over time
-we will make this more capable. We will extend the CPU to eventually support RISC-V's RV32G profile, which includes suppport for integer
+we will make this more capable. We will extend the CPU to eventually support RISC-V's RV32G profile, which includes support for integer
 multiply/divide and floating point instructions. To improve performance we will add instruction pipelining and branch prediction,
 and caches once we have DRAM support. We will also be building out our peripherals to support audio/video output and
 networking, and the software to support this will be constructed in parallel as the hardware comes online.
