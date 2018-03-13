@@ -15,7 +15,7 @@ var pi = 3.14
 
 const MAX_EXPRS = 1024
 
-func fact_rec(n: uint): uint {
+func fact_rec(n: int): int {
     if (n == 0) {
         return 1
     } else {
@@ -23,7 +23,7 @@ func fact_rec(n: uint): uint {
     }
 }
 
-func fact_iter(n: uint): uint {
+func fact_iter(n: int): int {
     r := 1
     for (i := 1; i <= n; i++) {
         r *= i
