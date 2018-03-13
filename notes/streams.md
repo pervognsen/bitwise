@@ -1,4 +1,6 @@
-# Day 1: Ion Overview (March 13, 2018)
+# Day 1: Introducing Ion (March 13, 2018)
+- Video: https://www.youtube.com/watch?v=T6TyvsKo_KI
+- Follow up to yesterday's stream, time zone confusion
 - [Motivation](ion_motivation.md)
 - Example code
 
