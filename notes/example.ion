@@ -1,14 +1,14 @@
 enum ExprKind {
-	ADD
-	MUL
-	ADD
-	DIV
-	NEG
+    ADD
+    MUL
+    ADD
+    DIV
+    NEG
 }
 
 struct Expr {
-	kind: ExprKind
-	left, right: Expr*
+    kind: ExprKind
+    left, right: Expr*
 }
 
 var pi = 3.14
@@ -16,38 +16,38 @@ var pi = 3.14
 const MAX_EXPRS = 1024
 
 func fact_rec(n: uint): uint {
-	if (n == 0) {
-		return 1
-	} else {
-		return n * fact_rec(n-1)
-	}
+    if (n == 0) {
+        return 1
+    } else {
+        return n * fact_rec(n-1)
+    }
 }
 
 func fact_iter(n: uint): uint {
-	r := 1
-	for (i := 1; i <= n; i++) {
-		r *= i
-	}
-	return r
+    r := 1
+    for (i := 1; i <= n; i++) {
+        r *= i
+    }
+    return r
 }
 
 struct Vector {
-	x, y: float
+    x, y: float
 }
 
 struct Rect {
-	pos, size: Vector
+    pos, size: Vector
 }
 
 func make_rect(min, max: Vector): Rect {
-	return Rect{{min.x, min.y}, {max.x - min.x, max.y - min.y}}
+    return Rect{{min.x, min.y}, {max.x - min.x, max.y - min.y}}
 }
 
 func make_rect(min, max: Vector): Rect {
-	return {
-		pos = {min.x, min.y},
-		size = {max.x - min.x, max.y - min.y}
-	}
+    return {
+        pos = {min.x, min.y},
+        size = {max.x - min.x, max.y - min.y}
+    }
 }
 
 // Five levels of precedence, highest to lowest:
