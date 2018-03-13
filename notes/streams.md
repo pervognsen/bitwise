@@ -1,9 +1,9 @@
-# Day 1: Ion Overview (Match 13, 2018)
+# Day 1: Ion Overview (March 13, 2018)
 - [Motivation](ion_motivation.md)
 - Example code
 
 # Day 0: Kickoff (March 12, 2018)
-- Video: https://www.youtube.com/watch?v=ZjwvMcP3Nf0&t=3004s
+- Video: https://www.youtube.com/watch?v=ZjwvMcP3Nf0
 - Welcome
 - Expectations
 - Repository: https://github.com/pervognsen/bitwise/
