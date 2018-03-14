@@ -1,54 +1,50 @@
-enum ExprKind {
+Here's how I would/will subtly change it:
+
+- no parens for if/while/for etc
+- braces are optional (indentation is significant)
+- = not :=
+
+enum ExprKind
     ADD
     MUL
     ADD
     DIV
     NEG
-}
 
-struct Expr {
+struct Expr
     kind: ExprKind
     left, right: Expr*
-}
 
 var pi = 3.14
 
 const MAX_EXPRS = 1024
 
-func fact_rec(n: int): int {
-    if (n == 0) {
+func fact_rec(n: int): int
+    if n == 0
         return 1
-    } else {
+    else
         return n * fact_rec(n-1)
-    }
-}
 
-func fact_iter(n: int): int {
-    r := 1
-    for (i := 1; i <= n; i++) {
+func fact_iter(n: int): int
+    r = 1
+    for i = 1; i <= n; i++
         r *= i
-    }
     return r
-}
 
-struct Vector {
+struct Vector
     x, y: float
-}
 
-struct Rect {
+struct Rect
     pos, size: Vector
-}
 
-func make_rect(min, max: Vector): Rect {
+func make_rect(min, max: Vector): Rect
     return Rect{{min.x, min.y}, {max.x - min.x, max.y - min.y}}
-}
 
-func make_rect(min, max: Vector): Rect {
+func make_rect(min, max: Vector): Rect
     return {
         pos = {min.x, min.y},
         size = {max.x - min.x, max.y - min.y}
     }
-}
 
 // Five levels of precedence, highest to lowest:
 // mul: * / % << >> &
@@ -57,19 +53,17 @@ func make_rect(min, max: Vector): Rect {
 // and: &&
 // or: ||
 
-if (a & b == 0) { // means if ((a & b) == 0) { ...
-}
+if a & b == 0 // means if ((a & b) == 0) { ...
 
-if (a == b || c == d) { // if ((a == b) || (c == d)) {
+if a == b || c == d // if ((a == b) || (c == d))
 
 
 make_vect({a, b}, {c, d})
 
 var r: Rect = {{a, b}, {c, d}}
 
-r := Rect{{a, b}, {c, d}}
+r = Rect{{a, b}, {c, d}}
 
-{}
 
 /*
 all .ion files in a directory (exept for special kinds of names)
