@@ -6,7 +6,7 @@
 - Homework:
 
 Read chapter 2 through 4.1 (12 pages) of Wirth's Compiler Construction book:
-https://www.inf.ethz.ch/personal/wirth/CompilerConstruction/index.html
+https://www.inf.ethz.ch/personal/wirth/CompilerConstruction
 
 Implement an expression parser for a simple arithmetic language:
 
