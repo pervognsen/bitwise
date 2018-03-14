@@ -1,4 +1,5 @@
 # Day 2: C Programming & Parsing (March 14, 2018)
+- Video: https://www.youtube.com/watch?v=0woxSWjWsb8
 - Follow-up from yesterday
 - Let's start doing a bit of programming
 - Homework:
