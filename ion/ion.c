@@ -41,7 +41,7 @@ typedef struct BufHdr {
 #define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
 #define buf_push(b, x) (buf__fit(b, 1), b[buf_len(b)] = (x), buf__hdr(b)->len++)
-#define buf_free(b) ((b) ? free(buf__hdr(b)) : 0, b = NULL)
+#define buf_free(b) ((b) ? free(buf__hdr(b)) : 0, (b) = NULL)
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     size_t new_cap = MAX(1 + 2*buf_cap(buf), new_len);
