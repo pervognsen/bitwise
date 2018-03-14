@@ -11,17 +11,17 @@ Implement an expression parser for a simple arithmetic language:
 Parse an infix expression composed of integer literals and the
 following operators, highest to lowest precedence:
 
-	unary -, unary ~	(right associative)
-	* / % << >> & 		(left associative)
-	+ - | ^ 			(left associative)
+    unary -, unary ~    (right associative)
+    * / % << >> &       (left associative)
+    + - | ^             (left associative)
 
 Output an S-expression that corresponds to the parse tree, e.g.
 
-	12*34 + 45/56 + ~25
+    12*34 + 45/56 + ~25
 
 should generate an S-expression that looks like this
 
-	(+ (+ (* 12 34) (/ 45 56)) (~ 25))
+    (+ (+ (* 12 34) (/ 45 56)) (~ 25))
 
 Extra credit:
 
