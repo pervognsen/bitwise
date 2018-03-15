@@ -51,7 +51,7 @@ Code fragment to get you started or as inspiration--you don't have to do it this
     // tracking only the changing top-of-stack offset, not the actual stack (which can then be removed). This is
     // called abstract interpretation. It's not very useful for our expression language, but it generalizes.
 
-    bool vm_exec(const uint8_t *code) {
+    int32_t vm_exec(const uint8_t *code) {
         enum { MAX_STACK = 1024 };
         int32_t stack[MAX_STACK];
         int32_t *top = stack;
@@ -78,10 +78,11 @@ Code fragment to get you started or as inspiration--you don't have to do it this
                 code += sizeof(uint32_t);
                 break;
             case HALT:
-                return;
+                POPS(1);
+                return POP();
             default:
                 fatal("vm_exec: illegal opcode");
-                return;
+                return 0;
             }
         }
     }
