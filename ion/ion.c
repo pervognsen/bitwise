@@ -11,8 +11,21 @@
 
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 
+#define MALLOC(size, type) ((type*) malloc((size) * sizeof(type)))
+#define REALLOC(ptr, size) ((typeof(ptr)*) realloc(ptr, size))
+
+#if __GNUC__
+
+#define force_inline __attribute__((always_inline))
+
+#else
+
+#define force_inline
+
+#endif
+
 void *xrealloc(void *ptr, size_t num_bytes) {
-    ptr = realloc(ptr, num_bytes);
+    ptr = REALLOC(ptr, num_bytes);
     if (!ptr) {
         perror("xrealloc failed");
         exit(1);
@@ -21,7 +34,7 @@ void *xrealloc(void *ptr, size_t num_bytes) {
 }
 
 void *xmalloc(size_t num_bytes) {
-    void *ptr = malloc(num_bytes);
+    void *ptr = MALLOC(num_bytes, size_t);
     if (!ptr) {
         perror("xmalloc failed");
         exit(1);
@@ -126,7 +139,7 @@ void str_intern_test() {
 
 typedef enum TokenKind {
     // Reserve first 128 values for one-char tokens
-    TOKEN_LAST_CHAR = 127,
+            TOKEN_LAST_CHAR = 127,
     TOKEN_INT,
     TOKEN_NAME,
     // ...
@@ -136,19 +149,19 @@ typedef enum TokenKind {
 const char *token_kind_name(TokenKind kind) {
     static char buf[256];
     switch (kind) {
-    case TOKEN_INT:
-        sprintf(buf, "integer");
-        break;
-    case TOKEN_NAME:
-        sprintf(buf, "name");
-        break;
-    default:
-        if (kind < 128 && isprint(kind)) {
-            sprintf(buf, "%c", kind);
-        } else {
-            sprintf(buf, "<ASCII %d>", kind);
-        }
-        break;
+        case TOKEN_INT:
+            sprintf(buf, "integer");
+            break;
+        case TOKEN_NAME:
+            sprintf(buf, "name");
+            break;
+        default:
+            if (kind < 128 && isprint(kind)) {
+                sprintf(buf, "%c", kind);
+            } else {
+                sprintf(buf, "<ASCII %d>", kind);
+            }
+            break;
     }
     return buf;
 }
@@ -180,87 +193,87 @@ void init_keywords() {
 void next_token() {
     token.start = stream;
     switch (*stream) {
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9': {
-        int val = 0;
-        while (isdigit(*stream)) {
-            val *= 10;
-            val += *stream++ - '0';
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': {
+            int val = 0;
+            while (isdigit(*stream)) {
+                val *= 10;
+                val += *stream++ - '0';
+            }
+            token.kind = TOKEN_INT;
+            token.val = val;
+            break;
         }
-        token.kind = TOKEN_INT;
-        token.val = val;
-        break;
-    }
-    case 'a':
-    case 'b':
-    case 'c':
-    case 'd':
-    case 'e':
-    case 'f':
-    case 'g':
-    case 'h':
-    case 'i':
-    case 'j':
-    case 'k':
-    case 'l':
-    case 'm':
-    case 'n':
-    case 'o':
-    case 'p':
-    case 'q':
-    case 'r':
-    case 's':
-    case 't':
-    case 'u':
-    case 'v':
-    case 'w':
-    case 'x':
-    case 'y':
-    case 'z':
-    case 'A':
-    case 'B':
-    case 'C':
-    case 'D':
-    case 'E':
-    case 'F':
-    case 'G':
-    case 'H':
-    case 'I':
-    case 'J':
-    case 'K':
-    case 'L':
-    case 'M':
-    case 'N':
-    case 'O':
-    case 'P':
-    case 'Q':
-    case 'R':
-    case 'S':
-    case 'T':
-    case 'U':
-    case 'V':
-    case 'W':
-    case 'X':
-    case 'Y':
-    case 'Z':
-    case '_':
-        while (isalnum(*stream) || *stream == '_') {
-            stream++;
-        }
-        token.kind = TOKEN_NAME;
-        token.name = str_intern_range(token.start, stream);
-        break;
-    default:
-        token.kind = *stream++;
-        break;
+        case 'a':
+        case 'b':
+        case 'c':
+        case 'd':
+        case 'e':
+        case 'f':
+        case 'g':
+        case 'h':
+        case 'i':
+        case 'j':
+        case 'k':
+        case 'l':
+        case 'm':
+        case 'n':
+        case 'o':
+        case 'p':
+        case 'q':
+        case 'r':
+        case 's':
+        case 't':
+        case 'u':
+        case 'v':
+        case 'w':
+        case 'x':
+        case 'y':
+        case 'z':
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+        case 'G':
+        case 'H':
+        case 'I':
+        case 'J':
+        case 'K':
+        case 'L':
+        case 'M':
+        case 'N':
+        case 'O':
+        case 'P':
+        case 'Q':
+        case 'R':
+        case 'S':
+        case 'T':
+        case 'U':
+        case 'V':
+        case 'W':
+        case 'X':
+        case 'Y':
+        case 'Z':
+        case '_':
+            while (isalnum(*stream) || *stream == '_') {
+                stream++;
+            }
+            token.kind = TOKEN_NAME;
+            token.name = str_intern_range(token.start, stream);
+            break;
+        default:
+            token.kind = *stream++;
+            break;
     }
     token.end = stream;
 }
@@ -272,27 +285,27 @@ void init_stream(const char *str) {
 
 void print_token(Token token) {
     switch (token.kind) {
-    case TOKEN_INT:
-        printf("TOKEN INT: %d\n", token.val);
-        break;
-    case TOKEN_NAME:
-        printf("TOKEN NAME: %.*s\n", (int)(token.end - token.start), token.start);
-        break;
-    default:
-        printf("TOKEN '%c'\n", token.kind);
-        break;
+        case TOKEN_INT:
+            printf("TOKEN INT: %d\n", token.val);
+            break;
+        case TOKEN_NAME:
+            printf("TOKEN NAME: %.*s\n", (int)(token.end - token.start), token.start);
+            break;
+        default:
+            printf("TOKEN '%c'\n", token.kind);
+            break;
     }
 }
 
-static inline bool is_token(TokenKind kind) {
+static inline force_inline bool is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
-static inline bool is_token_name(const char *name) {
+static inline force_inline bool is_token_name(const char *name) {
     return token.kind == TOKEN_NAME && token.name == name;
 }
 
-static inline bool match_token(TokenKind kind) {
+static inline force_inline bool match_token(TokenKind kind) {
     if (is_token(kind)) {
         next_token();
         return true;
@@ -301,7 +314,7 @@ static inline bool match_token(TokenKind kind) {
     }
 }
 
-static inline bool expect_token(TokenKind kind) {
+static inline force_inline bool expect_token(TokenKind kind) {
     if (is_token(kind)) {
         next_token();
         return true;
