@@ -34,7 +34,7 @@ void *xrealloc(void *ptr, size_t num_bytes) {
 }
 
 void *xmalloc(size_t num_bytes) {
-    void *ptr = MALLOC(num_bytes, size_t);
+    void *ptr = MALLOC(num_bytes, char);
     if (!ptr) {
         perror("xmalloc failed");
         exit(1);
