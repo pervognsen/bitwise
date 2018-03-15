@@ -1,4 +1,5 @@
-# Day 3: More Programming & Programming (March 15, 2018)
+# Day 3: More Programming & Parsing (March 15, 2018)
+- Video: https://www.youtube.com/watch?v=L4P98pGhpnE
 - Follow up
 - Continue with C programming
 - Homework:
