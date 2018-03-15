@@ -128,7 +128,8 @@ Please follow on Twitch, YouTube and Twitter to see when streams go live and whe
 
 There is a Discord chat server if you have questions or just want to hang out and chat.
 
-- GitHub repository: https://github.com/pervognsen/bitwise
+- GitHub: https://github.com/pervognsen/bitwise
+- Forums: https://bitwise.handmade.network/forums
 - Discord chat server: https://discord.gg/7TSA6ZF
 - Twitch channel: https://twitch.tv/pervognsen
 - YouTube channel: https://youtube.com/pervognsen
