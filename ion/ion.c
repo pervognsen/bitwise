@@ -11,7 +11,7 @@
 
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 
-#define MALLOC(size, type) ((type*) malloc((size) * sizeof(type)))
+#define MALLOC(size, type) ((type*) malloc((size)))
 #define REALLOC(ptr, size) ((typeof(ptr)*) realloc(ptr, size))
 
 #if __GNUC__
@@ -34,8 +34,8 @@ void *xrealloc(void *ptr, size_t num_bytes) {
 }
 
 void *xmalloc(size_t num_bytes) {
-    void *ptr = MALLOC(num_bytes, char);
-    if (!ptr) {
+    void *ptr = MALLOC(num_bytes, void);
+    if (!ptr) { 
         perror("xmalloc failed");
         exit(1);
     }
