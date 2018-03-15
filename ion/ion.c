@@ -284,15 +284,15 @@ void print_token(Token token) {
     }
 }
 
-inline bool is_token(TokenKind kind) {
+static inline bool is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
-inline bool is_token_name(const char *name) {
+static inline bool is_token_name(const char *name) {
     return token.kind == TOKEN_NAME && token.name == name;
 }
 
-inline bool match_token(TokenKind kind) {
+static inline bool match_token(TokenKind kind) {
     if (is_token(kind)) {
         next_token();
         return true;
@@ -301,7 +301,7 @@ inline bool match_token(TokenKind kind) {
     }
 }
 
-inline bool expect_token(TokenKind kind) {
+static inline bool expect_token(TokenKind kind) {
     if (is_token(kind)) {
         next_token();
         return true;
