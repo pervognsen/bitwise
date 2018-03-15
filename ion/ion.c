@@ -53,7 +53,7 @@ typedef struct BufHdr {
 
 #define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
-#define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x))
+#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 #define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
@@ -72,19 +72,19 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 }
 
 void buf_test() {
-    int *asdf = NULL;
-    assert(buf_len(asdf) == 0);
+    int *buf = NULL;
+    assert(buf_len(buf) == 0);
     enum { N = 1024 };
     for (int i = 0; i < N; i++) {
-        buf_push(asdf, i);
+        buf_push(buf, i);
     }
-    assert(buf_len(asdf) == N);
-    for (int i = 0; i < buf_len(asdf); i++) {
-        assert(asdf[i] == i);
+    assert(buf_len(buf) == N);
+    for (int i = 0; i < buf_len(buf); i++) {
+        assert(buf[i] == i);
     }
-    buf_free(asdf);
-    assert(asdf == NULL);
-    assert(buf_len(asdf) == 0);
+    buf_free(buf);
+    assert(buf == NULL);
+    assert(buf_len(buf) == 0);
 }
 
 typedef struct InternStr {
@@ -104,7 +104,7 @@ const char *str_intern_range(const char *start, const char *end) {
     char *str = xmalloc(len + 1);
     memcpy(str, start, len);
     str[len] = 0;
-    buf_push(interns, ((InternStr){len, str}));
+    buf_push(interns, (InternStr){len, str});
     return str;
 }
 
@@ -324,7 +324,7 @@ void lex_test() {
     Expression grammar:
 
     expr3 = INT | '(' expr ')' 
-    expr2 = '-'? expr2 | expr3
+    expr2 = '-' expr2 | expr3
     expr1 = expr2 ([/*] expr2)*
     expr0 = expr1 ([+-] expr1)*
     expr = expr0
