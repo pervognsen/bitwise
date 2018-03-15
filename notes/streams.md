@@ -124,7 +124,7 @@ following operators, highest to lowest precedence:
     * / % << >> &       (left associative)
     + - | ^             (left associative)
 
-Output an S-expression that corresponds to the parse tree, e.g.
+Output an [S-expression](https://en.wikipedia.org/wiki/S-expression) that corresponds to the parse tree, e.g.
 
     12*34 + 45/56 + ~25
 
