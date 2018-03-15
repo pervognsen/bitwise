@@ -1,6 +1,6 @@
 # Day 3: More Programming & Parsing (March 15, 2018)
 - Video: https://www.youtube.com/watch?v=L4P98pGhpnE
-- Code: https://github.com/pervognsen/bitwise/blob/cbe3bb1b9295d29d85feea06cf4cb0ec09a3fbd1/ion/ion.c
+- Code: https://github.com/pervognsen/bitwise/blob/dbc670af1111e258b1306b25d7866122b6aacf12/ion/ion.c
 - Follow up
 - Continue with C programming
 - Homework:
