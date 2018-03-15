@@ -4,8 +4,10 @@ I'm taking a 3-day weekend since week 1 has been very busy. We'll be back Monday
 March 19th, same time and weekday we did the Day 0 kick-off. Most people should
 have enough to do with the homework, but if you finish early you can think of cool
 modifications to add to the basic language. Or you could do the abstract interpreter
-for static bytecode verification that I mentionedd. Or you could write a single-step
-debugger for the bytecode VM. Get creative and try to think up fun extensions like that.
+for static bytecode verification that I mentioned in the homework description. Or
+you could write a single-step debugger for the bytecode VM. Get creative and try
+to think up fun extensions like that. One thing I've always found valuable for learning
+is coming up with these kinds of throw-away mini-projects for myself to do.
 
 Next week we will move to semidaily streams, 3 a week, since the feedback I'm getting
 is that it's too hard to keep up with the video content, and I also need alone time
