@@ -44,7 +44,7 @@ void fatal(const char *fmt, ...) {
 typedef struct BufHdr {
     size_t len;
     size_t cap;
-    char buf[0];
+    char buf[];
 } BufHdr;
 
 #define buf__hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
@@ -325,10 +325,11 @@ void lex_test() {
 
     expr3 = INT | '(' expr ')' 
     expr2 = '-' expr2 | expr3
-    expr1 = expr2 ([/*] expr2)*
-    expr0 = expr1 ([+-] expr1)*
+    expr1 = expr2 (('*' | '/') expr2)*
+    expr0 = expr1 (('+' | '-') expr1)*
     expr = expr0
-*/
+
+ */
 
 int parse_expr();
 
