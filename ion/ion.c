@@ -121,6 +121,8 @@ void str_intern_test() {
     assert(str_intern(a) == str_intern(b));
     char c[] = "hello!";
     assert(str_intern(a) != str_intern(c));
+    char d[] = "hell";
+    assert(str_intern(a) != str_intern(d));
 }
 
 typedef enum TokenKind {
