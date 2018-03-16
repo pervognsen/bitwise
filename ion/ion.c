@@ -113,12 +113,13 @@ const char *str_intern(const char *str) {
 }
 
 void str_intern_test() {
-    char x[] = "hello";
-    char y[] = "hello";
-    assert(x != y);
-    assert(str_intern(x) == str_intern(y));
-    char z[] = "hello!";
-    assert(str_intern(x) != str_intern(z));
+    char a[] = "hello";
+    assert(str_intern(a) == str_intern(a));
+    char b[] = "hello";
+    assert(a != b);
+    assert(str_intern(a) == str_intern(b));
+    char c[] = "hello!";
+    assert(str_intern(a) != str_intern(c));
 }
 
 typedef enum TokenKind {
