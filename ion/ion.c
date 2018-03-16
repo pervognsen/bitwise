@@ -116,12 +116,9 @@ void str_intern_test() {
     char x[] = "hello";
     char y[] = "hello";
     assert(x != y);
-    const char *px = str_intern(x);
-    const char *py = str_intern(y);
-    assert(px == py);
+    assert(str_intern(x) == str_intern(y));
     char z[] = "hello!";
-    const char *pz = str_intern(z);
-    assert(pz != px);
+    assert(str_intern(x) != str_intern(z));
 }
 
 typedef enum TokenKind {
