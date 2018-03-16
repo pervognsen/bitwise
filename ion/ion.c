@@ -115,6 +115,7 @@ const char *str_intern(const char *str) {
 void str_intern_test() {
     char a[] = "hello";
     assert(str_intern(a) == str_intern(a));
+    assert(str_intern(str_intern(a)) == str_intern(a));
     char b[] = "hello";
     assert(a != b);
     assert(str_intern(a) == str_intern(b));
