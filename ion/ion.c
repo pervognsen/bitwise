@@ -48,18 +48,18 @@ typedef struct BufHdr {
 } BufHdr;
 
 #define buf__hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
-#define buf__fits(b, n) (buf_len(b) + (n) <= buf_cap(b))
-#define buf__fit(b, n) (buf__fits((b), (n)) ? 0 : ((b) = buf__grow((b), buf_len(b) + (n), sizeof(*(b)))))
 
 #define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
 #define buf_end(b) ((b) + buf_len(b))
+
 #define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
-#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
+#define buf_fit(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = buf__grow((b), (n), sizeof(*(b)))))
+#define buf_push(b, ...) (buf_fit((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
-    size_t new_cap = MAX(1 + 2*buf_cap(buf), new_len);
+    size_t new_cap = MAX(64, MAX(1 + 2*buf_cap(buf), new_len));
     assert(new_len <= new_cap);
     assert(new_cap <= (SIZE_MAX - offsetof(BufHdr, buf))/elem_size);
     size_t new_size = offsetof(BufHdr, buf) + new_cap*elem_size;
@@ -130,6 +130,7 @@ void str_intern_test() {
 }
 
 typedef enum TokenKind {
+    TOKEN_EOF = 0,
     // Reserve first 128 values for one-char tokens
     TOKEN_LAST_CHAR = 127,
     TOKEN_INT,
@@ -279,8 +280,7 @@ static inline bool expect_token(TokenKind kind) {
 #define assert_token_eof() assert(is_token(0))
 
 void lex_test() {
-    const char *str = "XY+(XY)_HELLO1,234+994";
-    init_stream(str);
+    init_stream("XY+(XY)_HELLO1,234+994");
     assert_token_name("XY");
     assert_token('+');
     assert_token('(');
