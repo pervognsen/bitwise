@@ -161,7 +161,7 @@ size_t copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
 }
 
 // Warning: This returns a pointer to a static internal buffer, so the next call will overwrite it.
-const char *token_kind_str(TokenKind kind) {
+const char *temp_token_kind_str(TokenKind kind) {
     static char buf[256];
     size_t n = copy_token_kind_str(buf, sizeof(buf), kind);
     assert(n + 1 <= sizeof(buf));
@@ -268,7 +268,7 @@ static inline bool expect_token(TokenKind kind) {
     } else {
         char buf[256];
         copy_token_kind_str(buf, sizeof(buf), kind);
-        fatal("expected token %s, got %s", buf, token_kind_str(token.kind));
+        fatal("expected token %s, got %s", buf, temp_token_kind_str(token.kind));
         return false;
     }
 }
@@ -319,7 +319,7 @@ int parse_expr3() {
         expect_token(')');
         return val;
     } else {
-        fatal("expected integer or (, got %s", token_kind_str(token.kind));
+        fatal("expected integer or (, got %s", temp_token_kind_str(token.kind));
         return 0;
     }
 }
