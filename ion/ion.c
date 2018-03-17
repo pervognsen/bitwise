@@ -66,12 +66,15 @@ typedef struct BufHdr {
 
 #define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
-#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
+#define buf_end(b) ((b) + buf_len(b))
 #define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
+#define buf_push(b, ...) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
+    assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
     size_t new_cap = MAX(1 + 2*buf_cap(buf), new_len);
     assert(new_len <= new_cap);
+    assert(new_cap <= (SIZE_MAX - offsetof(BufHdr, buf))/elem_size);
     size_t new_size = offsetof(BufHdr, buf) + new_cap*elem_size;
     BufHdr *new_hdr;
     if (buf) {
@@ -87,11 +90,11 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 void buf_test() {
     int *buf = NULL;
     assert(buf_len(buf) == 0);
-    enum { N = 1024 };
-    for (int i = 0; i < N; i++) {
+    int n = 1024;
+    for (int i = 0; i < n; i++) {
         buf_push(buf, i);
     }
-    assert(buf_len(buf) == N);
+    assert(buf_len(buf) == n);
     for (int i = 0; i < buf_len(buf); i++) {
         assert(buf[i] == i);
     }
@@ -100,24 +103,24 @@ void buf_test() {
     assert(buf_len(buf) == 0);
 }
 
-typedef struct InternStr {
+typedef struct Intern {
     size_t len;
     const char *str;
-} InternStr;
+} Intern;
 
-static InternStr *interns;
+static Intern *interns;
 
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
-    for (size_t i = 0; i < buf_len(interns); i++) {
-        if (interns[i].len == len && strncmp(interns[i].str, start, len) == 0) {
-            return interns[i].str;
+    for (Intern *it = interns; it != buf_end(interns); it++) {
+        if (it->len == len && strncmp(it->str, start, len) == 0) {
+            return it->str;
         }
     }
     char *str = xmalloc(len + 1);
     memcpy(str, start, len);
     str[len] = 0;
-    buf_push(interns, (InternStr){len, str});
+    buf_push(interns, (Intern){len, str});
     return str;
 }
 
@@ -126,15 +129,17 @@ const char *str_intern(const char *str) {
 }
 
 void str_intern_test() {
-    char x[] = "hello";
-    char y[] = "hello";
-    assert(x != y);
-    const char *px = str_intern(x);
-    const char *py = str_intern(y);
-    assert(px == py);
-    char z[] = "hello!";
-    const char *pz = str_intern(z);
-    assert(pz != px);
+    char a[] = "hello";
+    assert(strcmp(a, str_intern(a)) == 0);
+    assert(str_intern(a) == str_intern(a));
+    assert(str_intern(str_intern(a)) == str_intern(a));
+    char b[] = "hello";
+    assert(a != b);
+    assert(str_intern(a) == str_intern(b));
+    char c[] = "hello!";
+    assert(str_intern(a) != str_intern(c));
+    char d[] = "hell";
+    assert(str_intern(a) != str_intern(d));
 }
 
 typedef enum TokenKind {
@@ -145,24 +150,34 @@ typedef enum TokenKind {
     // ...
 } TokenKind;
 
-// Warning: This returns a pointer to a static internal buffer, so it'll be overwritten next call.
-const char *token_kind_name(TokenKind kind) {
-    static char buf[256];
+size_t copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
+    size_t n = 0;
     switch (kind) {
-        case TOKEN_INT:
-            sprintf(buf, "integer");
-            break;
-        case TOKEN_NAME:
-            sprintf(buf, "name");
-            break;
-        default:
-            if (kind < 128 && isprint(kind)) {
-                sprintf(buf, "%c", kind);
-            } else {
-                sprintf(buf, "<ASCII %d>", kind);
-            }
-            break;
+    case 0:
+        n = snprintf(dest, dest_size, "end of file");
+        break;
+    case TOKEN_INT:
+        n = snprintf(dest, dest_size, "integer");
+        break;
+    case TOKEN_NAME:
+        n = snprintf(dest, dest_size, "name");
+        break;
+    default:
+        if (kind < 128 && isprint(kind)) {
+            n = snprintf(dest, dest_size, "%c", kind);
+        } else {
+            n = snprintf(dest, dest_size, "<ASCII %d>", kind);
+        }
+        break;
     }
+    return n;
+}
+
+// Warning: This returns a pointer to a static internal buffer, so the next call will overwrite it.
+const char *temp_token_kind_str(TokenKind kind) {
+    static char buf[256];
+    size_t n = copy_token_kind_str(buf, sizeof(buf), kind);
+    assert(n + 1 <= sizeof(buf));
     return buf;
 }
 
@@ -193,24 +208,11 @@ void init_keywords() {
 void next_token() {
     token.start = stream;
     switch (*stream) {
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9': {
-            int val = 0;
-            while (isdigit(*stream)) {
-                val *= 10;
-                val += *stream++ - '0';
-            }
-            token.kind = TOKEN_INT;
-            token.val = val;
-            break;
+    case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
+        int val = 0;
+        while (isdigit(*stream)) {
+            val *= 10;
+            val += *stream++ - '0';
         }
         case 'a':
         case 'b':
@@ -275,6 +277,23 @@ void next_token() {
             token.kind = *stream++;
             break;
     }
+    case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j':
+    case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't':
+    case 'u': case 'v': case 'w': case 'x': case 'y': case 'z':
+    case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J':
+    case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T':
+    case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z':
+    case '_':
+        while (isalnum(*stream) || *stream == '_') {
+            stream++;
+        }
+        token.kind = TOKEN_NAME;
+        token.name = str_intern_range(token.start, stream);
+        break;
+    default:
+        token.kind = *stream++;
+        break;
+    }
     token.end = stream;
 }
 
@@ -319,30 +338,46 @@ static inline force_inline bool expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        fatal("expected token %s, got %s", token_kind_name(kind), token_kind_name(token.kind));
+        char buf[256];
+        copy_token_kind_str(buf, sizeof(buf), kind);
+        fatal("expected token %s, got %s", buf, temp_token_kind_str(token.kind));
         return false;
     }
 }
 
+#define assert_token(x) assert(match_token(x))
+#define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
+#define assert_token_int(x) assert(token.val == (x) && match_token(TOKEN_INT))
+#define assert_token_eof() assert(is_token(0))
+
 void lex_test() {
-    char *source = "XY+(XY)_HELLO1,234+FOO!994";
-    stream = source;
-    next_token();
-    while (token.kind) {
-        next_token();
-    }
+    const char *str = "XY+(XY)_HELLO1,234+994";
+    init_stream(str);
+    assert_token_name("XY");
+    assert_token('+');
+    assert_token('(');
+    assert_token_name("XY");
+    assert_token(')');
+    assert_token_name("_HELLO1");
+    assert_token(',');
+    assert_token_int(234);
+    assert_token('+');
+    assert_token_int(994);
+    assert_token_eof();
 }
 
-/*
-    Expression grammar:
+#undef assert_token_eof
+#undef assert_token_int
+#undef assert_token_name
+#undef assert_token
 
+#if 0
     expr3 = INT | '(' expr ')' 
     expr2 = '-' expr2 | expr3
-    expr1 = expr2 (('*' | '/') expr2)*
-    expr0 = expr1 (('+' | '-') expr1)*
+    expr1 = expr2 ([*/] expr2)*
+    expr0 = expr1 ([+-] expr1)*
     expr = expr0
-
- */
+#endif
 
 int parse_expr();
 
@@ -356,7 +391,7 @@ int parse_expr3() {
         expect_token(')');
         return val;
     } else {
-        fatal("expected integer or (, got %s", token_kind_name(token.kind));
+        fatal("expected integer or (, got %s", temp_token_kind_str(token.kind));
         return 0;
     }
 }
@@ -413,24 +448,28 @@ int parse_expr_str(const char *str) {
     return parse_expr();
 }
 
-#define TEST_EXPR(x) assert(parse_expr_str(#x) == (x))
+#define assert_expr(x) assert(parse_expr_str(#x) == (x))
 
 void parse_test() {
-    TEST_EXPR(1);
-    TEST_EXPR((1));
-    TEST_EXPR(-+1);
-    TEST_EXPR(1-2-3);
-    TEST_EXPR(2*3+4*5);
-    TEST_EXPR(2*(3+4)*5);
-    TEST_EXPR(2+-3);
+    assert_expr(1);
+    assert_expr((1));
+    assert_expr(-+1);
+    assert_expr(1-2-3);
+    assert_expr(2*3+4*5);
+    assert_expr(2*(3+4)*5);
+    assert_expr(2+-3);
 }
 
-#undef TEST_EXPR
+#undef assert_expr
 
-int main(int argc, char **argv) {
+void run_tests() {
     buf_test();
     lex_test();
     str_intern_test();
     parse_test();
+}
+
+int main(int argc, char **argv) {
+    run_tests();
     return 0;
 }

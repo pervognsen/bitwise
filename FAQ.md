@@ -5,7 +5,7 @@ stack for a simple computer from scratch, running on an FPGA. This includes all 
 systems software, including operating system, compiler, etc, as well as the
 HDL source code for the CPU, graphics chip, peripheral controllers, etc.
 
-By watching daily or bidaily streams on Twitch, uploaded later as videos to YouTube,
+By watching daily or semidaily streams on Twitch, uploaded later as videos to YouTube,
 reading blog posts and articles, and studying code pushed daily to GitHub, you will get
 to watch over my shoulder as I build the system from scratch, starting with an empty
 source control repository, and you will learn how everything works so you can build it
@@ -106,5 +106,11 @@ is free to use for individuals and contains a fully featured C/C++ compiler and 
 We'll be using Python 3.6 with the [Conda](https://conda.io/miniconda.html) package manager
 to manage the Python environment and its package dependencies.
 
-For Verilog, we'll be using Verilator for cycle-accurate simulation and the free WebPACK version of
-Xilinx's FPGA toolchain Vivado for everything related to Xilinx FPGAs.
+For Verilog, we'll be using the open source Verilator tool for cycle-accurate simulation and the free
+WebPACK version of Xilinx's FPGA toolchain Vivado for everything related to Xilinx FPGAs.
+
+**Q: Where can I can ask questions or have discussions about Bitwise?
+
+You use the [forums](https://bitwise.handmade.network/forums) or the [Discord](https://discord.gg/7TSA6ZF)
+chat server. GitHub issues and pull requests are not an appropriate venue for discussions. Please read the
+[community guidelines](GUIDELINES.md) 
