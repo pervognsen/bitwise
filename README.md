@@ -40,11 +40,11 @@ _NOTE:_ This is highly subject to change based on feedback from the community.
 
 My plan is to treat Bitwise as a full-time commitment for several years. Avoiding burnout is a major priority.
 
-I will be streaming daily or semidaily on Twitch, one or two hours per session. Videos will be posted later on YouTube.
+I will be streaming daily or bidaily on Twitch, one or two hours per session. Videos will be posted later on YouTube.
 
 When I'm not streaming, I will be working full-time on the project: programming, writing and other related activities.
 
-I will be writing weekly or semiweekly blog posts summarizing the progress since the last update.
+I will be writing weekly or biweekly blog posts summarizing the progress since the last update.
 
 Code streams will begin with a code review and walk-through of the diffs that were committed since last stream. Thus,
 even though a lot of the code will necessarily be written off stream, you won't miss out on a single line of code. After
@@ -128,8 +128,7 @@ Please follow on Twitch, YouTube and Twitter to see when streams go live and whe
 
 There is a Discord chat server if you have questions or just want to hang out and chat.
 
-- GitHub: https://github.com/pervognsen/bitwise
-- Forums: https://bitwise.handmade.network/forums
+- GitHub repository: https://github.com/pervognsen/bitwise
 - Discord chat server: https://discord.gg/7TSA6ZF
 - Twitch channel: https://twitch.tv/pervognsen
 - YouTube channel: https://youtube.com/pervognsen
