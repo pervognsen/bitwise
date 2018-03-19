@@ -373,7 +373,6 @@ repeat:
         break;
     }
     token.end = stream;
-    printf("%s ", temp_token_kind_str(token.kind));
 }
 
 #undef CASE1
