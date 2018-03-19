@@ -76,6 +76,15 @@ typedef struct TypedefDecl {
     Typespec *type;
 } TypedefDecl;
 
+typedef struct VarDecl {
+    Typespec *type;
+    Expr *expr;
+} VarDecl;
+
+typedef struct ConstDecl {
+    Expr *expr;
+} ConstDecl;
+
 struct Decl {
     DeclKind kind;
     const char *name;
@@ -83,10 +92,9 @@ struct Decl {
         EnumDecl enum_decl;
         AggregateDecl aggregate_decl;
         FuncDecl func_decl;
-        struct {
-            Typespec *type;
-            Expr *expr;
-        };
+        TypedefDecl typedef_decl;
+        VarDecl var_decl;
+        ConstDecl const_decl;
     };
 };
 
@@ -202,6 +210,11 @@ typedef struct IfStmt {
     StmtBlock else_block;
 } IfStmt;
 
+typedef struct WhileStmt {
+    Expr *expr;
+    StmtBlock block;
+} WhileStmt;
+
 typedef struct ForStmt {
     StmtBlock init;
     Expr *expr;
@@ -235,6 +248,7 @@ struct Stmt {
     StmtKind kind;
     union {
         IfStmt if_stmt;
+        WhileStmt while_stmt;
         ForStmt for_stmt;
         SwitchStmt switch_stmt;
         AssignStmt assign;
