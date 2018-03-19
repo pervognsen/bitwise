@@ -117,33 +117,32 @@ Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
 
 void print_expr(Expr *expr);
 
-void print_type(Typespec *type) {
+void print_typespec(Typespec *type) {
     Typespec *t = type;
     switch (t->kind) {
     case TYPESPEC_NAME:
         printf("%s", t->name);
         break;
-    case TYPESPEC_FUNC: {
+    case TYPESPEC_FUNC:
         printf("(func (");
         for (Typespec **it = t->func.args; it != t->func.args + t->func.num_args; it++) {
             printf(" ");
-            print_type(*it);
+            print_typespec(*it);
         }
         printf(") ");
-        print_type(t->func.ret);
+        print_typespec(t->func.ret);
         printf(")");
         break;
-    }
     case TYPESPEC_ARRAY:
-        printf("(arr ");
-        print_type(t->array.elem);
+        printf("(array ");
+        print_typespec(t->array.elem);
         printf(" ");
         print_expr(t->array.size);
         printf(")");
         break;
     case TYPESPEC_PTR:
         printf("(ptr ");
-        print_type(t->ptr.elem);
+        print_typespec(t->ptr.elem);
         printf(")");
         break;
     default:
@@ -169,7 +168,7 @@ void print_expr(Expr *expr) {
         break;
     case EXPR_CAST:
         printf("(cast ");
-        print_type(e->cast.type);
+        print_typespec(e->cast.type);
         printf(" ");
         print_expr(e->cast.expr);
         printf(")");
@@ -196,7 +195,12 @@ void print_expr(Expr *expr) {
         printf(" %s)", e->field.name);
         break;
     case EXPR_COMPOUND:
-        printf("(compound ...)");
+        printf("(compound");
+        for (Expr **it = e->compound.args; it != e->compound.args + e->compound.num_args; it++) {
+            printf(" ");
+            print_expr(*it);
+        }
+        printf(")");
         break;
     case EXPR_UNARY:
         printf("(%c ", e->unary.op);
