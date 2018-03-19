@@ -1,4 +1,3 @@
-
 typedef enum TokenKind {
     TOKEN_EOF = 0,
     // Reserve first 128 values for one-char tokens
@@ -131,7 +130,7 @@ void scan_int() {
             break;
         }
         if (digit >= base) {
-            syntax_error("Digit '%c' out of range for base %llu", *stream, base);
+            syntax_error("Digit '%c' out of range for base %" PRIu64, *stream, base);
             digit = 0;
         }
         if (val > (UINT64_MAX - digit)/base) {
@@ -371,7 +370,7 @@ void init_stream(const char *str) {
 void print_token(Token token) {
     switch (token.kind) {
     case TOKEN_INT:
-        printf("TOKEN INT: %llu\n", token.int_val);
+        printf("TOKEN INT: %" PRIu64 "\n", token.int_val);
         break;
     case TOKEN_FLOAT:
         printf("TOKEN FLOAT: %f\n", token.float_val);

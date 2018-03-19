@@ -1,15 +1,3 @@
-#define _CRT_SECURE_NO_WARNINGS
-#include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <math.h>
-#include <ctype.h>
-#include <string.h>
-#include <stdarg.h>
-
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 
 void *xrealloc(void *ptr, size_t num_bytes) {
