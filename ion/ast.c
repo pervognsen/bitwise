@@ -12,22 +12,24 @@ Typespec *typespec_name(const char *name) {
     return t;
 }
 
-Typespec *typespec_pointer(Typespec *base) {
-    Typespec *t = typespec_alloc(TYPESPEC_POINTER);
-    t->base = base;
+Typespec *typespec_ptr(Typespec *elem) {
+    Typespec *t = typespec_alloc(TYPESPEC_PTR);
+    t->ptr.elem = elem;
     return t;
 }
 
-Typespec *typespec_array(Typespec *base, Expr *size) {
+Typespec *typespec_array(Typespec *elem, Expr *size) {
     Typespec *t = typespec_alloc(TYPESPEC_ARRAY);
-    t->base = base;
-    t->size = size;
+    t->array.elem = elem;
+    t->array.size = size;
     return t;
 }
 
-Typespec *typespec_func(FuncTypespec func) {
+Typespec *typespec_func(Typespec **args, size_t num_args, Typespec *ret) {
     Typespec *t = typespec_alloc(TYPESPEC_FUNC);
-    t->func = func;
+    t->func.args = args;
+    t->func.num_args = num_args;
+    t->func.ret = ret;
     return t;
 }
 
@@ -116,32 +118,32 @@ Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
 void print_expr(Expr *expr);
 
 void print_type(Typespec *type) {
-    switch (type->kind) {
+    Typespec *t = type;
+    switch (t->kind) {
     case TYPESPEC_NAME:
-        printf("%s", type->name);
+        printf("%s", t->name);
         break;
     case TYPESPEC_FUNC: {
-        FuncTypespec func = type->func;
         printf("(func (");
-        for (Typespec **it = func.args; it != func.args + func.num_args; it++) {
+        for (Typespec **it = t->func.args; it != t->func.args + t->func.num_args; it++) {
             printf(" ");
             print_type(*it);
         }
         printf(") ");
-        print_type(func.ret);
+        print_type(t->func.ret);
         printf(")");
         break;
     }
     case TYPESPEC_ARRAY:
         printf("(arr ");
-        print_type(type->base);
+        print_type(t->array.elem);
         printf(" ");
-        print_expr(type->size);
+        print_expr(t->array.size);
         printf(")");
         break;
-    case TYPESPEC_POINTER:
+    case TYPESPEC_PTR:
         printf("(ptr ");
-        print_type(type->base);
+        print_type(t->ptr.elem);
         printf(")");
         break;
     default:
@@ -223,11 +225,6 @@ void print_expr(Expr *expr) {
     }
 }
 
-void print_expr_line(Expr *expr) {
-    print_expr(expr);
-    printf("\n");
-}
-
 void expr_test() {
     Expr *exprs[] = {
         expr_binary('+', expr_int(1), expr_int(2)),
@@ -236,10 +233,11 @@ void expr_test() {
         expr_field(expr_name("person"), "name"),
         expr_call(expr_name("fact"), (Expr*[]){expr_int(42)}, 1),
         expr_index(expr_field(expr_name("person"), "siblings"), expr_int(3)),
-        expr_cast(typespec_pointer(typespec_name("int")), expr_name("void_ptr")),
+        expr_cast(typespec_ptr(typespec_name("int")), expr_name("void_ptr")),
     };
     for (Expr **it = exprs; it != exprs + sizeof(exprs)/sizeof(*exprs); it++) {
-        print_expr_line(*it);
+        print_expr(*it);
+        printf("\n");
     }
 }
 
