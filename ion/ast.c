@@ -33,6 +33,62 @@ Typespec *typespec_func(Typespec **args, size_t num_args, Typespec *ret) {
     return t;
 }
 
+Decl *decl_new(DeclKind kind, const char *name) {
+    Decl *d = xcalloc(1, sizeof(Decl));
+    d->kind = kind;
+    d->name = name;
+    return d;
+}
+
+Decl *decl_enum(const char *name, EnumItem *items, size_t num_items) {
+    Decl *d = decl_new(DECL_ENUM, name);
+    d->enum_decl.items = items;
+    d->enum_decl.num_items = num_items;
+    return d;
+}
+
+Decl *decl_struct(const char *name, AggregateItem *items, size_t num_items) {
+    Decl *d = decl_new(DECL_STRUCT, name);
+    d->aggregate.items = items;
+    d->aggregate.num_items = num_items;
+    return d;
+}
+
+Decl *decl_union(const char *name, AggregateItem *items, size_t num_items) {
+    Decl *d = decl_new(DECL_UNION, name);
+    d->aggregate.items = items;
+    d->aggregate.num_items = num_items;
+    return d;
+}
+
+Decl *decl_var(const char *name, Typespec *type, Expr *expr) {
+    Decl *d = decl_new(DECL_VAR, name);
+    d->var.type = type;
+    d->var.expr = expr;
+    return d;
+}
+
+Decl *decl_func(const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, StmtBlock block) {
+    Decl *d = decl_new(DECL_FUNC, name);
+    d->func.params = params;
+    d->func.num_params = num_params;
+    d->func.ret_type = ret_type;
+    d->func.block = block;
+    return d;
+}
+
+Decl *decl_const(const char *name, Expr *expr) {
+    Decl *d = decl_new(DECL_CONST, name);
+    d->const_decl.expr = expr;
+    return d;
+}
+
+Decl *decl_typedef(const char *name, Typespec *type) {
+    Decl *d = decl_new(DECL_TYPEDEF, name);
+    d->typedef_decl.type = type;
+    return d;
+}
+
 Expr *expr_new(ExprKind kind) {
     Expr *e = xcalloc(1, sizeof(Expr));
     e->kind = kind;
@@ -213,6 +269,7 @@ Stmt *stmt_expr(Expr *expr) {
 
 void print_expr(Expr *expr);
 void print_stmt(Stmt *stmt);
+void print_decl(Decl *decl);
 
 int indent;
 
@@ -466,6 +523,90 @@ void print_stmt(Stmt *stmt) {
     }
 }
 
+void print_aggregate_decl(Decl *decl) {
+    Decl *d = decl;
+    for (AggregateItem *it = d->aggregate.items; it != d->aggregate.items + d->aggregate.num_items; it++) {
+        print_newline();
+        printf("(");
+        print_typespec(it->type);
+        for (const char **name = it->names; name != it->names + it->num_names; name++) {
+            printf(" %s", *name);
+        }
+        printf(")");
+    }
+}
+
+void print_decl(Decl *decl) {
+    Decl *d = decl;
+    switch (d->kind) {
+    case DECL_ENUM:
+        printf("(enum %s", d->name);
+        indent++;
+        for (EnumItem *it = d->enum_decl.items; it != d->enum_decl.items + d->enum_decl.num_items; it++) {
+            print_newline();
+            printf("(%s ", it->name);
+            if (it->expr) {
+                print_expr(it->expr);
+            } else {
+                printf("nil");
+            }
+            printf(")");
+        }
+        indent--;
+        printf(")");
+        break;
+    case DECL_STRUCT:
+        printf("(struct %s", d->name);
+        indent++;
+        print_aggregate_decl(d);
+        indent--;
+        printf(")");
+        break;
+    case DECL_UNION:
+        printf("(union %s", d->name);
+        indent++;
+        print_aggregate_decl(d);
+        indent--;
+        printf(")");
+        break;
+    case DECL_VAR:
+        printf("(var %s ", d->name);
+        print_typespec(d->var.type);
+        printf(" ");
+        print_expr(d->var.expr);
+        printf(")");
+        break;
+    case DECL_CONST:
+        printf("(const %s ", d->name);
+        print_expr(d->var.expr);
+        printf(")");
+        break;
+    case DECL_TYPEDEF:
+        printf("(typedef %s ", d->name);
+        print_typespec(d->typedef_decl.type);
+        printf(")");
+        break;
+    case DECL_FUNC:
+        printf("(func %s ", d->name);
+        printf("(");
+        for (FuncParam *it = d->func.params; it != d->func.params + d->func.num_params; it++) {
+            printf(" %s", it->name);
+            print_typespec(it->type);
+        }
+        printf(" ) ");
+        print_typespec(d->func.ret_type);
+        indent++;
+        print_newline();
+        print_stmt_block(d->func.block, true);
+        indent--;
+        printf(")");
+        break;
+    default:
+        assert(0);
+        break;
+    }
+}
+
 void expr_test() {
     Expr *exprs[] = {
         expr_binary('+', expr_int(1), expr_int(2)),
@@ -564,7 +705,12 @@ void stmt_test() {
     }
 }
 
+void decl_test() {
+    // TODO
+}
+
 void ast_test() {
     expr_test();
     stmt_test();
+    decl_test();
 }
