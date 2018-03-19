@@ -139,6 +139,7 @@ void scan_int() {
                 stream++;
             }
             val = 0;
+            break;
         }
         val = val*base + digit;
         stream++;

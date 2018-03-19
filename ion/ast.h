@@ -40,17 +40,6 @@ typedef enum DeclKind {
     DECL_FUNC,
 } DeclKind;
 
-typedef struct EnumItem {
-    const char *name;
-    Typespec *type;
-} EnumItem;
-
-typedef struct AggregateItem {
-    const char **names;
-    size_t num_names;
-    Typespec *type;
-} AggregateItem;
-
 typedef struct FuncParam {
     const char *name;
     Typespec *type;
@@ -62,23 +51,42 @@ typedef struct FuncDecl {
     Typespec *ret_type;
 } FuncDecl;
 
+typedef struct EnumItem {
+    const char *name;
+    Typespec *type;
+} EnumItem;
+
+typedef struct EnumDecl {
+    EnumItem *items;
+    size_t num_items;
+} EnumDecl;
+
+typedef struct AggregateItem {
+    const char **names;
+    size_t num_names;
+    Typespec *type;
+} AggregateItem;
+
+typedef struct AggregateDecl {
+    AggregateItem *items;
+    size_t num_items;
+} AggregateDecl;
+
+typedef struct TypedefDecl {
+    Typespec *type;
+} TypedefDecl;
+
 struct Decl {
     DeclKind kind;
     const char *name;
     union {
-        struct {
-            size_t num_enum_items;
-            EnumItem *enum_items;
-        };
-        struct {
-            size_t num_aggregate_items;
-            AggregateItem *aggregate_items;
-        };
+        EnumDecl enum_decl;
+        AggregateDecl aggregate_decl;
+        FuncDecl func_decl;
         struct {
             Typespec *type;
             Expr *expr;
         };
-        FuncDecl func_decl;
     };
 };
 
@@ -98,49 +106,65 @@ typedef enum ExprKind {
     EXPR_TERNARY,
 } ExprKind;
 
+typedef struct CompoundExpr {
+    Typespec *type;
+    Expr **args;
+    size_t num_args;
+} CompoundExpr;
+
+typedef struct CastExpr {
+    Typespec *type;
+    Expr *expr;
+} CastExpr;
+
+typedef struct UnaryExpr {
+    TokenKind op;
+    Expr *expr;
+} UnaryExpr;
+
+typedef struct BinaryExpr {
+    TokenKind op;
+    Expr *left;
+    Expr *right;
+} BinaryExpr;
+
+typedef struct TernaryExpr {
+    Expr *cond;
+    Expr *if_true;
+    Expr *if_false;
+} TernaryExpr;
+
+typedef struct CallExpr {
+    Expr *expr;
+    Expr **args;
+    size_t num_args;
+} CallExpr;
+
+typedef struct IndexExpr {
+    Expr *expr;
+    Expr *index;
+} IndexExpr;
+
+typedef struct FieldExpr {
+    Expr *expr;
+    const char *name;
+} FieldExpr;
+
 struct Expr {
     ExprKind kind;
-    TokenKind op;
     union {
-        // Literals/names
         uint64_t int_val;
         double float_val;
         const char *str_val;
         const char *name;
-        // Compound literals
-        struct {
-            Typespec *compound_type;
-            size_t num_compound_args;
-            Expr **compound_args;
-        };
-        // Casts
-        struct {
-            Typespec *cast_type;
-            Expr *cast_expr;
-        };
-        struct {
-            // Unary
-            Expr *operand;
-            union {
-                struct {
-                    size_t num_args;
-                    Expr **args;
-                };
-                Expr *index;
-                const char *field;
-            };
-        };
-        struct {
-            // Binary
-            Expr *left;
-            Expr *right;
-        };
-        struct {
-            // Ternary
-            Expr *cond;
-            Expr *then_expr;
-            Expr *else_expr;
-        };
+        CompoundExpr compound;
+        CastExpr cast;
+        UnaryExpr unary;
+        BinaryExpr binary;
+        TernaryExpr ternary;
+        CallExpr call;
+        IndexExpr index;
+        FieldExpr field;
     };
 };
 
@@ -161,8 +185,8 @@ typedef enum StmtKind {
 } StmtKind;
 
 typedef struct StmtBlock {
-    size_t num_stmts;
     Stmt **stmts;
+    size_t num_stmts;
 } StmtBlock;
 
 typedef struct ElseIf {
@@ -170,40 +194,50 @@ typedef struct ElseIf {
     StmtBlock block;
 } ElseIf;
 
-typedef struct Case {
-    size_t num_exprs;
+typedef struct IfStmt {
+    Expr *expr;
+    StmtBlock then_block;
+    ElseIf *elseifs;
+    size_t num_elseifs;
+    StmtBlock else_block;
+} IfStmt;
+
+typedef struct ForStmt {
+    StmtBlock init;
+    Expr *expr;
+    StmtBlock next;
+} ForStmt;
+
+typedef struct SwitchCase {
     Expr **exprs;
+    size_t num_exprs;
     StmtBlock block;
-} Case;
+} SwitchCase;
+
+typedef struct SwitchStmt {
+    Expr *expr;
+    SwitchCase *cases;
+    size_t num_cases;
+} SwitchStmt;
+
+typedef struct AssignStmt {
+    TokenKind op;
+    Expr *left;
+    Expr *right;
+} AssignStmt;
+
+typedef struct AutoAssignStmt {
+    const char *name;
+    Expr *expr;
+} AutoAssignStmt;
 
 struct Stmt {
     StmtKind kind;
-    Expr *expr;
-    StmtBlock block;
     union {
-        // If
-        struct {
-            size_t num_elseifs;
-            ElseIf *elseifs;
-            StmtBlock else_block;
-        };
-        // For
-        struct {
-            StmtBlock for_init;
-            StmtBlock for_next;
-        };
-        // Switch
-        struct {
-            size_t num_cases;
-            Case *cases;
-        };
-        // Auto-assign
-        struct {
-            const char *name;
-        };
-        // Assignment operators
-        struct {
-            Expr *rhs;
-        };
+        IfStmt if_stmt;
+        ForStmt for_stmt;
+        SwitchStmt switch_stmt;
+        AssignStmt assign;
+        AutoAssignStmt autoassign;
     };
 };
