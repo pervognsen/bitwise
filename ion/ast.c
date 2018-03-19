@@ -65,53 +65,53 @@ Expr *expr_name(const char *name) {
 
 Expr *expr_cast(Typespec *type, Expr *expr) {
     Expr *e = expr_alloc(EXPR_CAST);
-    e->cast_expr.type = type;
-    e->cast_expr.expr = expr;
+    e->cast.type = type;
+    e->cast.expr = expr;
     return e;
 }
 
 Expr *expr_call(Expr *expr, Expr **args, size_t num_args) {
     Expr *e = expr_alloc(EXPR_CALL);
-    e->call_expr.expr = expr;
-    e->call_expr.args = args;
-    e->call_expr.num_args = num_args;
+    e->call.expr = expr;
+    e->call.args = args;
+    e->call.num_args = num_args;
     return e;
 }
 
 Expr *expr_index(Expr *expr, Expr *index) {
     Expr *e = expr_alloc(EXPR_INDEX);
-    e->index_expr.expr = expr;
-    e->index_expr.index = index;
+    e->index.expr = expr;
+    e->index.index = index;
     return e;
 }
 
 Expr *expr_field(Expr *expr, const char *name) {
     Expr *e = expr_alloc(EXPR_FIELD);
-    e->field_expr.expr = expr;
-    e->field_expr.name = name;
+    e->field.expr = expr;
+    e->field.name = name;
     return e;
 }
 
 Expr *expr_unary(TokenKind op, Expr *expr) {
     Expr *e = expr_alloc(EXPR_UNARY);
-    e->unary_expr.op = op;
-    e->unary_expr.expr = expr;
+    e->unary.op = op;
+    e->unary.expr = expr;
     return e;
 }
 
 Expr *expr_binary(TokenKind op, Expr *left, Expr *right) {
     Expr *e = expr_alloc(EXPR_BINARY);
-    e->binary_expr.op = op;
-    e->binary_expr.left = left;
-    e->binary_expr.right = right;
+    e->binary.op = op;
+    e->binary.left = left;
+    e->binary.right = right;
     return e;
 }
 
 Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
     Expr *e = expr_alloc(EXPR_TERNARY);
-    e->ternary_expr.cond = cond;
-    e->ternary_expr.if_true = if_true;
-    e->ternary_expr.if_false = if_false;
+    e->ternary.cond = cond;
+    e->ternary.if_true = if_true;
+    e->ternary.if_false = if_false;
     return e;
 }
 
@@ -169,15 +169,15 @@ void print_expr(Expr *expr) {
         break;
     case EXPR_CAST:
         printf("(cast ");
-        print_type(e->cast_expr.type);
+        print_type(e->cast.type);
         printf(" ");
-        print_expr(e->cast_expr.expr);
+        print_expr(e->cast.expr);
         printf(")");
         break;
     case EXPR_CALL:
         printf("(");
-        print_expr(e->call_expr.expr);
-        for (Expr **it = e->call_expr.args; it != e->call_expr.args + e->call_expr.num_args; it++) {
+        print_expr(e->call.expr);
+        for (Expr **it = e->call.args; it != e->call.args + e->call.num_args; it++) {
             printf(" ");
             print_expr(*it);
         }
@@ -185,38 +185,38 @@ void print_expr(Expr *expr) {
         break;
     case EXPR_INDEX:
         printf("(index ");
-        print_expr(e->index_expr.expr);
+        print_expr(e->index.expr);
         printf(" ");
-        print_expr(e->index_expr.index);
+        print_expr(e->index.index);
         printf(")");
         break;
     case EXPR_FIELD:
         printf("(field ");
-        print_expr(e->field_expr.expr);
-        printf(" %s)", e->field_expr.name);
+        print_expr(e->field.expr);
+        printf(" %s)", e->field.name);
         break;
     case EXPR_COMPOUND:
         printf("(compound ...)");
         break;
     case EXPR_UNARY:
-        printf("(%c ", e->unary_expr.op);
-        print_expr(e->unary_expr.expr);
+        printf("(%c ", e->unary.op);
+        print_expr(e->unary.expr);
         printf(")");
         break;
     case EXPR_BINARY:
-        printf("(%c ", e->binary_expr.op);
-        print_expr(e->binary_expr.left);
+        printf("(%c ", e->binary.op);
+        print_expr(e->binary.left);
         printf(" ");
-        print_expr(e->binary_expr.right);
+        print_expr(e->binary.right);
         printf(")");
         break;
     case EXPR_TERNARY:
         printf("(if ");
-        print_expr(e->ternary_expr.cond);
+        print_expr(e->ternary.cond);
         printf(" ");
-        print_expr(e->ternary_expr.if_true);
+        print_expr(e->ternary.if_true);
         printf(" ");
-        print_expr(e->ternary_expr.if_false);
+        print_expr(e->ternary.if_false);
         printf(")");
         break;
     default:

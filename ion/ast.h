@@ -28,11 +28,11 @@ typedef struct ArrayTypespec {
 
 struct Typespec {
     TypespecKind kind;
-    struct {
+    union {
         const char *name;
         FuncTypespec func;
-        PtrTypespec ptr;
         ArrayTypespec array;
+        PtrTypespec ptr;
     };
 };
 
@@ -97,10 +97,10 @@ struct Decl {
     const char *name;
     union {
         EnumDecl enum_decl;
-        AggregateDecl aggregate_decl;
-        FuncDecl func_decl;
+        AggregateDecl aggregate;
+        FuncDecl func;
         TypedefDecl typedef_decl;
-        VarDecl var_decl;
+        VarDecl var;
         ConstDecl const_decl;
     };
 };
@@ -172,14 +172,14 @@ struct Expr {
         double float_val;
         const char *str_val;
         const char *name;
-        CompoundExpr compound_expr;
-        CastExpr cast_expr;
-        UnaryExpr unary_expr;
-        BinaryExpr binary_expr;
-        TernaryExpr ternary_expr;
-        CallExpr call_expr;
-        IndexExpr index_expr;
-        FieldExpr field_expr;
+        CompoundExpr compound;
+        CastExpr cast;
+        UnaryExpr unary;
+        BinaryExpr binary;
+        TernaryExpr ternary;
+        CallExpr call;
+        IndexExpr index;
+        FieldExpr field;
     };
 };
 
@@ -258,7 +258,7 @@ struct Stmt {
         WhileStmt while_stmt;
         ForStmt for_stmt;
         SwitchStmt switch_stmt;
-        AssignStmt assign_stmt;
-        AutoAssignStmt autoassign_stmt;
+        AssignStmt assign;
+        AutoAssignStmt autoassign;
     };
 };
