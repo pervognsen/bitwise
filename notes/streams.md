@@ -1,3 +1,13 @@
+# Day 4: Lexer, Parser, AST Marathon (March 19, 2018)
+- Video: https://www.youtube.com/watch?v=bM_JOa-dadY
+- Extra: https://www.youtube.com/watch?v=t0YAOfZcSfw
+- Semidaily streams (Monday/Wednesday/Friday), random bonus streams
+- New forums for discussions/questions: https://bitwise.handmade.network/forums
+- Alternative video/audio download option: https://bitwise.handmade.network/forums/t/2999-bitwise_videos_on_resilio_sync
+- Annotated videos hopefully coming soon
+- Diff: https://github.com/pervognsen/bitwise/commit/147e36d9158ed34ea757b071fa7fe2b08186e0e2
+- Today: Coding marathon on stream, less talking, more coding, see how much we can get done
+
 # Note
 
 I'm taking a 3-day weekend since week 1 has been very busy. We'll be back Monday,
