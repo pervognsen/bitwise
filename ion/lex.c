@@ -270,7 +270,7 @@ void scan_str() {
         break;
 
 void next_token() {
-top:
+repeat:
     token.start = stream;
     token.mod = 0;
     switch (*stream) {
@@ -278,7 +278,7 @@ top:
         while (isspace(*stream)) {
             stream++;
         }
-        goto top;
+        goto repeat;
         break;
     case '\'':
         scan_char();
@@ -343,15 +343,15 @@ top:
             stream++;
         }
         break;
-        CASE1('^', '=', TOKEN_XOR_ASSIGN)
-            CASE1(':', '=', TOKEN_COLON_ASSIGN)
-            CASE1('*', '=', TOKEN_MUL_ASSIGN)
-            CASE1('/', '=', TOKEN_DIV_ASSIGN)
-            CASE1('%', '=', TOKEN_MOD_ASSIGN)
-            CASE2('+', '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
-            CASE2('-', '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
-            CASE2('&', '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
-            CASE2('|', '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
+    CASE1('^', '=', TOKEN_XOR_ASSIGN)
+    CASE1(':', '=', TOKEN_COLON_ASSIGN)
+    CASE1('*', '=', TOKEN_MUL_ASSIGN)
+    CASE1('/', '=', TOKEN_DIV_ASSIGN)
+    CASE1('%', '=', TOKEN_MOD_ASSIGN)
+    CASE2('+', '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
+    CASE2('-', '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
+    CASE2('&', '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
+    CASE2('|', '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
     default:
         token.kind = *stream++;
         break;
