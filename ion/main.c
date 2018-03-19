@@ -13,12 +13,13 @@
 
 #include "common.c"
 #include "lex.c"
-#include "ast.c"
+#include "ast.c"    
+#include "print.c"
 
 void run_tests() {
     common_test();
     lex_test();
-    ast_test();
+    print_test();
 }
 
 int main(int argc, char **argv) {
