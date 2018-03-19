@@ -1,77 +1,85 @@
 #include "ast.h"
 
-Typespec *typespec_alloc(TypespecKind kind) {
+Typespec *typespec_new(TypespecKind kind) {
     Typespec *t = xcalloc(1, sizeof(Typespec));
     t->kind = kind;
     return t;
 }
 
 Typespec *typespec_name(const char *name) {
-    Typespec *t = typespec_alloc(TYPESPEC_NAME);
+    Typespec *t = typespec_new(TYPESPEC_NAME);
     t->name = name;
     return t;
 }
 
 Typespec *typespec_ptr(Typespec *elem) {
-    Typespec *t = typespec_alloc(TYPESPEC_PTR);
+    Typespec *t = typespec_new(TYPESPEC_PTR);
     t->ptr.elem = elem;
     return t;
 }
 
 Typespec *typespec_array(Typespec *elem, Expr *size) {
-    Typespec *t = typespec_alloc(TYPESPEC_ARRAY);
+    Typespec *t = typespec_new(TYPESPEC_ARRAY);
     t->array.elem = elem;
     t->array.size = size;
     return t;
 }
 
 Typespec *typespec_func(Typespec **args, size_t num_args, Typespec *ret) {
-    Typespec *t = typespec_alloc(TYPESPEC_FUNC);
+    Typespec *t = typespec_new(TYPESPEC_FUNC);
     t->func.args = args;
     t->func.num_args = num_args;
     t->func.ret = ret;
     return t;
 }
 
-Expr *expr_alloc(ExprKind kind) {
+Expr *expr_new(ExprKind kind) {
     Expr *e = xcalloc(1, sizeof(Expr));
     e->kind = kind;
     return e;
 }
 
 Expr *expr_int(uint64_t int_val) {
-    Expr *e = expr_alloc(EXPR_INT);
+    Expr *e = expr_new(EXPR_INT);
     e->int_val = int_val;
     return e;
 }
 
 Expr *expr_float(double float_val) {
-    Expr *e = expr_alloc(EXPR_FLOAT);
+    Expr *e = expr_new(EXPR_FLOAT);
     e->float_val = float_val;
     return e;
 }
 
 Expr *expr_str(const char *str_val) {
-    Expr *e = expr_alloc(EXPR_STR);
+    Expr *e = expr_new(EXPR_STR);
     e->str_val = str_val;
     return e;
 }
 
 Expr *expr_name(const char *name) {
-    Expr *e = expr_alloc(EXPR_NAME);
+    Expr *e = expr_new(EXPR_NAME);
     e->name = name;
     return e;
 }
 
+Expr *expr_compound(Typespec *type, Expr **args, size_t num_args) {
+    Expr *e = expr_new(EXPR_COMPOUND);
+    e->compound.type = type;
+    e->compound.args = args;
+    e->compound.num_args = num_args;
+    return e;
+}
+
 Expr *expr_cast(Typespec *type, Expr *expr) {
-    Expr *e = expr_alloc(EXPR_CAST);
+    Expr *e = expr_new(EXPR_CAST);
     e->cast.type = type;
     e->cast.expr = expr;
     return e;
 }
 
 Expr *expr_call(Expr *expr, Expr **args, size_t num_args) {
-    Expr *e = expr_alloc(EXPR_CALL);
+    Expr *e = expr_new(EXPR_CALL);
     e->call.expr = expr;
     e->call.args = args;
     e->call.num_args = num_args;
@@ -79,28 +87,28 @@ Expr *expr_call(Expr *expr, Expr **args, size_t num_args) {
 }
 
 Expr *expr_index(Expr *expr, Expr *index) {
-    Expr *e = expr_alloc(EXPR_INDEX);
+    Expr *e = expr_new(EXPR_INDEX);
     e->index.expr = expr;
     e->index.index = index;
     return e;
 }
 
 Expr *expr_field(Expr *expr, const char *name) {
-    Expr *e = expr_alloc(EXPR_FIELD);
+    Expr *e = expr_new(EXPR_FIELD);
     e->field.expr = expr;
     e->field.name = name;
     return e;
 }
 
 Expr *expr_unary(TokenKind op, Expr *expr) {
-    Expr *e = expr_alloc(EXPR_UNARY);
+    Expr *e = expr_new(EXPR_UNARY);
     e->unary.op = op;
     e->unary.expr = expr;
     return e;
 }
 
 Expr *expr_binary(TokenKind op, Expr *left, Expr *right) {
-    Expr *e = expr_alloc(EXPR_BINARY);
+    Expr *e = expr_new(EXPR_BINARY);
     e->binary.op = op;
     e->binary.left = left;
     e->binary.right = right;
@@ -108,7 +116,7 @@ Expr *expr_binary(TokenKind op, Expr *left, Expr *right) {
 }
 
 Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
-    Expr *e = expr_alloc(EXPR_TERNARY);
+    Expr *e = expr_new(EXPR_TERNARY);
     e->ternary.cond = cond;
     e->ternary.if_true = if_true;
     e->ternary.if_false = if_false;
@@ -195,7 +203,12 @@ void print_expr(Expr *expr) {
         printf(" %s)", e->field.name);
         break;
     case EXPR_COMPOUND:
-        printf("(compound");
+        printf("(compound ");
+        if (e->compound.type) {
+            print_typespec(e->compound.type);
+        } else {
+            printf("nil");
+        }
         for (Expr **it = e->compound.args; it != e->compound.args + e->compound.num_args; it++) {
             printf(" ");
             print_expr(*it);
@@ -238,6 +251,7 @@ void expr_test() {
         expr_call(expr_name("fact"), (Expr*[]){expr_int(42)}, 1),
         expr_index(expr_field(expr_name("person"), "siblings"), expr_int(3)),
         expr_cast(typespec_ptr(typespec_name("int")), expr_name("void_ptr")),
+        expr_compound(typespec_name("Vector"), (Expr*[]){expr_int(1), expr_int(2)}, 2),
     };
     for (Expr **it = exprs; it != exprs + sizeof(exprs)/sizeof(*exprs); it++) {
         print_expr(*it);
