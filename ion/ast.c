@@ -1,116 +1,116 @@
 #include "ast.h"
 
 Typespec *typespec_alloc(TypespecKind kind) {
-    Typespec *type = xcalloc(1, sizeof(Typespec));
-    type->kind = kind;
-    return type;
+    Typespec *t = xcalloc(1, sizeof(Typespec));
+    t->kind = kind;
+    return t;
 }
 
 Typespec *typespec_name(const char *name) {
-    Typespec *type = typespec_alloc(TYPESPEC_NAME);
-    type->name = name;
-    return type;
+    Typespec *t = typespec_alloc(TYPESPEC_NAME);
+    t->name = name;
+    return t;
 }
 
 Typespec *typespec_pointer(Typespec *base) {
-    Typespec *type = typespec_alloc(TYPESPEC_POINTER);
-    type->base = base;
-    return type;
+    Typespec *t = typespec_alloc(TYPESPEC_POINTER);
+    t->base = base;
+    return t;
 }
 
 Typespec *typespec_array(Typespec *base, Expr *size) {
-    Typespec *type = typespec_alloc(TYPESPEC_ARRAY);
-    type->base = base;
-    type->size = size;
-    return type;
+    Typespec *t = typespec_alloc(TYPESPEC_ARRAY);
+    t->base = base;
+    t->size = size;
+    return t;
 }
 
 Typespec *typespec_func(FuncTypespec func) {
-    Typespec *type = typespec_alloc(TYPESPEC_FUNC);
-    type->func = func;
-    return type;
+    Typespec *t = typespec_alloc(TYPESPEC_FUNC);
+    t->func = func;
+    return t;
 }
 
 Expr *expr_alloc(ExprKind kind) {
-    Expr *expr = xcalloc(1, sizeof(Expr));
-    expr->kind = kind;
-    return expr;
+    Expr *e = xcalloc(1, sizeof(Expr));
+    e->kind = kind;
+    return e;
 }
 
 Expr *expr_int(uint64_t int_val) {
-    Expr *expr = expr_alloc(EXPR_INT);
-    expr->int_val = int_val;
-    return expr;
+    Expr *e = expr_alloc(EXPR_INT);
+    e->int_val = int_val;
+    return e;
 }
 
 Expr *expr_float(double float_val) {
-    Expr *expr = expr_alloc(EXPR_FLOAT);
-    expr->float_val = float_val;
-    return expr;
+    Expr *e = expr_alloc(EXPR_FLOAT);
+    e->float_val = float_val;
+    return e;
 }
 
 Expr *expr_str(const char *str_val) {
-    Expr *expr = expr_alloc(EXPR_STR);
-    expr->str_val = str_val;
-    return expr;
+    Expr *e = expr_alloc(EXPR_STR);
+    e->str_val = str_val;
+    return e;
 }
 
 Expr *expr_name(const char *name) {
-    Expr *expr = expr_alloc(EXPR_NAME);
-    expr->name = name;
-    return expr;
+    Expr *e = expr_alloc(EXPR_NAME);
+    e->name = name;
+    return e;
 }
 
 Expr *expr_cast(Typespec *type, Expr *expr) {
-    Expr *new_expr = expr_alloc(EXPR_CAST);
-    new_expr->cast.type = type;
-    new_expr->cast.expr = expr;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_CAST);
+    e->cast_expr.type = type;
+    e->cast_expr.expr = expr;
+    return e;
 }
 
 Expr *expr_call(Expr *expr, Expr **args, size_t num_args) {
-    Expr *new_expr = expr_alloc(EXPR_CALL);
-    new_expr->call.expr = expr;
-    new_expr->call.args = args;
-    new_expr->call.num_args = num_args;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_CALL);
+    e->call_expr.expr = expr;
+    e->call_expr.args = args;
+    e->call_expr.num_args = num_args;
+    return e;
 }
 
 Expr *expr_index(Expr *expr, Expr *index) {
-    Expr *new_expr = expr_alloc(EXPR_INDEX);
-    new_expr->index.expr = expr;
-    new_expr->index.index = index;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_INDEX);
+    e->index_expr.expr = expr;
+    e->index_expr.index = index;
+    return e;
 }
 
 Expr *expr_field(Expr *expr, const char *name) {
-    Expr *new_expr = expr_alloc(EXPR_FIELD);
-    new_expr->field.expr = expr;
-    new_expr->field.name = name;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_FIELD);
+    e->field_expr.expr = expr;
+    e->field_expr.name = name;
+    return e;
 }
 
 Expr *expr_unary(TokenKind op, Expr *expr) {
-    Expr *new_expr = expr_alloc(EXPR_UNARY);
-    new_expr->unary.op = op;
-    new_expr->unary.expr = expr;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_UNARY);
+    e->unary_expr.op = op;
+    e->unary_expr.expr = expr;
+    return e;
 }
 
 Expr *expr_binary(TokenKind op, Expr *left, Expr *right) {
-    Expr *new_expr = expr_alloc(EXPR_BINARY);
-    new_expr->binary.op = op;
-    new_expr->binary.left = left;
-    new_expr->binary.right = right;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_BINARY);
+    e->binary_expr.op = op;
+    e->binary_expr.left = left;
+    e->binary_expr.right = right;
+    return e;
 }
 
 Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
-    Expr *new_expr = expr_alloc(EXPR_TERNARY);
-    new_expr->ternary.cond = cond;
-    new_expr->ternary.if_true = if_true;
-    new_expr->ternary.if_false = if_false;
-    return new_expr;
+    Expr *e = expr_alloc(EXPR_TERNARY);
+    e->ternary_expr.cond = cond;
+    e->ternary_expr.if_true = if_true;
+    e->ternary_expr.if_false = if_false;
+    return e;
 }
 
 void print_expr(Expr *expr);
@@ -151,30 +151,31 @@ void print_type(Typespec *type) {
 }
 
 void print_expr(Expr *expr) {
-    switch (expr->kind) {
+    Expr *e = expr;
+    switch (e->kind) {
     case EXPR_INT:
-        printf("%" PRIu64, expr->int_val);
+        printf("%" PRIu64, e->int_val);
         break;
     case EXPR_FLOAT:
-        printf("%f", expr->float_val);
+        printf("%f", e->float_val);
         break;
     case EXPR_STR:
-        printf("\"%s\"", expr->str_val);
+        printf("\"%s\"", e->str_val);
         break;
     case EXPR_NAME:
-        printf("%s", expr->name);
+        printf("%s", e->name);
         break;
     case EXPR_CAST:
         printf("(cast ");
-        print_type(expr->cast.type);
+        print_type(e->cast_expr.type);
         printf(" ");
-        print_expr(expr->cast.expr);
+        print_expr(e->cast_expr.expr);
         printf(")");
         break;
     case EXPR_CALL:
         printf("(");
-        print_expr(expr->call.expr);
-        for (Expr **it = expr->call.args; it != expr->call.args + expr->call.num_args; it++) {
+        print_expr(e->call_expr.expr);
+        for (Expr **it = e->call_expr.args; it != e->call_expr.args + e->call_expr.num_args; it++) {
             printf(" ");
             print_expr(*it);
         }
@@ -182,38 +183,38 @@ void print_expr(Expr *expr) {
         break;
     case EXPR_INDEX:
         printf("(index ");
-        print_expr(expr->index.expr);
+        print_expr(e->index_expr.expr);
         printf(" ");
-        print_expr(expr->index.index);
+        print_expr(e->index_expr.index);
         printf(")");
         break;
     case EXPR_FIELD:
         printf("(field ");
-        print_expr(expr->field.expr);
-        printf(" %s)", expr->field.name);
+        print_expr(e->field_expr.expr);
+        printf(" %s)", e->field_expr.name);
         break;
     case EXPR_COMPOUND:
         printf("(compound ...)");
         break;
     case EXPR_UNARY:
-        printf("(%c ", expr->unary.op);
-        print_expr(expr->unary.expr);
+        printf("(%c ", e->unary_expr.op);
+        print_expr(e->unary_expr.expr);
         printf(")");
         break;
     case EXPR_BINARY:
-        printf("(%c ", expr->binary.op);
-        print_expr(expr->binary.left);
+        printf("(%c ", e->binary_expr.op);
+        print_expr(e->binary_expr.left);
         printf(" ");
-        print_expr(expr->binary.right);
+        print_expr(e->binary_expr.right);
         printf(")");
         break;
     case EXPR_TERNARY:
         printf("(if ");
-        print_expr(expr->ternary.cond);
+        print_expr(e->ternary_expr.cond);
         printf(" ");
-        print_expr(expr->ternary.if_true);
+        print_expr(e->ternary_expr.if_true);
         printf(" ");
-        print_expr(expr->ternary.if_false);
+        print_expr(e->ternary_expr.if_false);
         printf(")");
         break;
     default:

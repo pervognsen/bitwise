@@ -228,6 +228,7 @@ void scan_str() {
         char val = *stream;
         if (val == '\n') {
             syntax_error("String literal cannot contain newline");
+            break;
         } else if (val == '\\') {
             stream++;
             val = escape_to_char[*stream];

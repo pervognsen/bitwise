@@ -165,14 +165,14 @@ struct Expr {
         double float_val;
         const char *str_val;
         const char *name;
-        CompoundExpr compound;
-        CastExpr cast;
-        UnaryExpr unary;
-        BinaryExpr binary;
-        TernaryExpr ternary;
-        CallExpr call;
-        IndexExpr index;
-        FieldExpr field;
+        CompoundExpr compound_expr;
+        CastExpr cast_expr;
+        UnaryExpr unary_expr;
+        BinaryExpr binary_expr;
+        TernaryExpr ternary_expr;
+        CallExpr call_expr;
+        IndexExpr index_expr;
+        FieldExpr field_expr;
     };
 };
 
@@ -203,7 +203,7 @@ typedef struct ElseIf {
 } ElseIf;
 
 typedef struct IfStmt {
-    Expr *expr;
+    Expr *cond;
     StmtBlock then_block;
     ElseIf *elseifs;
     size_t num_elseifs;
@@ -211,13 +211,13 @@ typedef struct IfStmt {
 } IfStmt;
 
 typedef struct WhileStmt {
-    Expr *expr;
+    Expr *cond;
     StmtBlock block;
 } WhileStmt;
 
 typedef struct ForStmt {
     StmtBlock init;
-    Expr *expr;
+    Expr *cond;
     StmtBlock next;
 } ForStmt;
 
@@ -241,7 +241,7 @@ typedef struct AssignStmt {
 
 typedef struct AutoAssignStmt {
     const char *name;
-    Expr *expr;
+    Expr *init;
 } AutoAssignStmt;
 
 struct Stmt {
@@ -251,7 +251,7 @@ struct Stmt {
         WhileStmt while_stmt;
         ForStmt for_stmt;
         SwitchStmt switch_stmt;
-        AssignStmt assign;
-        AutoAssignStmt autoassign;
+        AssignStmt assign_stmt;
+        AutoAssignStmt autoassign_stmt;
     };
 };
