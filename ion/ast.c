@@ -1,5 +1,3 @@
-#include "ast.h"
-
 Typespec *typespec_new(TypespecKind kind) {
     Typespec *t = xcalloc(1, sizeof(Typespec));
     t->kind = kind;
