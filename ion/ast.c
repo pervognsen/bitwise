@@ -1,5 +1,23 @@
+Arena ast_arena;
+
+void *ast_alloc(size_t size) {
+    assert(size != 0);
+    void *ptr = arena_alloc(&ast_arena, size);
+    memset(ptr, 0, size);
+    return ptr;
+}
+
+void *ast_dup(const void *src, size_t size) {
+    if (size == 0) {
+        return NULL;
+    }
+    void *ptr = arena_alloc(&ast_arena, size);
+    memcpy(ptr, src, size);
+    return ptr;
+}
+
 Typespec *typespec_new(TypespecKind kind) {
-    Typespec *t = xcalloc(1, sizeof(Typespec));
+    Typespec *t = ast_alloc(sizeof(Typespec));
     t->kind = kind;
     return t;
 }
@@ -32,7 +50,7 @@ Typespec *typespec_func(Typespec **args, size_t num_args, Typespec *ret) {
 }
 
 Decl *decl_new(DeclKind kind, const char *name) {
-    Decl *d = xcalloc(1, sizeof(Decl));
+    Decl *d = ast_alloc(sizeof(Decl));
     d->kind = kind;
     d->name = name;
     return d;
@@ -45,8 +63,9 @@ Decl *decl_enum(const char *name, EnumItem *items, size_t num_items) {
     return d;
 }
 
-Decl *decl_struct(const char *name, AggregateItem *items, size_t num_items) {
-    Decl *d = decl_new(DECL_STRUCT, name);
+Decl *decl_aggregate(DeclKind kind, const char *name, AggregateItem *items, size_t num_items) {
+    assert(kind == DECL_STRUCT || kind == DECL_UNION);
+    Decl *d = decl_new(kind, name);
     d->aggregate.items = items;
     d->aggregate.num_items = num_items;
     return d;
@@ -88,7 +107,7 @@ Decl *decl_typedef(const char *name, Typespec *type) {
 }
 
 Expr *expr_new(ExprKind kind) {
-    Expr *e = xcalloc(1, sizeof(Expr));
+    Expr *e = ast_alloc(sizeof(Expr));
     e->kind = kind;
     return e;
 }
@@ -169,16 +188,16 @@ Expr *expr_binary(TokenKind op, Expr *left, Expr *right) {
     return e;
 }
 
-Expr *expr_ternary(Expr *cond, Expr *if_true, Expr *if_false) {
+Expr *expr_ternary(Expr *cond, Expr *then_expr, Expr *else_expr) {
     Expr *e = expr_new(EXPR_TERNARY);
     e->ternary.cond = cond;
-    e->ternary.if_true = if_true;
-    e->ternary.if_false = if_false;
+    e->ternary.then_expr = then_expr;
+    e->ternary.else_expr = else_expr;
     return e;
 }
 
 Stmt *stmt_new(StmtKind kind) {
-    Stmt *s = xcalloc(1, sizeof(Stmt));
+    Stmt *s = ast_alloc(sizeof(Stmt));
     s->kind = kind;
     return s;
 }
@@ -227,7 +246,7 @@ Stmt *stmt_do_while(Expr *cond, StmtBlock block) {
     return s;
 }
    
-Stmt *stmt_for(StmtBlock init, Expr *cond, StmtBlock next, StmtBlock block) {
+Stmt *stmt_for(Stmt *init, Expr *cond, Stmt *next, StmtBlock block) {
     Stmt *s = stmt_new(STMT_FOR);
     s->for_stmt.init = init;
     s->for_stmt.cond = cond;
@@ -264,4 +283,3 @@ Stmt *stmt_expr(Expr *expr) {
     s->expr = expr;
     return s;
 }
-

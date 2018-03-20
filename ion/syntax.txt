@@ -152,12 +152,12 @@ operand_expr = INT
 base_expr = operand_expr ('(' expr_list ')' | '[' expr ']' | '.' NAME)*
 unary_expr = [+-~!&*] unary_expr
            | base_expr
-mul_op = '*' | '/' | '%' | '&' | LSHIFT | RSHIFT
+mul_op = [*/%&] | LSHIFT | RSHIFT
 mul_expr = unary_expr (mul_op unary_expr)*
-add_op = '+' | '-' | '|' | '^'
+add_op = [+-|^]
 add_expr = mul_expr (add_op mul_expr)*
-cmp_op = EQ | NOTEQ | '<' | LTEQ | '>' | '>='
-cmp_expr = mul_expr (cmp_op mul_expr)*
+cmp_op = [<>] | EQ | NOTEQ | LTEQ | GTEQ
+cmp_expr = add_expr (cmp_op add_expr)*
 and_expr = cmp_expr (AND cmp_expr)*
 or_expr = and_expr (OR and_expr)*
 ternary_expr = or_expr ('?' ternary_expr ':' ternary_expr)?

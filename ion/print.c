@@ -99,24 +99,24 @@ void print_expr(Expr *expr) {
         printf(")");
         break;
     case EXPR_UNARY:
-        printf("(%c ", e->unary.op);
+        printf("(%s ", temp_token_kind_str(e->unary.op));
         print_expr(e->unary.expr);
         printf(")");
         break;
     case EXPR_BINARY:
-        printf("(%c ", e->binary.op);
+        printf("(%s ", temp_token_kind_str(e->binary.op));
         print_expr(e->binary.left);
         printf(" ");
         print_expr(e->binary.right);
         printf(")");
         break;
     case EXPR_TERNARY:
-        printf("(if ");
+        printf("(? ");
         print_expr(e->ternary.cond);
         printf(" ");
-        print_expr(e->ternary.if_true);
+        print_expr(e->ternary.then_expr);
         printf(" ");
-        print_expr(e->ternary.if_false);
+        print_expr(e->ternary.else_expr);
         printf(")");
         break;
     default:
@@ -125,15 +125,11 @@ void print_expr(Expr *expr) {
     }
 }
 
-void print_stmt_block(StmtBlock block, bool newlines) {
+void print_stmt_block(StmtBlock block) {
     printf("(block");
     indent++;
     for (Stmt **it = block.stmts; it != block.stmts + block.num_stmts; it++) {
-        if (newlines) {
-            print_newline();
-        } else {
-            printf(" ");
-        }
+        print_newline();
         print_stmt(*it);
     }
     indent--;
@@ -155,36 +151,36 @@ void print_stmt(Stmt *stmt) {
         printf("(continue)");
         break;
     case STMT_BLOCK:
-        print_stmt_block(s->block, true);
+        print_stmt_block(s->block);
         break;
     case STMT_IF:
         printf("(if ");
         print_expr(s->if_stmt.cond);
         indent++;
         print_newline();
-        print_stmt_block(s->if_stmt.then_block, true);
+        print_stmt_block(s->if_stmt.then_block);
         for (ElseIf *it = s->if_stmt.elseifs; it != s->if_stmt.elseifs + s->if_stmt.num_elseifs; it++) {
             print_newline();
             printf("elseif ");
             print_expr(it->cond);
             print_newline();
-            print_stmt_block(it->block, true);
+            print_stmt_block(it->block);
         }
         if (s->if_stmt.else_block.num_stmts != 0) {
             print_newline();
             printf("else ");
             print_newline();
-            print_stmt_block(s->if_stmt.else_block, true);
+            print_stmt_block(s->if_stmt.else_block);
         }
-        printf(")");
         indent--;
+        printf(")");
         break;
     case STMT_WHILE:
         printf("(while ");
         print_expr(s->while_stmt.cond);
         indent++;
         print_newline();
-        print_stmt_block(s->while_stmt.block, true);
+        print_stmt_block(s->while_stmt.block);
         indent--;
         printf(")");
         break;
@@ -193,19 +189,20 @@ void print_stmt(Stmt *stmt) {
         print_expr(s->while_stmt.cond);
         indent++;
         print_newline();
-        print_stmt_block(s->while_stmt.block, true);
+        print_stmt_block(s->while_stmt.block);
         indent--;
         printf(")");
         break;
     case STMT_FOR:
         printf("(for ");
-        print_stmt_block(s->for_stmt.init, false);
+        print_stmt(s->for_stmt.init);
         print_expr(s->for_stmt.cond);
-        print_stmt_block(s->for_stmt.next, false);
+        print_stmt(s->for_stmt.next);
         indent++;
         print_newline();
-        print_stmt_block(s->for_stmt.block, true);
+        print_stmt_block(s->for_stmt.block);
         indent--;
+        printf(")");
         break;
     case STMT_SWITCH:
         printf("(switch ");
@@ -221,11 +218,11 @@ void print_stmt(Stmt *stmt) {
             printf(" ) ");
             indent++;
             print_newline();
-            print_stmt_block(it->block, true);
+            print_stmt_block(it->block);
             indent--;
         }
-        printf(")");
         indent--;
+        printf(")");
         break;
     case STMT_ASSIGN:
         printf("(%s ", token_kind_names[s->assign.op]);
@@ -296,14 +293,18 @@ void print_decl(Decl *decl) {
         break;
     case DECL_VAR:
         printf("(var %s ", d->name);
-        print_typespec(d->var.type);
+        if (d->var.type) {
+            print_typespec(d->var.type);
+        } else {
+            printf("nil");
+        }
         printf(" ");
         print_expr(d->var.expr);
         printf(")");
         break;
     case DECL_CONST:
         printf("(const %s ", d->name);
-        print_expr(d->var.expr);
+        print_expr(d->const_decl.expr);
         printf(")");
         break;
     case DECL_TYPEDEF:
@@ -315,14 +316,14 @@ void print_decl(Decl *decl) {
         printf("(func %s ", d->name);
         printf("(");
         for (FuncParam *it = d->func.params; it != d->func.params + d->func.num_params; it++) {
-            printf(" %s", it->name);
+            printf(" %s ", it->name);
             print_typespec(it->type);
         }
         printf(" ) ");
         print_typespec(d->func.ret_type);
         indent++;
         print_newline();
-        print_stmt_block(d->func.block, true);
+        print_stmt_block(d->func.block);
         indent--;
         printf(")");
         break;

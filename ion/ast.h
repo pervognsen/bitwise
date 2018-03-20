@@ -151,8 +151,8 @@ typedef struct BinaryExpr {
 
 typedef struct TernaryExpr {
     Expr *cond;
-    Expr *if_true;
-    Expr *if_false;
+    Expr *then_expr;
+    Expr *else_expr;
 } TernaryExpr;
 
 typedef struct CallExpr {
@@ -228,9 +228,9 @@ typedef struct WhileStmt {
 } WhileStmt;
 
 typedef struct ForStmt {
-    StmtBlock init;
+    Stmt *init;
     Expr *cond;
-    StmtBlock next;
+    Stmt *next;
     StmtBlock block;
 } ForStmt;
 
@@ -272,4 +272,3 @@ struct Stmt {
         Expr *expr;
     };
 };
-
