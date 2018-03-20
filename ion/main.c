@@ -13,8 +13,10 @@
 
 #include "common.c"
 #include "lex.c"
+#include "ast.h"
 #include "ast.c"    
 #include "print.c"
+#include "parse.c"
 
 void run_tests() {
     common_test();
@@ -26,4 +28,3 @@ int main(int argc, char **argv) {
     run_tests();
     return 0;
 }
-
