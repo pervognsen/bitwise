@@ -123,12 +123,13 @@ const char *token_kind_names[] = {
     [TOKEN_ADD_ASSIGN] = "+=",
     [TOKEN_SUB_ASSIGN] = "-=",
     [TOKEN_OR_ASSIGN] = "|=",
-    [TOKEN_LSHIFT_ASSIGN] = "<<=",
-    [TOKEN_RSHIFT_ASSIGN] = ">>=",
     [TOKEN_AND_ASSIGN] = "&=",
     [TOKEN_XOR_ASSIGN] = "^=",
+    [TOKEN_MUL_ASSIGN] = "+=",
     [TOKEN_DIV_ASSIGN] = "/=",
     [TOKEN_MOD_ASSIGN] = "%=",
+    [TOKEN_LSHIFT_ASSIGN] = "<<=",
+    [TOKEN_RSHIFT_ASSIGN] = ">>=",
 };
 
 const char *token_kind_name(TokenKind kind) {

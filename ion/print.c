@@ -227,8 +227,10 @@ void print_stmt(Stmt *stmt) {
     case STMT_ASSIGN:
         printf("(%s ", token_kind_names[s->assign.op]);
         print_expr(s->assign.left);
-        printf(" ");
-        print_expr(s->assign.right);
+        if (s->assign.right) {
+            printf(" ");
+            print_expr(s->assign.right);
+        }
         printf(")");
         break;
     case STMT_INIT:
@@ -320,7 +322,11 @@ void print_decl(Decl *decl) {
             print_typespec(it->type);
         }
         printf(" ) ");
-        print_typespec(d->func.ret_type);
+        if (d->func.ret_type) {
+            print_typespec(d->func.ret_type);
+        } else {
+            printf("nil");
+        }
         indent++;
         print_newline();
         print_stmt_block(d->func.block);
