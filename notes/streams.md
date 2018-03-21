@@ -1,3 +1,8 @@
+# Day 5: Ion Parser/AST Code Review
+- Video: https://www.youtube.com/watch?v=YvoyKQYNy20
+- "Working" parser and AST printer, needs more test coverage
+- Review/explain major high points of new code, design choices
+
 # Day 4: Lexer, Parser, AST Marathon (March 19, 2018)
 - Video: https://www.youtube.com/watch?v=bM_JOa-dadY
 - Extra: https://www.youtube.com/watch?v=t0YAOfZcSfw
