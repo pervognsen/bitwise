@@ -127,6 +127,7 @@ typedef struct Arena {
 void arena_grow(Arena *arena, size_t min_size) {
     size_t size = ALIGN_UP(MAX(ARENA_BLOCK_SIZE, min_size), ARENA_ALIGNMENT);
     arena->ptr = xmalloc(size);
+    assert(arena->ptr == ALIGN_DOWN_PTR(arena->ptr, ARENA_ALIGNMENT));
     arena->end = arena->ptr + size;
     buf_push(arena->blocks, arena->ptr);
 }
@@ -147,7 +148,7 @@ void arena_free(Arena *arena) {
     for (char **it = arena->blocks; it != buf_end(arena->blocks); it++) {
         free(*it);
     }
-    free(arena->blocks);
+    buf_free(arena->blocks);
 }
 
 // String interning
