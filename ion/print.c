@@ -57,14 +57,14 @@ void print_expr(Expr *expr) {
     case EXPR_NAME:
         printf("%s", e->name);
         break;
-    case EXPR_SIZEOF:
-        printf("(sizeof ");
-        if (e->sizeof_expr.kind == SIZEOF_EXPR) {
-            print_expr(e->sizeof_expr.expr);
-        } else {
-            assert(e->sizeof_expr.kind == SIZEOF_TYPE);
-            print_typespec(e->sizeof_expr.type);
-        }
+    case EXPR_SIZEOF_EXPR:
+        printf("(sizeof-expr ");
+        print_expr(e->sizeof_expr);
+        printf(")");
+        break;
+    case EXPR_SIZEOF_TYPE:
+        printf("(sizeof-type ");
+        print_typespec(e->sizeof_type);
         printf(")");
         break;
     case EXPR_CAST:

@@ -325,7 +325,7 @@ Stmt *parse_stmt_for() {
     if (!is_token(')')) {
         next = parse_simple_stmt();
         if (next->kind == STMT_INIT) {
-            syntax_error("Init statements not allowed in for statement's next clause");
+            syntax_error("Init statements not allowed in for-statement's next clause");
         }
     }
     expect_token(')');

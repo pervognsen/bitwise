@@ -17,8 +17,8 @@ typedef enum TypespecKind {
 } TypespecKind;
 
 typedef struct FuncTypespec {
-    size_t num_args;
     Typespec **args;
+    size_t num_args;
     Typespec *ret;
 } FuncTypespec;
 
@@ -125,21 +125,9 @@ typedef enum ExprKind {
     EXPR_UNARY,
     EXPR_BINARY,
     EXPR_TERNARY,
-    EXPR_SIZEOF,
+    EXPR_SIZEOF_EXPR,
+    EXPR_SIZEOF_TYPE,
 } ExprKind;
-
-typedef enum SizeofKind {
-    SIZEOF_EXPR,
-    SIZEOF_TYPE,
-} SizeofKind;
-
-typedef struct SizeofExpr {
-    SizeofKind kind;
-    union {
-        Expr *expr;
-        Typespec *type;
-    };
-} SizeofExpr;
 
 typedef struct CompoundExpr {
     Typespec *type;
@@ -192,6 +180,8 @@ struct Expr {
         double float_val;
         const char *str_val;
         const char *name;
+        Expr *sizeof_expr;
+        Typespec *sizeof_type;
         CompoundExpr compound;
         CastExpr cast;
         UnaryExpr unary;
@@ -200,7 +190,6 @@ struct Expr {
         CallExpr call;
         IndexExpr index;
         FieldExpr field;
-        SizeofExpr sizeof_expr;
     };
 };
 
