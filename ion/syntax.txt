@@ -72,6 +72,10 @@ Declarations:
 type_list = type (',' type)*
 name_list = NAME (',' NAME)*
 
+typedef f = func(int):int
+typedef f = func(int):int[16]
+typedef f = (func(int):int)[16]
+
 base_type = NAME
           | 'func' '(' type_list? ')' (':' type)?
           | '(' type ')'
@@ -130,6 +134,12 @@ y := 2
 n := sizeof(x + y)
 m := sizeof(:int[16]) // 16*sizeof(int)
 
+var v: Vector
+
+v := Vector{1,2}
+v := (:Vector){1,2} // synonym for prev line
+a := (:Vector*[3]){p,q,r}
+
 u8 := uint8(42)
 u32 = uint32(u8)
 
@@ -162,3 +172,5 @@ and_expr = cmp_expr (AND cmp_expr)*
 or_expr = and_expr (OR and_expr)*
 ternary_expr = or_expr ('?' ternary_expr ':' ternary_expr)?
 expr = ternary_expr
+
+var v: Vector

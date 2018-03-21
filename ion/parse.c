@@ -88,6 +88,17 @@ Expr *parse_expr_operand() {
         } else {
             return expr_name(name);
         }
+    } else if (match_keyword(sizeof_keyword)) {
+        expect_token('(');
+        if (match_token(':')) {
+            Typespec *type = parse_type();
+            expect_token(')');
+            return expr_sizeof_type(type);
+        } else {
+            Expr *expr = parse_expr();
+            expect_token(')');
+            return expr_sizeof_expr(expr);
+        }
     } else if (is_token('{')) {
         return parse_expr_compound(NULL);
     } else if (match_token('(')) {
@@ -313,6 +324,9 @@ Stmt *parse_stmt_for() {
     Stmt *next = NULL;
     if (!is_token(')')) {
         next = parse_simple_stmt();
+        if (next->kind == STMT_INIT) {
+            syntax_error("Init statements not allowed in for statement's next clause");
+        }
     }
     expect_token(')');
     return stmt_for(init, cond, next, parse_stmt_block());
@@ -324,14 +338,21 @@ SwitchCase parse_stmt_switch_case() {
     while (is_keyword(case_keyword) || is_keyword(default_keyword)) {
         if (match_keyword(case_keyword)) {
             buf_push(exprs, parse_expr());
-            expect_token(':');
         } else {
             assert(is_keyword(default_keyword));
             next_token();
+            if (is_default) {
+                syntax_error("Duplicate default labels in same switch clause");
+            }
             is_default = true;
         }
+        expect_token(':');
     }
-    StmtBlock block = parse_stmt_block();
+    Stmt **stmts = NULL;
+    while (!is_token_eof() && !is_token('}') && !is_keyword(case_keyword) && !is_keyword(default_keyword)) {
+        buf_push(stmts, parse_stmt());
+    }
+    StmtBlock block = {ast_dup(stmts, buf_sizeof(stmts)), buf_len(stmts)};
     return (SwitchCase){ast_dup(exprs, buf_sizeof(exprs)), buf_len(exprs), is_default, block};
 }
 
@@ -346,9 +367,18 @@ Stmt *parse_stmt_switch() {
     return stmt_switch(expr, ast_dup(cases, buf_sizeof(cases)), buf_len(cases));
 }
 
-
 Stmt *parse_stmt() {
-    if (is_token('{')) {
+    if (match_keyword(if_keyword)) {
+        return parse_stmt_if();
+    } else if (match_keyword(while_keyword)) {
+        return parse_stmt_while();
+    } else if (match_keyword(do_keyword)) {
+        return parse_stmt_do_while();
+    } else if (match_keyword(for_keyword)) {
+        return parse_stmt_for();
+    } else if (match_keyword(switch_keyword)) {
+        return parse_stmt_switch();
+    } else if (is_token('{')) {
         return stmt_block(parse_stmt_block());
     } else if (match_keyword(return_keyword)) {
         Stmt *stmt = stmt_return(parse_expr());
@@ -360,16 +390,6 @@ Stmt *parse_stmt() {
     } else if (match_keyword(continue_keyword)) {
         expect_token(';');
         return stmt_continue();
-    } else if (match_keyword(if_keyword)) {
-        return parse_stmt_if();
-    } else if (match_keyword(while_keyword)) {
-        return parse_stmt_while();
-    } else if (match_keyword(do_keyword)) {
-        return parse_stmt_do_while();
-    } else if (match_keyword(for_keyword)) {
-        return parse_stmt_for();
-    } else if (match_keyword(switch_keyword)) {
-        return parse_stmt_switch();
     } else {
         Stmt *stmt = parse_simple_stmt();
         expect_token(';');
@@ -383,17 +403,24 @@ const char *parse_name() {
     return name;
 }
 
+EnumItem parse_decl_enum_item() {
+    const char *name = parse_name();
+    Expr *init = NULL;
+    if (match_token('=')) {
+        init = parse_expr();
+    }
+    return (EnumItem){name, init};
+}
+
 Decl *parse_decl_enum() {
     const char *name = parse_name();
     expect_token('{');
     EnumItem *items = NULL;
-    while (!is_token_eof() && !is_token('}')) {
-        const char *item_name = parse_name();
-        Expr *expr = NULL;
-        if (match_token('=')) {
-            expr = parse_expr();
+    if (!is_token('}')) {
+        buf_push(items, parse_decl_enum_item());
+        while (match_token(',')) {
+            buf_push(items, parse_decl_enum_item());
         }
-        buf_push(items, (EnumItem){name, expr});
     }
     expect_token('}');
     return decl_enum(name, ast_dup(items, buf_sizeof(items)), buf_len(items));
@@ -499,19 +526,27 @@ Decl *parse_decl() {
     }
 }
 
-void parse_and_print_decl(const char *str) {
-    init_stream(str);
-    Decl *decl = parse_decl();
-    print_decl(decl);
-    printf("\n");
-}
-
 void parse_test() {
-    parse_and_print_decl("func fact(n: int): int { trace(\"fact\"); if (n == 0) { return 1; } else { return n * fact(n-1); } }");
-    parse_and_print_decl("func fact(n: int): int { p := 1; for (i := 1; i <= n; i++) { p *= i; } return p; }");
-    parse_and_print_decl("var x = b == 1 ? 1+2 : 3-4");
-    parse_and_print_decl("const pi = 3.14");
-    parse_and_print_decl("struct Vector { x, y: float; }");
-    parse_and_print_decl("union IntOrFloat { i: int; f: float; }");
-    parse_and_print_decl("typedef Vectors = Vector[1+2]");
+    const char *tests[] = {
+        "const n = sizeof(:int*[16])",
+        "const n = sizeof(1+2)",
+        "var x = b == 1 ? 1+2 : 3-4",
+        "func fact(n: int): int { trace(\"fact\"); if (n == 0) { return 1; } else { return n * fact(n-1); } }",
+        "func fact(n: int): int { p := 1; for (i := 1; i <= n; i++) { p *= i; } return p; }",
+        "var foo = a ? a&b + c<<d + e*f == +u-v-w + *g/h(x,y) + -i%k[x] && m <= n*(p+q)/r : 0",
+        "func f(x: int): bool { switch(x) { case 0: case 1: return true; case 2: default: return false; } }",
+        "enum Color { RED = 3, GREEN, BLUE = 0 }",
+        "const pi = 3.14",
+        "struct Vector { x, y: float; }",
+        "var v = Vector{1.0, -1.0}",
+        "var v: Vector = {1.0, -1.0}",
+        "union IntOrFloat { i: int; f: float; }",
+        "typedef Vectors = Vector[1+2]",
+    };
+    for (const char **it = tests; it != tests + sizeof(tests)/sizeof(*tests); it++) {
+        init_stream(*it);
+        Decl *decl = parse_decl();
+        print_decl(decl);
+        printf("\n");
+    }
 }
