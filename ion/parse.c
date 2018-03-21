@@ -28,7 +28,9 @@ Typespec *parse_type_base() {
     } else if (match_keyword(func_keyword)) {
         return parse_type_func();
     } else if (match_token('(')) {
-        return parse_type();
+        Typespec *type = parse_type();
+        expect_token(')');
+        return type;
     } else {
         fatal_syntax_error("Unexpected token %s in type", temp_token_kind_str(token.kind));
         return NULL;
@@ -541,6 +543,8 @@ void parse_test() {
         "var v: Vector = {1.0, -1.0}",
         "union IntOrFloat { i: int; f: float; }",
         "typedef Vectors = Vector[1+2]",
+        "func f() { do { print(42); } while(1); }",
+        "typedef T = (func(int):int)[16]",
     };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
         init_stream(*it);
