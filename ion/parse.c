@@ -277,7 +277,6 @@ Stmt *parse_stmt_do_while() {
         fatal_syntax_error("Expected 'while' after 'do' block");
         return NULL;
     }
-    Expr *cond = parse_paren_expr();
     Stmt *stmt = stmt_do_while(parse_paren_expr(), block);
     expect_token(';');
     return stmt;
