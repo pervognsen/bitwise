@@ -57,8 +57,8 @@ void init_keywords() {
 
 #undef KEYWORD
 
-bool is_keyword_str(const char *str) {
-    return first_keyword <= str && str <= last_keyword;
+bool is_keyword_name(const char *name) {
+    return first_keyword <= name && name <= last_keyword;
 }
 
 typedef enum TokenKind {
@@ -404,7 +404,7 @@ repeat:
             stream++;
         }
         token.name = str_intern_range(token.start, stream);
-        token.kind = is_keyword_str(token.name) ? TOKEN_KEYWORD : TOKEN_NAME;
+        token.kind = is_keyword_name(token.name) ? TOKEN_KEYWORD : TOKEN_NAME;
         break;
     case '<':
         token.kind = *stream++;
@@ -508,12 +508,12 @@ bool expect_token(TokenKind kind) {
 
 void keyword_test() {
     init_keywords();
-    assert(is_keyword_str(first_keyword));
-    assert(is_keyword_str(last_keyword));
+    assert(is_keyword_name(first_keyword));
+    assert(is_keyword_name(last_keyword));
     for (const char **it = keywords; it != buf_end(keywords); it++) {
-        assert(is_keyword_str(*it));
+        assert(is_keyword_name(*it));
     }
-    assert(!is_keyword_str(str_intern("foo")));
+    assert(!is_keyword_name(str_intern("foo")));
 }
 
 #define assert_token(x) assert(match_token(x))
