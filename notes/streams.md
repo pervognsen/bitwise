@@ -1,4 +1,4 @@
-# Day 5: Ion Parser/AST Code Review
+# Day 5: Ion Parser/AST Code Review (March 21, 2018)
 - Video: https://www.youtube.com/watch?v=YvoyKQYNy20
 - "Working" parser and AST printer, needs more test coverage
 - Review/explain major high points of new code, design choices
