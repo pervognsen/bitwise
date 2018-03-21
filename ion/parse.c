@@ -102,7 +102,7 @@ Expr *parse_expr_operand() {
     } else if (is_token('{')) {
         return parse_expr_compound(NULL);
     } else if (match_token('(')) {
-        if (is_token(':')) {
+        if (match_token(':')) {
             Typespec *type = parse_type();
             expect_token(')');
             return parse_expr_compound(type);
@@ -527,7 +527,7 @@ Decl *parse_decl() {
 }
 
 void parse_test() {
-    const char *tests[] = {
+    const char *decls[] = {
         "const n = sizeof(:int*[16])",
         "const n = sizeof(1+2)",
         "var x = b == 1 ? 1+2 : 3-4",
@@ -543,7 +543,7 @@ void parse_test() {
         "union IntOrFloat { i: int; f: float; }",
         "typedef Vectors = Vector[1+2]",
     };
-    for (const char **it = tests; it != tests + sizeof(tests)/sizeof(*tests); it++) {
+    for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
         init_stream(*it);
         Decl *decl = parse_decl();
         print_decl(decl);

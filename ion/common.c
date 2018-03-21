@@ -147,6 +147,7 @@ void arena_free(Arena *arena) {
     for (char **it = arena->blocks; it != buf_end(arena->blocks); it++) {
         free(*it);
     }
+    free(arena->blocks);
 }
 
 // String interning
