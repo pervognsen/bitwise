@@ -109,12 +109,12 @@ void print_expr(Expr *expr) {
         printf(")");
         break;
     case EXPR_UNARY:
-        printf("(%s ", temp_token_kind_str(e->unary.op));
+        printf("(%s ", token_kind_name(e->unary.op));
         print_expr(e->unary.expr);
         printf(")");
         break;
     case EXPR_BINARY:
-        printf("(%s ", temp_token_kind_str(e->binary.op));
+        printf("(%s ", token_kind_name(e->binary.op));
         print_expr(e->binary.left);
         printf(" ");
         print_expr(e->binary.right);

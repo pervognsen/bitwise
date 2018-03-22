@@ -62,9 +62,18 @@ bool is_keyword_name(const char *name) {
 }
 
 typedef enum TokenKind {
-    TOKEN_EOF = 0,
-    // Reserve first 128 values for one-char tokens
-    TOKEN_LAST_CHAR = 127,
+    TOKEN_EOF,
+    TOKEN_COLON,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_LBRACE,
+    TOKEN_RBRACE,
+    TOKEN_LBRACKET,
+    TOKEN_RBRACKET,
+    TOKEN_COMMA,
+    TOKEN_DOT,
+    TOKEN_QUESTION,
+    TOKEN_SEMICOLON,
     TOKEN_KEYWORD,
     TOKEN_INT,
     TOKEN_FLOAT,
@@ -126,6 +135,18 @@ typedef enum TokenMod {
 
 const char *token_kind_names[] = {
     [TOKEN_EOF] = "EOF",
+    [TOKEN_COLON] = ":",
+    [TOKEN_LPAREN] = "(",
+    [TOKEN_RPAREN] = ")",
+    [TOKEN_LBRACE] = "{",
+    [TOKEN_RBRACE] = "}",
+    [TOKEN_LBRACKET] = "[",
+    [TOKEN_RBRACKET] = "]",
+    [TOKEN_COMMA] = ",",
+    [TOKEN_DOT] = ".",
+    [TOKEN_QUESTION] = "?",
+    [TOKEN_SEMICOLON] = ";",
+    [TOKEN_KEYWORD] = "keyword",
     [TOKEN_INT] = "int",
     [TOKEN_FLOAT] = "float",
     [TOKEN_STR] = "string",
@@ -168,29 +189,8 @@ const char *token_kind_name(TokenKind kind) {
     if (kind < sizeof(token_kind_names)/sizeof(*token_kind_names)) {
         return token_kind_names[kind];
     } else {
-        return NULL;
+        return "<unknown>";
     }
-}
-
-size_t copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
-    size_t n = 0;
-    const char *name = token_kind_name(kind);
-    if (name) {
-        n = snprintf(dest, dest_size, "%s", name);
-    } else if (kind < 128 && isprint(kind)) {
-        n = snprintf(dest, dest_size, "%c", kind);
-    } else {
-        n = snprintf(dest, dest_size, "<ASCII %d>", kind);
-    }
-    return n;
-}
-
-// Warning: This returns a pointer to a static internal buffer, so the next call will overwrite it.
-const char *temp_token_kind_str(TokenKind kind) {
-    static char buf[256];
-    size_t n = copy_token_kind_str(buf, sizeof(buf), kind);
-    assert(n + 1 <= sizeof(buf));
-    return buf;
 }
 
 typedef struct Token {
@@ -208,6 +208,14 @@ typedef struct Token {
 
 Token token;
 const char *stream;
+
+const char *token_info() {
+    if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {
+        return token.name;
+    } else {
+        return token_kind_name(token.kind);
+    }
+}
 
 uint8_t char_to_digit[256] = {
     ['0'] = 0,
@@ -418,7 +426,12 @@ repeat:
         scan_str();
         break;
     case '.':
-        scan_float();
+        if (isdigit(stream[1])) {
+            scan_float();
+        } else {
+            token.kind = TOKEN_DOT;
+            stream++;
+        }
         break;
     case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
         while (isdigit(*stream)) {
@@ -476,7 +489,17 @@ repeat:
             stream++;
         }
         break;
-    CASE2(':', ':', '=', TOKEN_COLON_ASSIGN)
+    CASE1('\0', TOKEN_EOF)
+    CASE1('(', TOKEN_LPAREN)
+    CASE1(')', TOKEN_RPAREN)
+    CASE1('{', TOKEN_LBRACE)
+    CASE1('}', TOKEN_RBRACE)
+    CASE1('[', TOKEN_LBRACKET)
+    CASE1(']', TOKEN_RBRACKET)
+    CASE1(',', TOKEN_COMMA)
+    CASE1('?', TOKEN_QUESTION)
+    CASE1(';', TOKEN_SEMICOLON)
+    CASE2(':', TOKEN_COLON, '=', TOKEN_COLON_ASSIGN)
     CASE2('=', TOKEN_ASSIGN, '=', TOKEN_EQ)
     CASE2('^', TOKEN_XOR, '=', TOKEN_XOR_ASSIGN)
     CASE2('*', TOKEN_MUL, '=', TOKEN_MUL_ASSIGN)
@@ -487,8 +510,9 @@ repeat:
     CASE3('&', TOKEN_BAND, '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
     CASE3('|', TOKEN_BOR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
     default:
-        token.kind = *stream++;
-        break;
+        syntax_error("Invalid '%c' token character, skipping", *stream);
+        stream++;
+        goto repeat;
     }
     token.end = stream;
 }
@@ -541,9 +565,7 @@ bool expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        char buf[256];
-        copy_token_kind_str(buf, sizeof(buf), kind);
-        fatal("expected token %s, got %s", buf, temp_token_kind_str(token.kind));
+        fatal("expected token %s, got %s", token_kind_name(kind), token_info());
         return false;
     }
 }
@@ -602,7 +624,7 @@ void lex_test() {
 
     // Operator tests
     init_stream(": := + += ++ < <= << <<=");
-    assert_token(':');
+    assert_token(TOKEN_COLON);
     assert_token(TOKEN_COLON_ASSIGN);
     assert_token(TOKEN_ADD);
     assert_token(TOKEN_ADD_ASSIGN);
@@ -617,11 +639,11 @@ void lex_test() {
     init_stream("XY+(XY)_HELLO1,234+994");
     assert_token_name("XY");
     assert_token(TOKEN_ADD);
-    assert_token('(');
+    assert_token(TOKEN_LPAREN);
     assert_token_name("XY");
-    assert_token(')');
+    assert_token(TOKEN_RPAREN);
     assert_token_name("_HELLO1");
-    assert_token(',');
+    assert_token(TOKEN_COMMA);
     assert_token_int(234);
     assert_token(TOKEN_ADD);
     assert_token_int(994);
