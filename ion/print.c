@@ -149,6 +149,9 @@ void print_stmt_block(StmtBlock block) {
 void print_stmt(Stmt *stmt) {
     Stmt *s = stmt;
     switch (s->kind) {
+    case STMT_DECL:
+        print_decl(s->decl);
+        break;
     case STMT_RETURN:
         printf("(return ");
         print_expr(s->return_stmt.expr);

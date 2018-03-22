@@ -195,6 +195,7 @@ struct Expr {
 
 typedef enum StmtKind {
     STMT_NONE,
+    STMT_DECL,
     STMT_RETURN,
     STMT_BREAK,
     STMT_CONTINUE,
@@ -274,5 +275,6 @@ struct Stmt {
         AssignStmt assign;
         InitStmt init;
         Expr *expr;
+        Decl *decl;
     };
 };

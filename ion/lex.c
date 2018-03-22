@@ -84,7 +84,7 @@ typedef enum TokenKind {
     TOKEN_FIRST_MUL = TOKEN_MUL,
     TOKEN_DIV,
     TOKEN_MOD,
-    TOKEN_BAND,
+    TOKEN_AND,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
     TOKEN_LAST_MUL = TOKEN_RSHIFT,
@@ -93,8 +93,8 @@ typedef enum TokenKind {
     TOKEN_FIRST_ADD = TOKEN_ADD,
     TOKEN_SUB,
     TOKEN_XOR,
-    TOKEN_BOR,
-    TOKEN_LAST_ADD = TOKEN_BOR,
+    TOKEN_OR,
+    TOKEN_LAST_ADD = TOKEN_OR,
     // Comparative precedence
     TOKEN_EQ,
     TOKEN_FIRST_CMP = TOKEN_EQ,
@@ -104,8 +104,8 @@ typedef enum TokenKind {
     TOKEN_LTEQ,
     TOKEN_GTEQ,
     TOKEN_LAST_CMP = TOKEN_GTEQ,
-    TOKEN_AND,
-    TOKEN_OR,
+    TOKEN_AND_AND,
+    TOKEN_OR_OR,
     // Assignment operators
     TOKEN_ASSIGN,
     TOKEN_FIRST_ASSIGN = TOKEN_ASSIGN,
@@ -154,12 +154,12 @@ const char *token_kind_names[] = {
     [TOKEN_MUL] = "*",
     [TOKEN_DIV] = "/",
     [TOKEN_MOD] = "%",
-    [TOKEN_BAND] = "&",
+    [TOKEN_AND] = "&",
     [TOKEN_LSHIFT] = "<<",
     [TOKEN_RSHIFT] = ">>",
     [TOKEN_ADD] = "+",
     [TOKEN_SUB] = "-",
-    [TOKEN_BOR] = "|",
+    [TOKEN_OR] = "|",
     [TOKEN_XOR] = "^",
     [TOKEN_EQ] = "==",
     [TOKEN_NOTEQ] = "!=",
@@ -167,8 +167,8 @@ const char *token_kind_names[] = {
     [TOKEN_GT] = ">",
     [TOKEN_LTEQ] = "<=",
     [TOKEN_GTEQ] = ">=",
-    [TOKEN_AND] = "&&",
-    [TOKEN_OR] = "||",
+    [TOKEN_AND_AND] = "&&",
+    [TOKEN_OR_OR] = "||",
     [TOKEN_ASSIGN] = "=",
     [TOKEN_ADD_ASSIGN] = "+=",
     [TOKEN_SUB_ASSIGN] = "-=",
@@ -486,6 +486,8 @@ repeat:
             }
         } else if (*stream == '=') {
             token.kind = TOKEN_GTEQ;
+            int x = 0;
+            x |= 1;
             stream++;
         }
         break;
@@ -507,10 +509,10 @@ repeat:
     CASE2('%', TOKEN_MOD, '=', TOKEN_MOD_ASSIGN)
     CASE3('+', TOKEN_ADD, '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
     CASE3('-', TOKEN_SUB, '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
-    CASE3('&', TOKEN_BAND, '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
-    CASE3('|', TOKEN_BOR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
+    CASE3('&', TOKEN_AND, '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND_AND)
+    CASE3('|', TOKEN_OR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR_OR)
     default:
-        syntax_error("Invalid '%c' token character, skipping", *stream);
+        syntax_error("Invalid '%c' token, skipping", *stream);
         stream++;
         goto repeat;
     }
