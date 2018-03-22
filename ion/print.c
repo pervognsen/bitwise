@@ -9,7 +9,7 @@ bool use_print_buf;
 
 #define printf(...) (use_print_buf ? (void)buf_printf(print_buf, __VA_ARGS__) : (void)printf(__VA_ARGS__))
 
-void print_flush_buf(FILE *file) {
+void flush_print_buf(FILE *file) {
     if (print_buf) {
         fprintf(file, "%s", print_buf);
         buf_free(print_buf);
@@ -462,7 +462,7 @@ void print_test() {
         print_stmt(*it);
         printf("\n");
     }
-    print_flush_buf(stdout);
+    flush_print_buf(stdout);
     use_print_buf = false;
 }
 
