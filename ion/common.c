@@ -78,6 +78,7 @@ typedef struct BufHdr {
 #define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
 #define buf_fit(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = buf__grow((b), (n), sizeof(*(b)))))
 #define buf_push(b, ...) (buf_fit((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
+#define buf_printf(b, ...) ((b) = buf__printf((b), __VA_ARGS__))
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
@@ -96,6 +97,24 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     return new_hdr->buf;
 }
 
+char *buf__printf(char *buf, const char *fmt, ...) {
+    assert(!buf || (buf_len(buf) != 0 && buf[buf_len(buf)-1] == 0));
+    va_list args;
+    va_start(args, fmt);
+    size_t n = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    if (buf_len(buf) == 0) {
+        n++;
+    }
+    buf_fit(buf, n + buf_len(buf));
+    char *dest = buf_len(buf) == 0 ? buf : buf + buf_len(buf) - 1;
+    va_start(args, fmt);
+    vsnprintf(dest, buf + buf_cap(buf) - dest, fmt, args);
+    va_end(args);
+    buf__hdr(buf)->len += n;
+    return buf;
+}
+
 void buf_test() {
     int *buf = NULL;
     assert(buf_len(buf) == 0);
@@ -110,6 +129,11 @@ void buf_test() {
     buf_free(buf);
     assert(buf == NULL);
     assert(buf_len(buf) == 0);
+    char *str = NULL;
+    buf_printf(str, "One: %d\n", 1);
+    assert(strcmp(str, "One: 1\n") == 0);
+    buf_printf(str, "Hex: 0x%x\n", 0x12345678);
+    assert(strcmp(str, "One: 1\nHex: 0x12345678\n") == 0);
 }
 
 // Arena allocator
