@@ -4,6 +4,18 @@ void print_decl(Decl *decl);
 
 int indent;
 
+char *print_buf;
+bool use_print_buf;
+
+#define printf(...) (use_print_buf ? (void)buf_printf(print_buf, __VA_ARGS__) : (void)printf(__VA_ARGS__))
+
+void print_flush_buf(FILE *file) {
+    if (print_buf) {
+        fprintf(file, "%s", print_buf);
+        buf_free(print_buf);
+    }
+}
+
 void print_newline() {
     printf("\n%.*s", 2*indent, "                                                                      ");
 }
@@ -352,7 +364,9 @@ void print_decl(Decl *decl) {
     }
 }
 
+
 void print_test() {
+    use_print_buf = true;
     // Expressions
     Expr *exprs[] = {
         expr_binary('+', expr_int(1), expr_int(2)),
@@ -448,4 +462,8 @@ void print_test() {
         print_stmt(*it);
         printf("\n");
     }
+    print_flush_buf(stdout);
+    use_print_buf = false;
 }
+
+#undef printf
