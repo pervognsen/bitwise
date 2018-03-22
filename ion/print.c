@@ -371,8 +371,8 @@ void print_test() {
     use_print_buf = true;
     // Expressions
     Expr *exprs[] = {
-        expr_binary('+', expr_int(1), expr_int(2)),
-        expr_unary('-', expr_float(3.14)),
+        expr_binary(TOKEN_ADD, expr_int(1), expr_int(2)),
+        expr_unary(TOKEN_SUB, expr_float(3.14)),
         expr_ternary(expr_name("flag"), expr_str("true"), expr_str("false")),
         expr_field(expr_name("person"), "name"),
         expr_call(expr_name("fact"), (Expr*[]){expr_int(42)}, 1),
