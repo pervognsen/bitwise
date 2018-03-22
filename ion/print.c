@@ -167,8 +167,11 @@ void print_stmt(Stmt *stmt) {
         print_decl(s->decl);
         break;
     case STMT_RETURN:
-        printf("(return ");
-        print_expr(s->return_stmt.expr);
+        printf("(return");
+        if (s->return_stmt.expr) {
+            printf(" ");
+            print_expr(s->return_stmt.expr);
+        }
         printf(")");
         break;
     case STMT_BREAK:

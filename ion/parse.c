@@ -380,18 +380,23 @@ Stmt *parse_stmt() {
         return parse_stmt_for();
     } else if (match_keyword(switch_keyword)) {
         return parse_stmt_switch();
-    } else if (is_token(TOKEN_LBRACE)) {
+    } else if (is_token(TOKEN_LBRACE)) {    
         return stmt_block(parse_stmt_block());
-    } else if (match_keyword(return_keyword)) {
-        Stmt *stmt = stmt_return(parse_expr());
-        expect_token(TOKEN_SEMICOLON);
-        return stmt;
     } else if (match_keyword(break_keyword)) {
         expect_token(TOKEN_SEMICOLON);
         return stmt_break();
     } else if (match_keyword(continue_keyword)) {
         expect_token(TOKEN_SEMICOLON);
         return stmt_continue();
+    } else if (match_keyword(return_keyword)) {
+        Stmt *stmt = NULL;
+        if (!is_token(TOKEN_SEMICOLON)) {
+            stmt = stmt_return(parse_expr());
+        } else {
+            stmt = stmt_return(NULL);
+        }
+        expect_token(TOKEN_SEMICOLON);
+        return stmt;
     } else {
         Decl *decl = parse_decl_opt();
         if (decl) {
@@ -557,7 +562,7 @@ void parse_test() {
         "typedef Vectors = Vector[1+2]",
         "func f() { do { print(42); } while(1); }",
         "typedef T = (func(int):int)[16]",
-        "func f() { enum E { A, B, C } return 42; }",
+        "func f() { enum E { A, B, C } return; }",
         "func f() { if (1) { return 1; } else if (2) { return 2; } else { return 3; } }",
     };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
