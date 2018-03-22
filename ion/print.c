@@ -11,8 +11,10 @@ bool use_print_buf;
 
 void flush_print_buf(FILE *file) {
     if (print_buf) {
-        fprintf(file, "%s", print_buf);
-        buf_free(print_buf);
+        if (file) {
+            fprintf(file, "%s", print_buf);
+        }
+        buf_clear(print_buf);
     }
 }
 
