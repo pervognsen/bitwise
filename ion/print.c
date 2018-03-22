@@ -12,7 +12,7 @@ bool use_print_buf;
 void flush_print_buf(FILE *file) {
     if (print_buf) {
         if (file) {
-            fprintf(file, "%s", print_buf);
+            fputs(print_buf, file);
         }
         buf_clear(print_buf);
     }
