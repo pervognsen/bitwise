@@ -39,7 +39,7 @@ Typespec *parse_type_base() {
 
 Typespec *parse_type() {
     Typespec *type = parse_type_base();
-    while (is_token('[') || is_token('*')) {
+    while (is_token('[') || is_token(TOKEN_MUL)) {
         if (match_token('[')) {
             Expr *expr = NULL;
             if (!is_token(']')) {
@@ -48,7 +48,7 @@ Typespec *parse_type() {
             expect_token(']');
             type = typespec_array(type, expr);
         } else {
-            assert(is_token('*'));
+            assert(is_token(TOKEN_MUL));
             next_token();
             type = typespec_ptr(type);
         }
@@ -148,7 +148,7 @@ Expr *parse_expr_base() {
 }
 
 bool is_unary_op() {
-    return is_token('+') || is_token('-') || is_token('*') || is_token('&');
+    return is_token(TOKEN_ADD) || is_token(TOKEN_SUB) || is_token(TOKEN_MUL) || is_token(TOKEN_BAND);
 }
 
 Expr *parse_expr_unary() {
@@ -162,7 +162,7 @@ Expr *parse_expr_unary() {
 }
 
 bool is_mul_op() {
-    return is_token('*') || is_token('/') || is_token('%') || is_token('&') || is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT);
+    return TOKEN_FIRST_MUL <= token.kind && token.kind <= TOKEN_LAST_MUL;
 }
 
 Expr *parse_expr_mul() {
@@ -176,7 +176,7 @@ Expr *parse_expr_mul() {
 }
 
 bool is_add_op() {
-    return is_token('+') || is_token('-') || is_token('|') || is_token('^');
+    return TOKEN_FIRST_ADD <= token.kind && token.kind <= TOKEN_LAST_ADD;
 }
 
 Expr *parse_expr_add() {
@@ -190,7 +190,7 @@ Expr *parse_expr_add() {
 }
 
 bool is_cmp_op() {
-    return is_token('<') || is_token('>') || is_token(TOKEN_EQ) || is_token(TOKEN_NOTEQ) || is_token(TOKEN_GTEQ) || is_token(TOKEN_LTEQ);
+    return TOKEN_FIRST_CMP <= token.kind && token.kind <= TOKEN_LAST_CMP;
 }
 
 Expr *parse_expr_cmp() {
@@ -407,7 +407,7 @@ const char *parse_name() {
 EnumItem parse_decl_enum_item() {
     const char *name = parse_name();
     Expr *init = NULL;
-    if (match_token('=')) {
+    if (match_token(TOKEN_ASSIGN)) {
         init = parse_expr();
     }
     return (EnumItem){name, init};
@@ -453,12 +453,12 @@ Decl *parse_decl_aggregate(DeclKind kind) {
 
 Decl *parse_decl_var() {
     const char *name = parse_name();
-    if (match_token('=')) {
+    if (match_token(TOKEN_ASSIGN)) {
         return decl_var(name, NULL, parse_expr());
     } else if (match_token(':')) {
         Typespec *type = parse_type();
         Expr *expr = NULL;
-        if (match_token('=')) {
+        if (match_token(TOKEN_ASSIGN)) {
             expr = parse_expr();
         }
         return decl_var(name, type, expr);
@@ -470,13 +470,13 @@ Decl *parse_decl_var() {
 
 Decl *parse_decl_const() {
     const char *name = parse_name();
-    expect_token('=');
+    expect_token(TOKEN_ASSIGN);
     return decl_const(name, parse_expr());
 }
 
 Decl *parse_decl_typedef() {
     const char *name = parse_name();
-    expect_token('=');
+    expect_token(TOKEN_ASSIGN);
     return decl_typedef(name, parse_type());
 }
 

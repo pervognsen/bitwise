@@ -20,7 +20,7 @@ void print_typespec(Typespec *type) {
             printf(" ");
             print_typespec(*it);
         }
-        printf(") ");
+        printf(" ) ");
         print_typespec(t->func.ret);
         printf(")");
         break;

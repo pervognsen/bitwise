@@ -70,19 +70,37 @@ typedef enum TokenKind {
     TOKEN_FLOAT,
     TOKEN_STR,
     TOKEN_NAME,
+    // Multiplicative precedence
+    TOKEN_MUL,
+    TOKEN_FIRST_MUL = TOKEN_MUL,
+    TOKEN_DIV,
+    TOKEN_MOD,
+    TOKEN_BAND,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
+    TOKEN_LAST_MUL = TOKEN_RSHIFT,
+    // Additive precedence
+    TOKEN_ADD,
+    TOKEN_FIRST_ADD = TOKEN_ADD,
+    TOKEN_SUB,
+    TOKEN_XOR,
+    TOKEN_BOR,
+    TOKEN_LAST_ADD = TOKEN_BOR,
+    // Comparative precedence
     TOKEN_EQ,
+    TOKEN_FIRST_CMP = TOKEN_EQ,
     TOKEN_NOTEQ,
+    TOKEN_LT,
+    TOKEN_GT,
     TOKEN_LTEQ,
     TOKEN_GTEQ,
+    TOKEN_LAST_CMP = TOKEN_GTEQ,
     TOKEN_AND,
     TOKEN_OR,
-    TOKEN_INC,
-    TOKEN_DEC,
-    TOKEN_COLON_ASSIGN,
+    // Assignment operators
+    TOKEN_ASSIGN,
+    TOKEN_FIRST_ASSIGN = TOKEN_ASSIGN,
     TOKEN_ADD_ASSIGN,
-    TOKEN_FIRST_ASSIGN = TOKEN_ADD_ASSIGN,
     TOKEN_SUB_ASSIGN,
     TOKEN_OR_ASSIGN,
     TOKEN_AND_ASSIGN,
@@ -93,6 +111,9 @@ typedef enum TokenKind {
     TOKEN_DIV_ASSIGN,
     TOKEN_MOD_ASSIGN,
     TOKEN_LAST_ASSIGN = TOKEN_MOD_ASSIGN,
+    TOKEN_INC,
+    TOKEN_DEC,
+    TOKEN_COLON_ASSIGN,
 } TokenKind;
 
 typedef enum TokenMod {
@@ -109,17 +130,25 @@ const char *token_kind_names[] = {
     [TOKEN_FLOAT] = "float",
     [TOKEN_STR] = "string",
     [TOKEN_NAME] = "name",
+    [TOKEN_MUL] = "*",
+    [TOKEN_DIV] = "/",
+    [TOKEN_MOD] = "%",
+    [TOKEN_BAND] = "&",
     [TOKEN_LSHIFT] = "<<",
     [TOKEN_RSHIFT] = ">>",
+    [TOKEN_ADD] = "+",
+    [TOKEN_SUB] = "-",
+    [TOKEN_BOR] = "|",
+    [TOKEN_XOR] = "^",
     [TOKEN_EQ] = "==",
     [TOKEN_NOTEQ] = "!=",
+    [TOKEN_LT] = "<",
+    [TOKEN_GT] = ">",
     [TOKEN_LTEQ] = "<=",
     [TOKEN_GTEQ] = ">=",
     [TOKEN_AND] = "&&",
     [TOKEN_OR] = "||",
-    [TOKEN_INC] = "++",
-    [TOKEN_DEC] = "--",
-    [TOKEN_COLON_ASSIGN] = ":=",
+    [TOKEN_ASSIGN] = "=",
     [TOKEN_ADD_ASSIGN] = "+=",
     [TOKEN_SUB_ASSIGN] = "-=",
     [TOKEN_OR_ASSIGN] = "|=",
@@ -130,6 +159,9 @@ const char *token_kind_names[] = {
     [TOKEN_MOD_ASSIGN] = "%=",
     [TOKEN_LSHIFT_ASSIGN] = "<<=",
     [TOKEN_RSHIFT_ASSIGN] = ">>=",
+    [TOKEN_INC] = "++",
+    [TOKEN_DEC] = "--",
+    [TOKEN_COLON_ASSIGN] = ":=",
 };
 
 const char *token_kind_name(TokenKind kind) {
@@ -262,7 +294,7 @@ void scan_float() {
         }
     }
     double val = strtod(start, NULL);
-    if (val == HUGE_VAL || val == -HUGE_VAL) {
+    if (val == HUGE_VAL) {
         syntax_error("Float literal overflow");
     }
     token.kind = TOKEN_FLOAT;
@@ -339,23 +371,31 @@ void scan_str() {
     token.str_val = str;
 }
 
-#define CASE1(c, c1, k1) \
-    case c: \
-        token.kind = *stream++; \
-        if (*stream == c1) { \
-            token.kind = k1; \
+#define CASE1(c1, k1) \
+    case c1: \
+        token.kind = k1; \
+        stream++; \
+        break;
+
+#define CASE2(c1, k1, c2, k2) \
+    case c1: \
+        token.kind = k1; \
+        stream++; \
+        if (*stream == c2) { \
+            token.kind = k2; \
             stream++; \
         } \
         break;
 
-#define CASE2(c, c1, k1, c2, k2) \
-    case c: \
-        token.kind = *stream++; \
-        if (*stream == c1) { \
-            token.kind = k1; \
-            stream++; \
-        } else if (*stream == c2) { \
+#define CASE3(c1, k1, c2, k2, c3, k3) \
+    case c1: \
+        token.kind = k1; \
+        stream++; \
+        if (*stream == c2) { \
             token.kind = k2; \
+            stream++; \
+        } else if (*stream == c3) { \
+            token.kind = k3; \
             stream++; \
         } \
         break;
@@ -407,7 +447,8 @@ repeat:
         token.kind = is_keyword_name(token.name) ? TOKEN_KEYWORD : TOKEN_NAME;
         break;
     case '<':
-        token.kind = *stream++;
+        token.kind = TOKEN_LT;
+        stream++;
         if (*stream == '<') {
             token.kind = TOKEN_LSHIFT;
             stream++;
@@ -421,7 +462,8 @@ repeat:
         }
         break;
     case '>':
-        token.kind = *stream++;
+        token.kind = TOKEN_GT;
+        stream++;
         if (*stream == '>') {
             token.kind = TOKEN_RSHIFT;
             stream++;
@@ -434,16 +476,16 @@ repeat:
             stream++;
         }
         break;
-    CASE1('=', '=', TOKEN_EQ)
-    CASE1('^', '=', TOKEN_XOR_ASSIGN)
-    CASE1(':', '=', TOKEN_COLON_ASSIGN)
-    CASE1('*', '=', TOKEN_MUL_ASSIGN)
-    CASE1('/', '=', TOKEN_DIV_ASSIGN)
-    CASE1('%', '=', TOKEN_MOD_ASSIGN)
-    CASE2('+', '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
-    CASE2('-', '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
-    CASE2('&', '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
-    CASE2('|', '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
+    CASE2(':', ':', '=', TOKEN_COLON_ASSIGN)
+    CASE2('=', TOKEN_ASSIGN, '=', TOKEN_EQ)
+    CASE2('^', TOKEN_XOR, '=', TOKEN_XOR_ASSIGN)
+    CASE2('*', TOKEN_MUL, '=', TOKEN_MUL_ASSIGN)
+    CASE2('/', TOKEN_DIV, '=', TOKEN_DIV_ASSIGN)
+    CASE2('%', TOKEN_MOD, '=', TOKEN_MOD_ASSIGN)
+    CASE3('+', TOKEN_ADD, '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC)
+    CASE3('-', TOKEN_SUB, '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC)
+    CASE3('&', TOKEN_BAND, '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND)
+    CASE3('|', TOKEN_BOR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR)
     default:
         token.kind = *stream++;
         break;
@@ -562,10 +604,10 @@ void lex_test() {
     init_stream(": := + += ++ < <= << <<=");
     assert_token(':');
     assert_token(TOKEN_COLON_ASSIGN);
-    assert_token('+');
+    assert_token(TOKEN_ADD);
     assert_token(TOKEN_ADD_ASSIGN);
     assert_token(TOKEN_INC);
-    assert_token('<');
+    assert_token(TOKEN_LT);
     assert_token(TOKEN_LTEQ);
     assert_token(TOKEN_LSHIFT);
     assert_token(TOKEN_LSHIFT_ASSIGN);
@@ -574,14 +616,14 @@ void lex_test() {
     // Misc tests
     init_stream("XY+(XY)_HELLO1,234+994");
     assert_token_name("XY");
-    assert_token('+');
+    assert_token(TOKEN_ADD);
     assert_token('(');
     assert_token_name("XY");
     assert_token(')');
     assert_token_name("_HELLO1");
     assert_token(',');
     assert_token_int(234);
-    assert_token('+');
+    assert_token(TOKEN_ADD);
     assert_token_int(994);
     assert_token_eof();
 }
