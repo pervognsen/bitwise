@@ -1,3 +1,9 @@
+# Day 6: Order-Independent Declarations (March 23, 2018)
+- Video: https://www.youtube.com/watch?v=0WpCnd9E-eg
+- Code: https://github.com/pervognsen/bitwise/blob/63060b2e009a00b73f93c4c5ae010697c9634a4b/ion/resolve.c
+- Quick diff review
+- Start on order-independent declarations
+
 # Day 5: Ion Parser/AST Code Review (March 21, 2018)
 - Video: https://www.youtube.com/watch?v=YvoyKQYNy20
 - "Working" parser and AST printer, needs more test coverage
@@ -26,7 +32,7 @@ is coming up with these kinds of throw-away mini-projects for myself to do.
 
 Next week we will move to semidaily streams, 3 a week, since the feedback I'm getting
 is that it's too hard to keep up with the video content, and I also need alone time
-to focus engineering tasks. Long term I think the semidaily cadence will be good for
+to focus on engineering tasks. Long term I think the semidaily cadence will be good for
 everyone, but let's try it and see.
 
 # Day 3: More Programming & Parsing (March 15, 2018)
