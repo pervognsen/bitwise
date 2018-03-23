@@ -295,6 +295,7 @@ Stmt *parse_simple_stmt() {
     if (match_token(TOKEN_COLON_ASSIGN)) {
         if (expr->kind != EXPR_NAME) {
             fatal_syntax_error(":= must be preceded by a name");
+            return NULL;
         }
         stmt = stmt_init(expr->name, parse_expr());
     } else if (is_assign_op()) {
@@ -380,7 +381,7 @@ Stmt *parse_stmt() {
         return parse_stmt_for();
     } else if (match_keyword(switch_keyword)) {
         return parse_stmt_switch();
-    } else if (is_token(TOKEN_LBRACE)) {    
+    } else if (is_token(TOKEN_LBRACE)) {
         return stmt_block(parse_stmt_block());
     } else if (match_keyword(break_keyword)) {
         expect_token(TOKEN_SEMICOLON);
@@ -389,14 +390,12 @@ Stmt *parse_stmt() {
         expect_token(TOKEN_SEMICOLON);
         return stmt_continue();
     } else if (match_keyword(return_keyword)) {
-        Stmt *stmt = NULL;
+        Expr *expr = NULL;
         if (!is_token(TOKEN_SEMICOLON)) {
-            stmt = stmt_return(parse_expr());
-        } else {
-            stmt = stmt_return(NULL);
+            expr = parse_expr();
         }
         expect_token(TOKEN_SEMICOLON);
-        return stmt;
+        return stmt_return(expr);
     } else {
         Decl *decl = parse_decl_opt();
         if (decl) {
