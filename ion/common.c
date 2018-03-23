@@ -107,17 +107,15 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 char *buf__printf(char *buf, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    char *dest = buf_end(buf);
-    size_t dest_size = buf + buf_cap(buf) - dest;
-    size_t n = 1 + vsnprintf(dest, dest_size, fmt, args);
+    size_t cap = buf_cap(buf) - buf_len(buf);
+    size_t n = 1 + vsnprintf(buf_end(buf), cap, fmt, args);
     va_end(args);
-    if (n > dest_size) {
+    if (n > cap) {
         buf_fit(buf, n + buf_len(buf));
         va_start(args, fmt);
-        dest = buf_end(buf);
-        dest_size = buf + buf_cap(buf) - dest;
-        n = 1 + vsnprintf(dest, dest_size, fmt, args);
-        assert(n <= dest_size);
+        cap = buf_cap(buf) - buf_len(buf);
+        n = 1 + vsnprintf(buf_end(buf), cap, fmt, args);
+        assert(n <= cap);
         va_end(args);
     }
     buf__hdr(buf)->len += n - 1;
