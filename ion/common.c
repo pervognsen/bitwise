@@ -31,9 +31,9 @@ void *xmalloc(size_t num_bytes) {
     return ptr;
 }
 
-void *memdup(void *ptr, size_t size) {
+void *memdup(void *src, size_t size) {
     void *dest = xmalloc(size);
-    memcpy(dest, ptr, size);
+    memcpy(dest, src, size);
     return dest;
 }
 
@@ -105,24 +105,22 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
 }
 
 char *buf__printf(char *buf, const char *fmt, ...) {
-    char *dest = buf_len(buf) == 0 ? buf : buf + buf_len(buf) - 1;
-    size_t dest_size = buf + buf_cap(buf) - dest;
     va_list args;
     va_start(args, fmt);
-    size_t n = vsnprintf(dest, dest_size, fmt, args);
+    char *dest = buf_end(buf);
+    size_t dest_size = buf + buf_cap(buf) - dest;
+    size_t n = 1 + vsnprintf(dest, dest_size, fmt, args);
     va_end(args);
-    if (buf_len(buf) == 0) {
-        n++;
-    }
     if (n > dest_size) {
         buf_fit(buf, n + buf_len(buf));
-        dest = buf_len(buf) == 0 ? buf : buf + buf_len(buf) - 1;
-        dest_size = buf + buf_cap(buf) - dest;
         va_start(args, fmt);
-        vsnprintf(dest, dest_size, fmt, args);
+        dest = buf_end(buf);
+        dest_size = buf + buf_cap(buf) - dest;
+        n = 1 + vsnprintf(dest, dest_size, fmt, args);
+        assert(n <= dest_size);
         va_end(args);
     }
-    buf__hdr(buf)->len += n;
+    buf__hdr(buf)->len += n - 1;
     return buf;
 }
 
