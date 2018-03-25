@@ -18,6 +18,10 @@ void *ast_dup(const void *src, size_t size) {
 
 #define AST_DUP(x) ast_dup(x, num_##x * sizeof(*x))
 
+StmtBlock ast_dup_block(StmtBlock block) {
+    return (StmtBlock){ast_dup(block.stmts, block.num_stmts * sizeof(*block.stmts)), block.num_stmts};
+}
+
 Typespec *typespec_new(TypespecKind kind) {
     Typespec *t = ast_alloc(sizeof(Typespec));
     t->kind = kind;
@@ -92,7 +96,7 @@ Decl *decl_func(const char *name, FuncParam *params, size_t num_params, Typespec
     d->func.params = AST_DUP(params);
     d->func.num_params = num_params;
     d->func.ret_type = ret_type;
-    d->func.block = block;
+    d->func.block = ast_dup_block(block);
     return d;
 }
 
@@ -245,24 +249,24 @@ Stmt *stmt_block(StmtBlock block) {
 Stmt *stmt_if(Expr *cond, StmtBlock then_block, ElseIf *elseifs, size_t num_elseifs, StmtBlock else_block) {
     Stmt *s = stmt_new(STMT_IF);
     s->if_stmt.cond = cond;
-    s->if_stmt.then_block = then_block;
+    s->if_stmt.then_block = ast_dup_block(then_block);
     s->if_stmt.elseifs = AST_DUP(elseifs);
     s->if_stmt.num_elseifs = num_elseifs;
-    s->if_stmt.else_block = else_block;
+    s->if_stmt.else_block = ast_dup_block(else_block);
     return s;
 }
 
 Stmt *stmt_while(Expr *cond, StmtBlock block) {
     Stmt *s = stmt_new(STMT_WHILE);
     s->while_stmt.cond = cond;
-    s->while_stmt.block = block;
+    s->while_stmt.block = ast_dup_block(block);
     return s;
 }
 
 Stmt *stmt_do_while(Expr *cond, StmtBlock block) {
     Stmt *s = stmt_new(STMT_DO_WHILE);
     s->while_stmt.cond = cond;
-    s->while_stmt.block = block;
+    s->while_stmt.block = ast_dup_block(block);
     return s;
 }
    
@@ -271,7 +275,7 @@ Stmt *stmt_for(Stmt *init, Expr *cond, Stmt *next, StmtBlock block) {
     s->for_stmt.init = init;
     s->for_stmt.cond = cond;
     s->for_stmt.next = next;
-    s->for_stmt.block = block;
+    s->for_stmt.block = ast_dup_block(block);
     return s;
 }
 
@@ -303,3 +307,5 @@ Stmt *stmt_expr(Expr *expr) {
     s->expr = expr;
     return s;
 }
+
+#undef AST_DUP
