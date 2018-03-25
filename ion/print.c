@@ -149,7 +149,7 @@ void print_expr(Expr *expr) {
     }
 }
 
-void print_stmt_block(StmtBlock block) {
+void print_stmt_block(StmtList block) {
     printf("(block");
     indent++;
     for (Stmt **it = block.stmts; it != block.stmts + block.num_stmts; it++) {
@@ -394,7 +394,7 @@ void print_test() {
         stmt_break(),
         stmt_continue(),
         stmt_block(
-            (StmtBlock){
+            (StmtList){
                 (Stmt*[]){
                     stmt_break(),
                     stmt_continue()
@@ -406,7 +406,7 @@ void print_test() {
         stmt_init("x", expr_int(42)),
         stmt_if(
             expr_name("flag1"),
-            (StmtBlock){
+            (StmtList){
                 (Stmt*[]){
                     stmt_return(expr_int(1))
                 },
@@ -414,7 +414,7 @@ void print_test() {
             },
             (ElseIf[]){
                 expr_name("flag2"),
-                (StmtBlock){
+                (StmtList){
                     (Stmt*[]){
                         stmt_return(expr_int(2))
                     },
@@ -422,7 +422,7 @@ void print_test() {
                 }
             },
             1,
-            (StmtBlock){
+            (StmtList){
                 (Stmt*[]){
                     stmt_return(expr_int(3))
                 },
@@ -431,7 +431,7 @@ void print_test() {
         ),
         stmt_while(
             expr_name("running"),
-            (StmtBlock){
+            (StmtList){
                 (Stmt*[]){
                     stmt_assign(TOKEN_ADD_ASSIGN, expr_name("i"), expr_int(16)),
                 },
@@ -445,7 +445,7 @@ void print_test() {
                     (Expr*[]){expr_int(3), expr_int(4)},
                     2,
                     false,
-                    (StmtBlock){
+                    (StmtList){
                         (Stmt*[]){stmt_return(expr_name("val"))},
                         1,
                     },
@@ -454,7 +454,7 @@ void print_test() {
                     (Expr*[]){expr_int(1)},
                     1,
                     true,
-                    (StmtBlock){
+                    (StmtList){
                         (Stmt*[]){stmt_return(expr_int(0))},
                         1,
                     },

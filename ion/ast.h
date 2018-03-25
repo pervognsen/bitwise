@@ -3,10 +3,10 @@ typedef struct Stmt Stmt;
 typedef struct Decl Decl;
 typedef struct Typespec Typespec;
 
-typedef struct StmtBlock {
+typedef struct StmtList {
     Stmt **stmts;
     size_t num_stmts;
-} StmtBlock;
+} StmtList;
 
 typedef enum TypespecKind {
     TYPESPEC_NONE,
@@ -61,7 +61,7 @@ typedef struct FuncDecl {
     FuncParam *params;
     size_t num_params;
     Typespec *ret_type;
-    StmtBlock block;
+    StmtList block;
 } FuncDecl;
 
 typedef struct EnumItem {
@@ -176,7 +176,7 @@ typedef struct FieldExpr {
 struct Expr {
     ExprKind kind;
     union {
-        uint64_t int_val;
+        int64_t int_val;
         double float_val;
         const char *str_val;
         const char *name;
@@ -216,34 +216,34 @@ typedef struct ReturnStmt {
 
 typedef struct ElseIf {
     Expr *cond;
-    StmtBlock block;
+    StmtList block;
 } ElseIf;
 
 typedef struct IfStmt {
     Expr *cond;
-    StmtBlock then_block;
+    StmtList then_block;
     ElseIf *elseifs;
     size_t num_elseifs;
-    StmtBlock else_block;
+    StmtList else_block;
 } IfStmt;
 
 typedef struct WhileStmt {
     Expr *cond;
-    StmtBlock block;
+    StmtList block;
 } WhileStmt;
 
 typedef struct ForStmt {
     Stmt *init;
     Expr *cond;
     Stmt *next;
-    StmtBlock block;
+    StmtList block;
 } ForStmt;
 
 typedef struct SwitchCase {
     Expr **exprs;
     size_t num_exprs;
     bool is_default;
-    StmtBlock block;
+    StmtList block;
 } SwitchCase;
 
 typedef struct SwitchStmt {
@@ -271,7 +271,7 @@ struct Stmt {
         WhileStmt while_stmt;
         ForStmt for_stmt;
         SwitchStmt switch_stmt;
-        StmtBlock block;
+        StmtList block;
         AssignStmt assign;
         InitStmt init;
         Expr *expr;

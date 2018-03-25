@@ -242,20 +242,20 @@ Expr *parse_paren_expr() {
     return expr;
 }
 
-StmtBlock parse_stmt_block() {
+StmtList parse_stmt_block() {
     expect_token(TOKEN_LBRACE);
     Stmt **stmts = NULL;
     while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
         buf_push(stmts, parse_stmt());
     }
     expect_token(TOKEN_RBRACE);
-    return (StmtBlock){stmts, buf_len(stmts)};
+    return stmt_list(stmts, buf_len(stmts));
 }
 
 Stmt *parse_stmt_if() {
     Expr *cond = parse_paren_expr();
-    StmtBlock then_block = parse_stmt_block();
-    StmtBlock else_block = {0};
+    StmtList then_block = parse_stmt_block();
+    StmtList else_block = {0};
     ElseIf *elseifs = NULL;
     while (match_keyword(else_keyword)) {
         if (!match_keyword(if_keyword)) {
@@ -263,7 +263,7 @@ Stmt *parse_stmt_if() {
             break;
         }
         Expr *elseif_cond = parse_paren_expr();
-        StmtBlock elseif_block = parse_stmt_block();
+        StmtList elseif_block = parse_stmt_block();
         buf_push(elseifs, (ElseIf){elseif_cond, elseif_block});
     }
     return stmt_if(cond, then_block, elseifs, buf_len(elseifs), else_block);
@@ -275,7 +275,7 @@ Stmt *parse_stmt_while() {
 }
 
 Stmt *parse_stmt_do_while() {
-    StmtBlock block = parse_stmt_block();
+    StmtList block = parse_stmt_block();
     if (!match_keyword(while_keyword)) {
         fatal_syntax_error("Expected 'while' after 'do' block");
         return NULL;
@@ -355,7 +355,7 @@ SwitchCase parse_stmt_switch_case() {
     while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(case_keyword) && !is_keyword(default_keyword)) {
         buf_push(stmts, parse_stmt());
     }
-    StmtBlock block = {stmts, buf_len(stmts)};
+    StmtList block = stmt_list(stmts, buf_len(stmts));
     return (SwitchCase){exprs, buf_len(exprs), is_default, block};
 }
 
@@ -511,7 +511,7 @@ Decl *parse_decl_func() {
     if (match_token(TOKEN_COLON)) {
         ret_type = parse_type();
     }
-    StmtBlock block = parse_stmt_block();
+    StmtList block = parse_stmt_block();
     return decl_func(name, params, buf_len(params), ret_type, block);
 }
 
