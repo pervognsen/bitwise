@@ -558,10 +558,10 @@ void parse_test(void) {
         "var v: Vector = {1.0, -1.0}",
         "union IntOrFloat { i: int; f: float; }",
         "typedef Vectors = Vector[1+2]",
-        "func f(void) { do { print(42); } while(1); }",
+        "func f() { do { print(42); } while(1); }",
         "typedef T = (func(int):int)[16]",
-        "func f(void) { enum E { A, B, C } return; }",
-        "func f(void) { if (1) { return 1; } else if (2) { return 2; } else { return 3; } }",
+        "func f() { enum E { A, B, C } return; }",
+        "func f() { if (1) { return 1; } else if (2) { return 2; } else { return 3; } }",
     };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
         init_stream(*it);
