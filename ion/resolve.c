@@ -267,9 +267,33 @@ Entity *entity_install_type(const char *name, Type *type) {
 
 typedef struct ResolvedExpr {
     Type *type;
+    bool is_lvalue;
     bool is_const;
     int64_t val;
 } ResolvedExpr;
+
+ResolvedExpr resolved_null;
+
+ResolvedExpr resolved_rvalue(Type *type) {
+    return (ResolvedExpr){
+        .type = type,
+    };
+}
+
+ResolvedExpr resolved_lvalue(Type *type) {
+    return (ResolvedExpr){
+        .type = type,
+        .is_lvalue = true,
+    };
+}
+
+ResolvedExpr resolved_const(int64_t val) {
+    return (ResolvedExpr){
+        .type = type_int,
+        .is_const = true,
+        .val = val,
+    };
+}
 
 Entity *resolve_name(const char *name);
 int64_t resolve_int_const_expr(Expr *expr);
@@ -405,45 +429,49 @@ ResolvedExpr resolve_expr_field(Expr *expr) {
     complete_type(type);
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
         fatal("Can only access fields on aggregate types");
-        return (ResolvedExpr){0};
+        return resolved_null;
     }
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         TypeField field = type->aggregate.fields[i];
         if (field.name == expr->field.name) {
-            return (ResolvedExpr){field.type};
+            return left.is_lvalue ? resolved_lvalue(field.type) : resolved_rvalue(field.type);
         }
     }
     fatal("No field named %s on type", expr->field.name);
-    return (ResolvedExpr){0};
+    return resolved_null;
 }
 
 ResolvedExpr resolve_expr_name(Expr *expr) {
     assert(expr->kind == EXPR_NAME);
     Entity *entity = resolve_name(expr->name);
     if (entity->kind == ENTITY_VAR) {
-        return (ResolvedExpr){entity->type};
+        return resolved_lvalue(entity->type);
     } else if (entity->kind == ENTITY_CONST) {
-        return (ResolvedExpr){entity->type, true, entity->val};
+        return resolved_const(entity->val);
     } else {
         fatal("%s must denote a var or const", expr->name);
-        return (ResolvedExpr){0};
+        return resolved_null;
     }
 }
 
 ResolvedExpr resolve_expr_unary(Expr *expr) {
     assert(expr->kind == EXPR_UNARY);
     ResolvedExpr operand = resolve_expr(expr->unary.expr);
+    Type *type = operand.type;
     switch (expr->unary.op) {
     case TOKEN_MUL:
-        if (operand.type->kind != TYPE_PTR) {
+        if (type->kind != TYPE_PTR) {
             fatal("Cannot deref non-ptr type");
         }
-        return (ResolvedExpr){operand.type->ptr.elem};
+        return resolved_lvalue(type->ptr.elem);
     case TOKEN_AND:
-        return (ResolvedExpr){type_ptr(operand.type)};
+        if (!operand.is_lvalue) {
+            fatal("Cannot take address of non-lvalue");
+        }
+        return resolved_rvalue(type_ptr(type));
     default:
         assert(0);
-        return (ResolvedExpr){0};
+        return resolved_null;
     }
 }
 
@@ -458,18 +486,17 @@ ResolvedExpr resolve_expr_binary(Expr *expr) {
     if (right.type != left.type)  {
         fatal("left and right operand of + must have same type");
     }
-    ResolvedExpr result = {left.type};
     if (left.is_const && right.is_const) {
-        result.is_const = true;
-        result.val = left.val + right.val;
+        return resolved_const(left.val + right.val);
+    } else {
+        return resolved_rvalue(left.type);
     }
-    return result;
 }
 
 ResolvedExpr resolve_expr(Expr *expr) {
     switch (expr->kind) {
     case EXPR_INT:
-        return (ResolvedExpr){type_int, true, expr->int_val};
+        return resolved_const(expr->int_val);
     case EXPR_NAME:
         return resolve_expr_name(expr);
     case EXPR_FIELD:
@@ -482,16 +509,16 @@ ResolvedExpr resolve_expr(Expr *expr) {
         ResolvedExpr result = resolve_expr(expr->sizeof_expr);
         Type *type = result.type;
         complete_type(type);
-        return (ResolvedExpr){type_int, true, type->size};
+        return resolved_const(type->size);
     }
     case EXPR_SIZEOF_TYPE: {
         Type *type = resolve_typespec(expr->sizeof_type);
         complete_type(type);
-        return (ResolvedExpr){type_int, true, type->size};
+        return resolved_const(type->size);
     }
     default:
         assert(0);
-        return (ResolvedExpr){0};
+        return resolved_null;
     }
 }
 
@@ -531,6 +558,7 @@ void resolve_test(void) {
         "var t: T",
         "typedef S = int[n+m]",
         "const m = sizeof(t.i)",
+        "var q = &p",
 //        "const n = sizeof(x)",
 //        "var x: T",
 //        "struct T { s: S*; }",
