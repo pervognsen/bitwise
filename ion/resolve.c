@@ -142,6 +142,7 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     type->kind = TYPE_STRUCT;
     type->size = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
+        assert(it->type->kind > TYPE_COMPLETING);
         // TODO: Alignment, etc.
         type->size += it->type->size;
     }
@@ -154,6 +155,7 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->kind = TYPE_UNION;
     type->size = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
+        assert(it->type->kind > TYPE_COMPLETING);
         type->size = MAX(type->size, it->type->size);
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
@@ -270,7 +272,7 @@ typedef struct ResolvedExpr {
 } ResolvedExpr;
 
 Entity *resolve_name(const char *name);
-ResolvedExpr resolve_const_expr(Expr *expr);
+int64_t resolve_int_const_expr(Expr *expr);
 ResolvedExpr resolve_expr(Expr *expr);
 
 Type *resolve_typespec(Typespec *typespec) {
@@ -286,7 +288,7 @@ Type *resolve_typespec(Typespec *typespec) {
     case TYPESPEC_PTR:
         return type_ptr(resolve_typespec(typespec->ptr.elem));
     case TYPESPEC_ARRAY:
-        return type_array(resolve_typespec(typespec->array.elem), resolve_const_expr(typespec->array.size).val);
+        return type_array(resolve_typespec(typespec->array.elem), resolve_int_const_expr(typespec->array.size));
     case TYPESPEC_FUNC: {
         Type **args = NULL;
         for (size_t i = 0; i < typespec->func.num_args; i++) {
@@ -396,6 +398,25 @@ Entity *resolve_name(const char *name) {
     return entity;
 }
 
+ResolvedExpr resolve_expr_field(Expr *expr) {
+    assert(expr->kind == EXPR_FIELD);
+    ResolvedExpr left = resolve_expr(expr->field.expr);
+    Type *type = left.type;
+    complete_type(type);
+    if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
+        fatal("Can only access fields on aggregate types");
+        return (ResolvedExpr){0};
+    }
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+        TypeField field = type->aggregate.fields[i];
+        if (field.name == expr->field.name) {
+            return (ResolvedExpr){field.type};
+        }
+    }
+    fatal("No field named %s on type", expr->field.name);
+    return (ResolvedExpr){0};
+}
+
 ResolvedExpr resolve_expr_name(Expr *expr) {
     assert(expr->kind == EXPR_NAME);
     Entity *entity = resolve_name(expr->name);
@@ -411,12 +432,19 @@ ResolvedExpr resolve_expr_name(Expr *expr) {
 
 ResolvedExpr resolve_expr_unary(Expr *expr) {
     assert(expr->kind == EXPR_UNARY);
-    assert(expr->unary.op == TOKEN_MUL);
     ResolvedExpr operand = resolve_expr(expr->unary.expr);
-    if (operand.type->kind != TYPE_PTR) {
-        fatal("Cannot deref non-ptr type");
+    switch (expr->unary.op) {
+    case TOKEN_MUL:
+        if (operand.type->kind != TYPE_PTR) {
+            fatal("Cannot deref non-ptr type");
+        }
+        return (ResolvedExpr){operand.type->ptr.elem};
+    case TOKEN_AND:
+        return (ResolvedExpr){type_ptr(operand.type)};
+    default:
+        assert(0);
+        return (ResolvedExpr){0};
     }
-    return (ResolvedExpr){operand.type->ptr.elem};
 }
 
 ResolvedExpr resolve_expr_binary(Expr *expr) {
@@ -444,6 +472,8 @@ ResolvedExpr resolve_expr(Expr *expr) {
         return (ResolvedExpr){type_int, true, expr->int_val};
     case EXPR_NAME:
         return resolve_expr_name(expr);
+    case EXPR_FIELD:
+        return resolve_expr_field(expr);
     case EXPR_UNARY:
         return resolve_expr_unary(expr);
     case EXPR_BINARY:
@@ -465,12 +495,12 @@ ResolvedExpr resolve_expr(Expr *expr) {
     }
 }
 
-ResolvedExpr resolve_const_expr(Expr *expr) {
+int64_t resolve_int_const_expr(Expr *expr) {
     ResolvedExpr result = resolve_expr(expr);
     if (!result.is_const) {
         fatal("Expected constant expression");
     }
-    return result;
+    return result.val;
 }
 
 void resolve_test(void) {
@@ -495,9 +525,12 @@ void resolve_test(void) {
     const char *int_name = str_intern("int");
     entity_install_type(int_name, type_int);
     const char *code[] = {
-        "const n = 1+sizeof(*p)",
+        "const n = 1+sizeof(p)",
         "var p: T*",
-        "struct T { i: int[sizeof(p)]; }",
+        "struct T { i: int[sizeof(&p)]; }",
+        "var t: T",
+        "typedef S = int[n+m]",
+        "const m = sizeof(t.i)",
 //        "const n = sizeof(x)",
 //        "var x: T",
 //        "struct T { s: S*; }",
