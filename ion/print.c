@@ -18,7 +18,7 @@ void flush_print_buf(FILE *file) {
     }
 }
 
-void print_newline() {
+void print_newline(void) {
     printf("\n%.*s", 2*indent, "                                                                      ");
 }
 
@@ -370,7 +370,7 @@ void print_decl(Decl *decl) {
 }
 
 
-void print_test() {
+void print_test(void) {
     use_print_buf = true;
     // Expressions
     Expr *exprs[] = {

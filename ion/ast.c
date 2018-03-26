@@ -232,11 +232,11 @@ Stmt *stmt_return(Expr *expr) {
     return s;
 }
 
-Stmt *stmt_break() {
+Stmt *stmt_break(void) {
     return stmt_new(STMT_BREAK);
 }
 
-Stmt *stmt_continue() {
+Stmt *stmt_continue(void) {
     return stmt_new(STMT_CONTINUE);
 }
 
