@@ -17,7 +17,6 @@
 #include "ast.c"    
 #include "print.c"
 #include "parse.c"
-#include "eval.c"
 #include "resolve.c"
 
 void main_test(void) {
