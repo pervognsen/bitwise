@@ -226,7 +226,7 @@ typedef struct Entity {
 Entity **entities;
 
 Entity *entity_new(EntityKind kind, const char *name, Decl *decl) {
-    Entity *entity = xcalloc(1, sizeof(Decl));
+    Entity *entity = xcalloc(1, sizeof(Entity));
     entity->kind = kind;
     entity->name = name;
     entity->decl = decl;
