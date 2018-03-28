@@ -145,6 +145,18 @@ Type *type_func(Type **params, size_t num_params, Type *ret) {
     return type;
 }
 
+// TODO: This probably shouldn't use an O(n^2) algorithm
+bool duplicate_fields(TypeField *fields, size_t num_fields) {
+    for (size_t i = 0; i < num_fields; i++) {
+        for (size_t j = i+1; j < num_fields; j++) {
+            if (fields[i].name == fields[j].name) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     assert(type->kind == TYPE_COMPLETING);
     type->kind = TYPE_STRUCT;
@@ -358,6 +370,9 @@ void complete_type(Type *type) {
         for (size_t j = 0; j < item.num_names; j++) {
             buf_push(fields, (TypeField){item.names[j], item_type});
         }
+    }
+    if (duplicate_fields(fields, buf_len(fields))) {
+        fatal("Duplicate fields");
     }
     if (decl->kind == DECL_STRUCT) {
         type_complete_struct(type, fields, buf_len(fields));
@@ -808,6 +823,7 @@ void resolve_test(void) {
         "var i = cast(int, p) + 1",
         "var fp: func(Vector)",
         /*
+        "struct Dup { x: int; x: int; }",
         "var a: int[3] = {1,2,3}",
         "var b: int[4]",
         "var p = &a[1]",
