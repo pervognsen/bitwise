@@ -6,6 +6,7 @@ const char *var_keyword;
 const char *const_keyword;
 const char *func_keyword;
 const char *sizeof_keyword;
+const char *cast_keyword;
 const char *break_keyword;
 const char *continue_keyword;
 const char *return_keyword;
@@ -38,6 +39,7 @@ void init_keywords(void) {
     KEYWORD(var);
     KEYWORD(func);
     KEYWORD(sizeof);
+    KEYWORD(cast);
     KEYWORD(break);
     KEYWORD(continue);
     KEYWORD(return);
@@ -79,6 +81,8 @@ typedef enum TokenKind {
     TOKEN_FLOAT,
     TOKEN_STR,
     TOKEN_NAME,
+    TOKEN_NEG,
+    TOKEN_NOT,
     // Multiplicative precedence
     TOKEN_FIRST_MUL,
     TOKEN_MUL = TOKEN_FIRST_MUL,
@@ -501,6 +505,8 @@ repeat:
     CASE1(',', TOKEN_COMMA)
     CASE1('?', TOKEN_QUESTION)
     CASE1(';', TOKEN_SEMICOLON)
+    CASE1('~', TOKEN_NEG)
+    CASE1('!', TOKEN_NOT)
     CASE2(':', TOKEN_COLON, '=', TOKEN_COLON_ASSIGN)
     CASE2('=', TOKEN_ASSIGN, '=', TOKEN_EQ)
     CASE2('^', TOKEN_XOR, '=', TOKEN_XOR_ASSIGN)

@@ -120,11 +120,11 @@ struct Expr {
         const char *name;
         Expr *sizeof_expr;
         Typespec *sizeof_type;
-        struct {
-            Typespec *type;
-            Expr **args;
-            size_t num_args;            
-        } compound;
+            struct {
+                Typespec *type;
+                Expr **args;
+                size_t num_args;
+            } compound;
         struct {
             Typespec *type;
             Expr *expr;            
