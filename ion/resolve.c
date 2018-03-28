@@ -27,6 +27,7 @@ typedef struct TypeField {
 struct Type {
     TypeKind kind;
     size_t size;
+    size_t align;
     Entity *entity;
     union {
         struct {
@@ -57,16 +58,23 @@ Type *type_alloc(TypeKind kind) {
 }
 
 Type *type_void = &(Type){TYPE_VOID, 0};
-Type *type_char = &(Type){TYPE_CHAR, 1};
-Type *type_int = &(Type){TYPE_INT, 4};
-Type *type_float = &(Type){TYPE_FLOAT, 4};
+Type *type_char = &(Type){TYPE_CHAR, 1, 1};
+Type *type_int = &(Type){TYPE_INT, 4, 4};
+Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
 
 const size_t PTR_SIZE = 8;
+const size_t PTR_ALIGN = 8;
 
 size_t type_sizeof(Type *type) {
     assert(type->kind > TYPE_COMPLETING);
     assert(type->size != 0);
     return type->size;
+}
+
+size_t type_alignof(Type *type) {
+    assert(type->kind > TYPE_COMPLETING);
+    assert(IS_POW2(type->align));
+    return type->align;
 }
 
 typedef struct CachedPtrType {
@@ -84,6 +92,7 @@ Type *type_ptr(Type *elem) {
     }
     Type *type = type_alloc(TYPE_PTR);
     type->size = PTR_SIZE;
+    type->align = PTR_ALIGN;
     type->ptr.elem = elem;
     buf_push(cached_ptr_types, (CachedPtrType){elem, type});
     return type;
@@ -106,6 +115,7 @@ Type *type_array(Type *elem, size_t size) {
     complete_type(elem);
     Type *type = type_alloc(TYPE_ARRAY);
     type->size = size * type_sizeof(elem);
+    type->align = type_alignof(elem);
     type->array.elem = elem;
     type->array.size = size;
     buf_push(cached_array_types, (CachedArrayType){elem, size, type});
@@ -138,6 +148,7 @@ Type *type_func(Type **params, size_t num_params, Type *ret) {
     }
     Type *type = type_alloc(TYPE_FUNC);
     type->size = PTR_SIZE;
+    type->align = PTR_ALIGN;
     type->func.params = memdup(params, num_params * sizeof(*params));
     type->func.num_params = num_params;
     type->func.ret = ret;
@@ -161,9 +172,10 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     assert(type->kind == TYPE_COMPLETING);
     type->kind = TYPE_STRUCT;
     type->size = 0;
+    type->align = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
-        // TODO: Alignment, etc.
-        type->size += type_sizeof(it->type);
+        type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
+        type->align = MAX(type->align, type_alignof(it->type));
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -173,9 +185,11 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     assert(type->kind == TYPE_COMPLETING);
     type->kind = TYPE_UNION;
     type->size = 0;
+    type->align = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(it->type->kind > TYPE_COMPLETING);
         type->size = MAX(type->size, type_sizeof(it->type));
+        type->align = MAX(type->align, type_alignof(it->type));
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -370,6 +384,9 @@ void complete_type(Type *type) {
         for (size_t j = 0; j < item.num_names; j++) {
             buf_push(fields, (TypeField){item.names[j], item_type});
         }
+    }
+    if (buf_len(fields) == 0) {
+        fatal("No fields");
     }
     if (duplicate_fields(fields, buf_len(fields))) {
         fatal("Duplicate fields");
@@ -810,9 +827,15 @@ void resolve_test(void) {
     assert(int_func == type_func(NULL, 0, type_int));
 
     entity_install_type(str_intern("void"), type_void);
+    entity_install_type(str_intern("char"), type_char);
     entity_install_type(str_intern("int"), type_int);
 
     const char *code[] = {
+        "struct A { c: char; }",
+        "struct B { i: int; }",
+        "struct C { c: char; a: A; }",
+        "struct D { c: char; b: B; }",
+        /*
         "struct Vector { x, y: int; }",
         "func print(v: Vector) { printf(\"{%d, %d}\", v.x, v.y); }",
         "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
@@ -822,7 +845,6 @@ void resolve_test(void) {
         "var p: void*",
         "var i = cast(int, p) + 1",
         "var fp: func(Vector)",
-        /*
         "struct Dup { x: int; x: int; }",
         "var a: int[3] = {1,2,3}",
         "var b: int[4]",
