@@ -639,6 +639,17 @@ ResolvedExpr resolve_expr_binary(Expr *expr) {
     }
 }
 
+size_t aggregate_field_index(Type *type, const char *name) {
+    assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+        if (type->aggregate.fields[i].name == name) {
+            return i;
+        }
+    }
+    fatal("Field '%s' in compound literal not found in struct/union", name);
+    return SIZE_MAX;
+}
+
 ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_COMPOUND);
     if (!expected_type && !expr->compound.type) {
@@ -658,25 +669,41 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
         fatal("Compound literals can only be used with struct and array types");
     }
     if (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION) {
-        if (expr->compound.num_args > type->aggregate.num_fields) {
-            fatal("Compound literal has too many fields");
-        }
-        for (size_t i = 0; i < expr->compound.num_args; i++) {
-            ResolvedExpr field = resolve_expected_expr(expr->compound.args[i], type->aggregate.fields[i].type);
-            if (field.type != type->aggregate.fields[i].type) {
+        size_t index = 0;
+        for (size_t i = 0; i < expr->compound.num_fields; i++) {
+            CompoundField field = expr->compound.fields[i];
+            if (field.kind == FIELD_INDEX) {
+                fatal("Index field initializer not allowed for struct/union compound literal");
+            } else if (field.kind == FIELD_NAME) {
+                index = aggregate_field_index(type, field.name);
+            }
+            if (index >= type->aggregate.num_fields) {
+                fatal("Field initializer in struct/union compound literal out of range");
+            }
+            ResolvedExpr init = resolve_expected_expr(expr->compound.fields[i].init, type->aggregate.fields[index].type);
+            if (init.type != type->aggregate.fields[index].type) {
                 fatal("Compound literal field type mismatch");
             }
+            index++;
         }
     } else {
         assert(type->kind == TYPE_ARRAY);
-        if (expr->compound.num_args > type->array.size) {
-            fatal("Compound literal has too many elements");
-        }
-        for (size_t i = 0; i < expr->compound.num_args; i++) {
-            ResolvedExpr elem = resolve_expected_expr(expr->compound.args[i], type->array.elem);
-            if (elem.type != type->array.elem) {
+        size_t index = 0;
+        for (size_t i = 0; i < expr->compound.num_fields; i++) {
+            CompoundField field = expr->compound.fields[i];
+            if (field.kind == FIELD_NAME) {
+                fatal("Named field initializer not allowed for array compound literals");
+            } else if (field.kind == FIELD_INDEX) {
+                index = resolve_const_expr(field.index);
+            }
+            if (index >= type->aggregate.num_fields) {
+                fatal("Field initializer in array compound literal out of range");
+            }
+            ResolvedExpr init = resolve_expected_expr(expr->compound.fields[i].init, type->array.elem);
+            if (init.type != type->array.elem) {
                 fatal("Compound literal element type mismatch");
             }
+            index++;
         }
     }
     return resolved_rvalue(type);
@@ -829,10 +856,15 @@ void resolve_test(void) {
     entity_install_type(str_intern("int"), type_int);
 
     const char *code[] = {
+        "union IntOrPtr { i: int; p: int*; }",
+        "var u1 = IntOrPtr{i = 42}",
+        "var u2 = IntOrPtr{p = cast(int*, 42)}"
+        "var a: int[256] = {1, 2, ['a'] = 42}",
         "struct Vector { x, y: int; }",
         "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
-        "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
+        "var v: Vector = 0 ? {1,2} : {3,4}",
         /*
+        "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
         "struct A { c: char; }",
         "struct B { i: int; }",
         "struct C { c: char; a: A; }",

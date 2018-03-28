@@ -111,6 +111,21 @@ typedef enum ExprKind {
     EXPR_SIZEOF_TYPE,
 } ExprKind;
 
+typedef enum CompoundFieldKind {
+    FIELD_DEFAULT,
+    FIELD_NAME,
+    FIELD_INDEX,
+} CompoundFieldKind;
+
+typedef struct CompoundField {
+    CompoundFieldKind kind;
+    Expr *init;
+    union {
+        const char *name;
+        Expr *index;
+    };
+} CompoundField;
+
 struct Expr {
     ExprKind kind;
     union {
@@ -122,8 +137,8 @@ struct Expr {
         Typespec *sizeof_type;
             struct {
                 Typespec *type;
-                Expr **args;
-                size_t num_args;
+                CompoundField *fields;
+                size_t num_fields;
             } compound;
         struct {
             Typespec *type;

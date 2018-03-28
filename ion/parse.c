@@ -57,17 +57,36 @@ Typespec *parse_type(void) {
     return type;
 }
 
+CompoundField parse_expr_compound_field() {
+    if (match_token(TOKEN_LBRACKET)) {
+        Expr *index = parse_expr();
+        expect_token(TOKEN_RBRACKET);
+        expect_token(TOKEN_ASSIGN);
+        return (CompoundField){FIELD_INDEX, parse_expr(), .index = index};
+    } else {
+        Expr *expr = parse_expr();
+        if (match_token(TOKEN_ASSIGN)) {
+            if (expr->kind != EXPR_NAME) {
+                fatal_syntax_error("Named initializer in compound literal must be preceded by field name");
+            }
+            return (CompoundField){FIELD_NAME, parse_expr(), .name = expr->name};
+        } else {
+            return (CompoundField){FIELD_DEFAULT, expr};
+        }
+    }
+}
+
 Expr *parse_expr_compound(Typespec *type) {
     expect_token(TOKEN_LBRACE);
-    Expr **args = NULL;
+    CompoundField *fields = NULL;
     if (!is_token(TOKEN_RBRACE)) {
-        buf_push(args, parse_expr());
+        buf_push(fields, parse_expr_compound_field());
         while (match_token(TOKEN_COMMA)) {
-            buf_push(args, parse_expr());
+            buf_push(fields, parse_expr_compound_field());
         }
     }
     expect_token(TOKEN_RBRACE);
-    return expr_compound(type, args, buf_len(args));
+    return expr_compound(type, fields, buf_len(fields));
 }
 
 Expr *parse_expr_operand(void) {
@@ -551,6 +570,10 @@ Decl *parse_decl(void) {
 
 void parse_test(void) {
     const char *decls[] = {
+        "var x: char[256] = {1, 2, 3, ['a'] = 4}",
+        "struct Vector { x, y: float; }",
+        "var v = Vector{x = 1.0, y = -1.0}",
+        "var v: Vector = {1.0, -1.0}",
         "const n = sizeof(:int*[16])",
         "const n = sizeof(1+2)",
         "var x = b == 1 ? 1+2 : 3-4",
@@ -560,9 +583,6 @@ void parse_test(void) {
         "func f(x: int): bool { switch (x) { case 0: case 1: return true; case 2: default: return false; } }",
         "enum Color { RED = 3, GREEN, BLUE = 0 }",
         "const pi = 3.14",
-        "struct Vector { x, y: float; }",
-        "var v = Vector{1.0, -1.0}",
-        "var v: Vector = {1.0, -1.0}",
         "union IntOrFloat { i: int; f: float; }",
         "typedef Vectors = Vector[1+2]",
         "func f() { do { print(42); } while(1); }",

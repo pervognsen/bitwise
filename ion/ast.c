@@ -155,11 +155,11 @@ Expr *expr_name(const char *name) {
     return e;
 }
 
-Expr *expr_compound(Typespec *type, Expr **args, size_t num_args) {
+Expr *expr_compound(Typespec *type, CompoundField *fields, size_t num_fields) {
     Expr *e = expr_new(EXPR_COMPOUND);
     e->compound.type = type;
-    e->compound.args = AST_DUP(args);
-    e->compound.num_args = num_args;
+    e->compound.fields = AST_DUP(fields);
+    e->compound.num_fields = num_fields;
     return e;
 }
 
