@@ -1,3 +1,18 @@
+# Day 8: Type Checking/Inference, Constant Evaluation (March 28, 2018)
+- Video: https://www.youtube.com/watch?v=-eCwBwTbjAI
+- Extra: https://www.youtube.com/watch?v=ls_YmJ21JZg
+- Why separated algorithm from last time can't always work
+- Demo code for new approach that does work
+- Continue coding
+
+# Day 7: More Order-Independent Declarations (March 26, 2018)
+- Video: https://www.youtube.com/watch?v=4AOnbPDyQXw
+- New: Git tags for each day, e.g. git checkout day6
+- New: [Annotated Episode Guide](https://bitwise.handmade.network/episode/bitwise) by [Miblo del Carpio](https://twitter.com/miblo_)
+- Please give feedback (how useful are the annotations, etc) on [forums](https://bitwise.handmade.network/forums)
+- Review diffs
+- Continue coding
+
 # Day 6: Order-Independent Declarations (March 23, 2018)
 - Video: https://www.youtube.com/watch?v=0WpCnd9E-eg
 - Code: https://github.com/pervognsen/bitwise/blob/63060b2e009a00b73f93c4c5ae010697c9634a4b/ion/resolve.c
