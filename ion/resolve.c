@@ -1,5 +1,3 @@
-// Please don't file bugs for this code yet. It's just a scratchpad for now.
-
 typedef enum TypeKind {
     TYPE_NONE,
     TYPE_INCOMPLETE,
@@ -664,7 +662,7 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
             fatal("Compound literal has too many fields");
         }
         for (size_t i = 0; i < expr->compound.num_args; i++) {
-            ResolvedExpr field = resolve_expr(expr->compound.args[i]);
+            ResolvedExpr field = resolve_expected_expr(expr->compound.args[i], type->aggregate.fields[i].type);
             if (field.type != type->aggregate.fields[i].type) {
                 fatal("Compound literal field type mismatch");
             }
@@ -675,7 +673,7 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
             fatal("Compound literal has too many elements");
         }
         for (size_t i = 0; i < expr->compound.num_args; i++) {
-            ResolvedExpr elem = resolve_expr(expr->compound.args[i]);
+            ResolvedExpr elem = resolve_expected_expr(expr->compound.args[i], type->array.elem);
             if (elem.type != type->array.elem) {
                 fatal("Compound literal element type mismatch");
             }
@@ -831,14 +829,15 @@ void resolve_test(void) {
     entity_install_type(str_intern("int"), type_int);
 
     const char *code[] = {
+        "struct Vector { x, y: int; }",
+        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
+        "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
+        /*
         "struct A { c: char; }",
         "struct B { i: int; }",
         "struct C { c: char; a: A; }",
         "struct D { c: char; b: B; }",
-        /*
-        "struct Vector { x, y: int; }",
         "func print(v: Vector) { printf(\"{%d, %d}\", v.x, v.y); }",
-        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
         "var x = add({1,2}, {3,4})",
         "var v: Vector = {1,2}",
         "var w = Vector{3,4}",
