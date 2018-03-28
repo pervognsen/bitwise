@@ -303,7 +303,7 @@ ResolvedExpr resolved_const(int64_t val) {
 }
 
 Entity *resolve_name(const char *name);
-int64_t resolve_int_const_expr(Expr *expr);
+int64_t resolve_const_expr(Expr *expr);
 ResolvedExpr resolve_expr(Expr *expr);
 ResolvedExpr resolve_expected_expr(Expr *expr, Type *expected_type);
 
@@ -320,7 +320,7 @@ Type *resolve_typespec(Typespec *typespec) {
     case TYPESPEC_PTR:
         return type_ptr(resolve_typespec(typespec->ptr.elem));
     case TYPESPEC_ARRAY:
-        return type_array(resolve_typespec(typespec->array.elem), resolve_int_const_expr(typespec->array.size));
+        return type_array(resolve_typespec(typespec->array.elem), resolve_const_expr(typespec->array.size));
     case TYPESPEC_FUNC: {
         Type **args = NULL;
         for (size_t i = 0; i < typespec->func.num_args; i++) {
@@ -647,7 +647,6 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
 ResolvedExpr resolve_expr_call(Expr *expr) {
     assert(expr->kind == EXPR_CALL);
     ResolvedExpr func = resolve_expr(expr->call.expr);
-    complete_type(func.type);
     if (func.type->kind != TYPE_FUNC) {
         fatal("Trying to call non-function value");
     }
@@ -670,8 +669,8 @@ ResolvedExpr resolve_expr_ternary(Expr *expr, Type *expected_type) {
     if (cond.type->kind != TYPE_INT && cond.type->kind != TYPE_PTR) {
         fatal("Ternary cond expression must have type int or ptr");
     }
-    ResolvedExpr then_expr = resolve_expected_expr(expr->ternary.then_expr, expected_type);
-    ResolvedExpr else_expr = resolve_expected_expr(expr->ternary.else_expr, expected_type);
+    ResolvedExpr then_expr = ptr_decay(resolve_expected_expr(expr->ternary.then_expr, expected_type));
+    ResolvedExpr else_expr = ptr_decay(resolve_expected_expr(expr->ternary.else_expr, expected_type));
     if (then_expr.type != else_expr.type) {
         fatal("Ternary then/else expressions must have matching types");
     }
@@ -760,7 +759,7 @@ ResolvedExpr resolve_expr(Expr *expr) {
     return resolve_expected_expr(expr, NULL);
 }
 
-int64_t resolve_int_const_expr(Expr *expr) {
+int64_t resolve_const_expr(Expr *expr) {
     ResolvedExpr result = resolve_expr(expr);
     if (!result.is_const) {
         fatal("Expected constant expression");
@@ -792,11 +791,13 @@ void resolve_test(void) {
 
     const char *code[] = {
         "var a: int[3] = {1,2,3}",
+        "var b: int[4]",
         "var p = &a[1]",
         "var i = p[1]",
         "var j = *p",
         "const n = sizeof(a)",
         "const m = sizeof(&a[0])",
+        "const l = sizeof(1 ? a : b)",
         /*
         "var pi = 3.14",
         "var name = \"Per\"",
