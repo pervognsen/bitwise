@@ -326,7 +326,11 @@ Type *resolve_typespec(Typespec *typespec) {
         for (size_t i = 0; i < typespec->func.num_args; i++) {
             buf_push(args, resolve_typespec(typespec->func.args[i]));
         }
-        return type_func(args, buf_len(args), resolve_typespec(typespec->func.ret));
+        Type *ret = type_void;
+        if (typespec->func.ret) {
+            ret = resolve_typespec(typespec->func.ret);
+        }
+        return type_func(args, buf_len(args), ret);
     }
     default:
         assert(0);
@@ -802,6 +806,7 @@ void resolve_test(void) {
         "var w = Vector{3,4}",
         "var p: void*",
         "var i = cast(int, p) + 1",
+        "var fp: func(Vector)",
         /*
         "var a: int[3] = {1,2,3}",
         "var b: int[4]",

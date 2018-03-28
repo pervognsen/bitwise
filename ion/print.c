@@ -35,7 +35,11 @@ void print_typespec(Typespec *type) {
             print_typespec(*it);
         }
         printf(" ) ");
-        print_typespec(t->func.ret);
+        if (t->func.ret) {
+            print_typespec(t->func.ret);
+        } else {
+            printf("void");
+        }
         printf(")");
         break;
     case TYPESPEC_ARRAY:
