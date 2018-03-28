@@ -94,9 +94,10 @@ Expr *parse_expr_operand(void) {
     } else if (match_keyword(cast_keyword)) {
         expect_token(TOKEN_LPAREN);
         Typespec *type = parse_type();
+        expect_token(TOKEN_COMMA);
+        Expr *expr = parse_expr();
         expect_token(TOKEN_RPAREN);
-        extern Expr *parse_expr_unary();
-        return expr_cast(type, parse_expr_unary());
+        return expr_cast(type, expr);
     } else if (match_keyword(sizeof_keyword)) {
         expect_token(TOKEN_LPAREN);
         if (match_token(TOKEN_COLON)) {
