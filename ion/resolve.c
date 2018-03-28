@@ -694,9 +694,13 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (field.kind == FIELD_NAME) {
                 fatal("Named field initializer not allowed for array compound literals");
             } else if (field.kind == FIELD_INDEX) {
-                index = resolve_const_expr(field.index);
+                int64_t result = resolve_const_expr(field.index);
+                if (result < 0) {
+                    fatal("Field initializer index cannot be negative");
+                }
+                index = result;
             }
-            if (index >= type->aggregate.num_fields) {
+            if (index >= type->array.size) {
                 fatal("Field initializer in array compound literal out of range");
             }
             ResolvedExpr init = resolve_expected_expr(expr->compound.fields[i].init, type->array.elem);
@@ -858,12 +862,12 @@ void resolve_test(void) {
     const char *code[] = {
         "union IntOrPtr { i: int; p: int*; }",
         "var u1 = IntOrPtr{i = 42}",
-        "var u2 = IntOrPtr{p = cast(int*, 42)}"
-        "var a: int[256] = {1, 2, ['a'] = 42}",
+        "var u2 = IntOrPtr{p = cast(int*, 42)}",
+        "var a: int[256] = {1, 2, ['a'] = 42, [255] = 123}",
+        /*
         "struct Vector { x, y: int; }",
         "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
         "var v: Vector = 0 ? {1,2} : {3,4}",
-        /*
         "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
         "struct A { c: char; }",
         "struct B { i: int; }",
