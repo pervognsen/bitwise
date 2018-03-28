@@ -402,7 +402,11 @@ Type *resolve_decl_func(Decl *decl) {
     for (size_t i = 0; i < decl->func.num_params; i++) {
         buf_push(params, resolve_typespec(decl->func.params[i].type));
     }
-    return type_func(params, buf_len(params), resolve_typespec(decl->func.ret_type));
+    Type *ret_type = type_void;
+    if (decl->func.ret_type) {
+        ret_type = resolve_typespec(decl->func.ret_type);
+    }
+    return type_func(params, buf_len(params), ret_type);
 }
 
 void resolve_entity(Entity *entity) {
@@ -790,6 +794,15 @@ void resolve_test(void) {
     entity_install_type(str_intern("int"), type_int);
 
     const char *code[] = {
+        "struct Vector { x, y: int; }",
+        "func print(v: Vector) { printf(\"{%d, %d}\", v.x, v.y); }",
+        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
+        "var x = add({1,2}, {3,4})",
+        "var v: Vector = {1,2}",
+        "var w = Vector{3,4}",
+        "var p: void*",
+        "var i = cast(int)p + 1",
+        /*
         "var a: int[3] = {1,2,3}",
         "var b: int[4]",
         "var p = &a[1]",
@@ -798,13 +811,9 @@ void resolve_test(void) {
         "const n = sizeof(a)",
         "const m = sizeof(&a[0])",
         "const l = sizeof(1 ? a : b)",
-        /*
         "var pi = 3.14",
         "var name = \"Per\"",
-        "struct Vector { x, y: int; }",
         "var v = Vector{1,2}",
-        "var i = 42",
-        "var p = cast(void*)i",
         "var j = cast(int)p",
         "var q = cast(int*)j",
         "const i = 42",
@@ -814,10 +823,6 @@ void resolve_test(void) {
         "const b = !0",
         "const c = ~100 + 1 == -100",
         "const k = 1 ? 2 : 3",
-        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
-        "var x = add({1,2}, {3,4})",
-        "var v: Vector = {1,2}",
-        "var w = Vector{3,4}",
         "union IntOrPtr { i: int; p: int*; }",
         "var i = 42",
         "var u = IntOrPtr{i, &i}",

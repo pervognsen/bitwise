@@ -157,7 +157,7 @@ operand_expr = INT
              | STR
              | NAME
              | typespec? '{' expr_list '}'
-             | CAST '(' type ')' expr
+             | CAST '(' type ')' unary_expr
              | '(' expr ')'
 base_expr = operand_expr ('(' expr_list ')' | '[' expr ']' | '.' NAME)*
 unary_expr = [+-~!&*] unary_expr
