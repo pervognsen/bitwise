@@ -32,6 +32,7 @@ Typespec *typespec_name(const char *name) {
     Typespec *t = typespec_new(TYPESPEC_NAME);
     t->name = name;
     return t;
+
 }
 
 Typespec *typespec_ptr(Typespec *elem) {

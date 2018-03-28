@@ -61,6 +61,12 @@ Type *type_int = &type_int_val;
 Type *type_float = &type_float_val;
 const size_t PTR_SIZE = 8;
 
+size_t type_sizeof(Type *type) {
+    assert(type->kind > TYPE_COMPLETING);
+    assert(type->size != 0);
+    return type->size;
+}
+
 typedef struct CachedPtrType {
     Type *elem;
     Type *ptr;
@@ -97,7 +103,7 @@ Type *type_array(Type *elem, size_t size) {
     }
     complete_type(elem);
     Type *type = type_alloc(TYPE_ARRAY);
-    type->size = size * elem->size;
+    type->size = size * type_sizeof(elem);
     type->array.elem = elem;
     type->array.size = size;
     buf_push(cached_array_types, (CachedArrayType){elem, size, type});
@@ -142,9 +148,8 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     type->kind = TYPE_STRUCT;
     type->size = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
-        assert(it->type->kind > TYPE_COMPLETING);
         // TODO: Alignment, etc.
-        type->size += it->type->size;
+        type->size += type_sizeof(it->type);
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -156,7 +161,7 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->size = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(it->type->kind > TYPE_COMPLETING);
-        type->size = MAX(type->size, it->type->size);
+        type->size = MAX(type->size, type_sizeof(it->type));
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -412,6 +417,13 @@ void resolve_entity(Entity *entity) {
     buf_push(ordered_entities, entity);
 }
 
+void complete_entity(Entity *entity) {
+    resolve_entity(entity);
+    if (entity->kind == ENTITY_TYPE) {
+        complete_type(entity->type);
+    }
+}
+
 Entity *resolve_name(const char *name) {
     Entity *entity = entity_get(name);
     if (!entity) {
@@ -437,7 +449,7 @@ ResolvedExpr resolve_expr_field(Expr *expr) {
             return left.is_lvalue ? resolved_lvalue(field.type) : resolved_rvalue(field.type);
         }
     }
-    fatal("No field named %s on type", expr->field.name);
+    fatal("No field named '%s'", expr->field.name);
     return resolved_null;
 }
 
@@ -449,7 +461,7 @@ ResolvedExpr resolve_expr_name(Expr *expr) {
     } else if (entity->kind == ENTITY_CONST) {
         return resolved_const(entity->val);
     } else {
-        fatal("%s must denote a var or const", expr->name);
+        fatal("%s must be a var or const", expr->name);
         return resolved_null;
     }
 }
@@ -481,7 +493,7 @@ ResolvedExpr resolve_expr_binary(Expr *expr) {
     ResolvedExpr left = resolve_expr(expr->binary.left);
     ResolvedExpr right = resolve_expr(expr->binary.right);
     if (left.type != type_int) {
-        fatal("left operand of + is not int");
+        fatal("left operand of + must be int");
     }
     if (right.type != left.type)  {
         fatal("left and right operand of + must have same type");
@@ -509,12 +521,12 @@ ResolvedExpr resolve_expr(Expr *expr) {
         ResolvedExpr result = resolve_expr(expr->sizeof_expr);
         Type *type = result.type;
         complete_type(type);
-        return resolved_const(type->size);
+        return resolved_const(type_sizeof(type));
     }
     case EXPR_SIZEOF_TYPE: {
         Type *type = resolve_typespec(expr->sizeof_type);
         complete_type(type);
-        return resolved_const(type->size);
+        return resolved_const(type_sizeof(type));
     }
     default:
         assert(0);
@@ -554,11 +566,14 @@ void resolve_test(void) {
     const char *code[] = {
         "const n = 1+sizeof(p)",
         "var p: T*",
-        "struct T { i: int[sizeof(&p)]; }",
+        "var u = *p",
+        "struct T { a: int[n]; }",
+        "var r = &t.a",
         "var t: T",
         "typedef S = int[n+m]",
-        "const m = sizeof(t.i)",
-        "var q = &p",
+        "const m = sizeof(t.a)",
+        "var i = n+m",
+        "var q = &i",
 //        "const n = sizeof(x)",
 //        "var x: T",
 //        "struct T { s: S*; }",
@@ -571,13 +586,15 @@ void resolve_test(void) {
     }
     for (Entity **it = entities; it != buf_end(entities); it++) {
         Entity *entity = *it;
-        resolve_entity(entity);
-        if (entity->kind == ENTITY_TYPE) {
-            complete_type(entity->type);
-        }
+        complete_entity(entity);
     }
     for (Entity **it = ordered_entities; it != buf_end(ordered_entities); it++) {
         Entity *entity = *it;
-        printf("%s\n", entity->name);
+        if (entity->decl) {
+            print_decl(entity->decl);
+        } else {
+            printf("%s", entity->name);
+        }
+        printf("\n");
     }
 }
