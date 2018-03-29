@@ -343,8 +343,13 @@ Type *resolve_typespec(Typespec *typespec) {
     }
     case TYPESPEC_PTR:
         return type_ptr(resolve_typespec(typespec->ptr.elem));
-    case TYPESPEC_ARRAY:
-        return type_array(resolve_typespec(typespec->array.elem), resolve_const_expr(typespec->array.size));
+    case TYPESPEC_ARRAY: {
+        int64_t size = resolve_const_expr(typespec->array.size);
+        if (size < 0) {
+            fatal("Negative array size");
+        }
+        return type_array(resolve_typespec(typespec->array.elem), size);
+    }
     case TYPESPEC_FUNC: {
         Type **args = NULL;
         for (size_t i = 0; i < typespec->func.num_args; i++) {
@@ -658,9 +663,6 @@ ResolvedExpr resolve_expr_compound(Expr *expr, Type *expected_type) {
     Type *type = NULL;
     if (expr->compound.type) {
         type = resolve_typespec(expr->compound.type);
-        if (expected_type && expected_type != type) {
-            fatal("Explicit compound literal type does not match expected type");
-        }
     } else {
         type = expected_type;
     }
@@ -808,8 +810,7 @@ ResolvedExpr resolve_expected_expr(Expr *expr, Type *expected_type) {
     case EXPR_TERNARY:
         return resolve_expr_ternary(expr, expected_type);
     case EXPR_SIZEOF_EXPR: {
-        ResolvedExpr result = resolve_expr(expr->sizeof_expr);
-        Type *type = result.type;
+        Type *type = resolve_expr(expr->sizeof_expr).type;
         complete_type(type);
         return resolved_const(type_sizeof(type));
     }
@@ -914,11 +915,11 @@ void resolve_test(void) {
         "const m = sizeof(t.a)",
         "var i = n+m",
         "var q = &i",
+        "const n = sizeof(x)",
+        "var x: T",
+        "struct T { s: S*; }",
+        "struct S { t: T[n]; }",
 */
-//        "const n = sizeof(x)",
-//        "var x: T",
-//        "struct T { s: S*; }",
-//        "struct S { t: T[n]; }",
     };
     for (size_t i = 0; i < sizeof(code)/sizeof(*code); i++) {
         init_stream(code[i]);
