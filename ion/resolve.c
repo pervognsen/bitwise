@@ -229,21 +229,14 @@ enum {
 };
 
 Sym **global_syms;
-Sym *local_syms[MAX_LOCAL_SYMS];
-Sym **local_syms_end = local_syms;
+Sym local_syms[MAX_LOCAL_SYMS];
+Sym *local_syms_end = local_syms;
 
 Sym *sym_new(SymKind kind, const char *name, Decl *decl) {
     Sym *sym = xcalloc(1, sizeof(Sym));
     sym->kind = kind;
     sym->name = name;
     sym->decl = decl;
-    return sym;
-}
-
-Sym *sym_var(const char *name, Type *type) {
-    Sym *sym = sym_new(SYM_VAR, name, NULL);
-    sym->state = SYM_RESOLVED;
-    sym->type = type;    
     return sym;
 }
 
@@ -282,8 +275,8 @@ Sym *sym_enum_const(const char *name, Decl *decl) {
 }
 
 Sym *sym_get(const char *name) {
-    for (Sym **it = local_syms_end; it != local_syms; it--) {
-        Sym *sym = it[-1];
+    for (Sym *it = local_syms_end; it != local_syms; it--) {
+        Sym *sym = it-1;
         if (sym->name == name) {
             return sym;
         }
@@ -297,22 +290,27 @@ Sym *sym_get(const char *name) {
     return NULL;
 }
 
-void sym_push(Sym *sym) {
+void sym_push_var(const char *name, Type *type) {
     if (local_syms_end == local_syms + MAX_LOCAL_SYMS) {
         fatal("Too many local symbols");
     }
-    *local_syms_end++ = sym;
+    *local_syms_end++ = (Sym){
+        .name = name,
+        .kind = SYM_VAR,
+        .state = SYM_RESOLVED,
+        .type = type,
+    };
 }
 
-Sym **sym_enter() {
+Sym *sym_enter() {
     return local_syms_end;
 }
 
-void sym_leave(Sym **ptr) {
-    local_syms_end = ptr;
+void sym_leave(Sym *sym) {
+    local_syms_end = sym;
 }
 
-Sym *sym_install_decl(Decl *decl) {
+Sym *sym_global_decl(Decl *decl) {
     Sym *sym = sym_decl(decl);
     buf_push(global_syms, sym);
     if (decl->kind == DECL_ENUM) {
@@ -323,7 +321,7 @@ Sym *sym_install_decl(Decl *decl) {
     return sym;
 }
 
-Sym *sym_install_type(const char *name, Type *type) {
+Sym *sym_global_type(const char *name, Type *type) {
     Sym *sym = sym_new(SYM_TYPE, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
@@ -486,7 +484,7 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type);
 }
 
-void resolve_stmt_block(StmtList block, Type *ret_type);
+void resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     ResolvedExpr cond = resolve_expr(expr);
@@ -495,9 +493,17 @@ void resolve_cond_expr(Expr *expr) {
     }
 }
 
+void resolve_stmt_block(StmtList block, Type *ret_type) {
+    Sym *start = sym_enter();
+    for (size_t i = 0; i < block.num_stmts; i++) {
+        resolve_stmt(block.stmts[i], ret_type);
+    }
+    sym_leave(start);
+}
+
 void resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
-    case STMT_RETURN: {
+    case STMT_RETURN:
         if (stmt->expr) {
             ResolvedExpr result = resolve_expected_expr(stmt->expr, ret_type);
             if (result.type != ret_type) {
@@ -509,7 +515,6 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
             }
         }
         break;
-    }
     case STMT_BREAK:
     case STMT_CONTINUE:
         // Do nothing
@@ -535,12 +540,12 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         resolve_stmt_block(stmt->while_stmt.block, ret_type);
         break;
     case STMT_FOR: {
-        Sym **syms = sym_enter();
+        Sym *sym = sym_enter();
         resolve_stmt(stmt->for_stmt.init, ret_type);
         resolve_cond_expr(stmt->for_stmt.cond);
         resolve_stmt_block(stmt->for_stmt.block, ret_type);
         resolve_stmt(stmt->for_stmt.next, ret_type);
-        sym_leave(syms);
+        sym_leave(sym);
         break;
     }
     case STMT_SWITCH: {
@@ -562,7 +567,7 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         if (stmt->assign.right) {
             ResolvedExpr right = resolve_expected_expr(stmt->assign.right, left.type);
             if (left.type != right.type) {
-                fatal("Left-hand side type of assignment does not match right-hand side type");
+                fatal("Left/right types do not match in assignment statement");
             }
         }
         if (!left.is_lvalue) {
@@ -574,7 +579,7 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         break;
     }
     case STMT_INIT:
-        sym_push(sym_var(stmt->init.name, resolve_expr(stmt->init.expr).type));
+        sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
         break;
     default:
         assert(0);
@@ -582,25 +587,17 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
     }
 }
 
-void resolve_stmt_block(StmtList block, Type *ret_type) {
-    Sym **syms = sym_enter();
-    for (size_t i = 0; i < block.num_stmts; i++) {
-        resolve_stmt(block.stmts[i], ret_type);
-    }
-    sym_leave(syms);
-}
-
 void resolve_func(Sym *sym) {
     Decl *decl = sym->decl;
     assert(decl->kind == DECL_FUNC);
     assert(sym->state == SYM_RESOLVED);
-    Sym **syms = sym_enter();
+    Sym *start = sym_enter();
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];
-        sym_push(sym_var(param.name, resolve_typespec(param.type)));
+        sym_push_var(param.name, resolve_typespec(param.type));
     }
     resolve_stmt_block(decl->func.block, resolve_typespec(decl->func.ret_type));
-    sym_leave(syms);
+    sym_leave(start);
 }
 
 void resolve_sym(Sym *sym) {
@@ -1014,10 +1011,10 @@ void resolve_test(void) {
     assert(int_int_func != int_func);
     assert(int_func == type_func(NULL, 0, type_int));
 
-    sym_install_type(str_intern("void"), type_void);
-    sym_install_type(str_intern("char"), type_char);
-    sym_install_type(str_intern("int"), type_int);
-    sym_install_type(str_intern("float"), type_float);
+    sym_global_type(str_intern("void"), type_void);
+    sym_global_type(str_intern("char"), type_char);
+    sym_global_type(str_intern("int"), type_int);
+    sym_global_type(str_intern("float"), type_float);
 
     const char *code[] = {
         "struct Vector { x, y: int; }",
@@ -1091,7 +1088,7 @@ void resolve_test(void) {
     for (size_t i = 0; i < sizeof(code)/sizeof(*code); i++) {
         init_stream(code[i]);
         Decl *decl = parse_decl();
-        sym_install_decl(decl);
+        sym_global_decl(decl);
     }
     for (Sym **it = global_syms; it != buf_end(global_syms); it++) {
         Sym *sym = *it;
