@@ -15,7 +15,7 @@ typedef enum TypeKind {
 } TypeKind;
 
 typedef struct Type Type;
-typedef struct Entity Entity;
+typedef struct Sym Sym;
 
 typedef struct TypeField {
     const char *name;
@@ -26,7 +26,7 @@ struct Type {
     TypeKind kind;
     size_t size;
     size_t align;
-    Entity *entity;
+    Sym *sym;
     union {
         struct {
             Type *elem;
@@ -193,107 +193,142 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->aggregate.num_fields = num_fields;
 }
 
-Type *type_incomplete(Entity *entity) {
+Type *type_incomplete(Sym *sym) {
     Type *type = type_alloc(TYPE_INCOMPLETE);
-    type->entity = entity;
+    type->sym = sym;
     return type;
 }
 
-typedef enum EntityKind {
-    ENTITY_NONE,
-    ENTITY_VAR,
-    ENTITY_CONST,
-    ENTITY_FUNC,
-    ENTITY_TYPE,
-    ENTITY_ENUM_CONST,
-} EntityKind;
+typedef enum SymKind {
+    SYM_NONE,
+    SYM_VAR,
+    SYM_CONST,
+    SYM_FUNC,
+    SYM_TYPE,
+    SYM_ENUM_CONST,
+} SymKind;
 
-typedef enum EntityState {
-    ENTITY_UNRESOLVED,
-    ENTITY_RESOLVING,
-    ENTITY_RESOLVED,
-} EntityState;
+typedef enum SymState {
+    SYM_UNRESOLVED,
+    SYM_RESOLVING,
+    SYM_RESOLVED,
+} SymState;
 
-typedef struct Entity {
+typedef struct Sym {
     const char *name;
-    EntityKind kind;
-    EntityState state;
+    SymKind kind;
+    SymState state;
     Decl *decl;
     Type *type;
     int64_t val;
-} Entity;
+} Sym;
 
-Entity **entities;
 
-Entity *entity_new(EntityKind kind, const char *name, Decl *decl) {
-    Entity *entity = xcalloc(1, sizeof(Entity));
-    entity->kind = kind;
-    entity->name = name;
-    entity->decl = decl;
-    return entity;
+enum {
+    MAX_LOCAL_SYMS = 1024
+};
+
+Sym **global_syms;
+Sym *local_syms[MAX_LOCAL_SYMS];
+Sym **local_syms_end = local_syms;
+
+Sym *sym_new(SymKind kind, const char *name, Decl *decl) {
+    Sym *sym = xcalloc(1, sizeof(Sym));
+    sym->kind = kind;
+    sym->name = name;
+    sym->decl = decl;
+    return sym;
 }
 
-Entity *entity_decl(Decl *decl) {
-    EntityKind kind = ENTITY_NONE;
+Sym *sym_var(const char *name, Type *type) {
+    Sym *sym = sym_new(SYM_VAR, name, NULL);
+    sym->state = SYM_RESOLVED;
+    sym->type = type;    
+    return sym;
+}
+
+Sym *sym_decl(Decl *decl) {
+    SymKind kind = SYM_NONE;
     switch (decl->kind) {
     case DECL_STRUCT:
     case DECL_UNION:
     case DECL_TYPEDEF:
     case DECL_ENUM:
-        kind = ENTITY_TYPE;
+        kind = SYM_TYPE;
         break;
     case DECL_VAR:
-        kind = ENTITY_VAR;
+        kind = SYM_VAR;
         break;
     case DECL_CONST:
-        kind = ENTITY_CONST;
+        kind = SYM_CONST;
         break;
     case DECL_FUNC:
-        kind = ENTITY_FUNC;
+        kind = SYM_FUNC;
         break;
     default:
         assert(0);
         break;
     }
-    Entity *entity = entity_new(kind, decl->name, decl);
+    Sym *sym = sym_new(kind, decl->name, decl);
     if (decl->kind == DECL_STRUCT || decl->kind == DECL_UNION) {
-        entity->state = ENTITY_RESOLVED;
-        entity->type = type_incomplete(entity);
+        sym->state = SYM_RESOLVED;
+        sym->type = type_incomplete(sym);
     }
-    return entity;
+    return sym;
 }
 
-Entity *entity_enum_const(const char *name, Decl *decl) {
-    return entity_new(ENTITY_ENUM_CONST, name, decl);
+Sym *sym_enum_const(const char *name, Decl *decl) {
+    return sym_new(SYM_ENUM_CONST, name, decl);
 }
 
-Entity *entity_get(const char *name) {
-    for (Entity **it = entities; it != buf_end(entities); it++) {
-        Entity *entity = *it;
-        if (entity->name == name) {
-            return entity;
+Sym *sym_get(const char *name) {
+    for (Sym **it = local_syms_end; it != local_syms; it--) {
+        Sym *sym = it[-1];
+        if (sym->name == name) {
+            return sym;
+        }
+    }
+    for (Sym **it = global_syms; it != buf_end(global_syms); it++) {
+        Sym *sym = *it;
+        if (sym->name == name) {
+            return sym;
         }
     }
     return NULL;
 }
 
-Entity *entity_install_decl(Decl *decl) {
-    Entity *entity = entity_decl(decl);
-    buf_push(entities, entity);
-    if (decl->kind == DECL_ENUM) {
-        for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
-            buf_push(entities, entity_enum_const(decl->enum_decl.items[i].name, decl));
-        }
+void sym_push(Sym *sym) {
+    if (local_syms_end == local_syms + MAX_LOCAL_SYMS) {
+        fatal("Too many local symbols");
     }
-    return entity;
+    *local_syms_end++ = sym;
 }
 
-Entity *entity_install_type(const char *name, Type *type) {
-    Entity *entity = entity_new(ENTITY_TYPE, name, NULL);
-    entity->state = ENTITY_RESOLVED;
-    entity->type = type;
-    buf_push(entities, entity);
-    return entity;
+Sym **sym_enter() {
+    return local_syms_end;
+}
+
+void sym_leave(Sym **ptr) {
+    local_syms_end = ptr;
+}
+
+Sym *sym_install_decl(Decl *decl) {
+    Sym *sym = sym_decl(decl);
+    buf_push(global_syms, sym);
+    if (decl->kind == DECL_ENUM) {
+        for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
+            buf_push(global_syms, sym_enum_const(decl->enum_decl.items[i].name, decl));
+        }
+    }
+    return sym;
+}
+
+Sym *sym_install_type(const char *name, Type *type) {
+    Sym *sym = sym_new(SYM_TYPE, name, NULL);
+    sym->state = SYM_RESOLVED;
+    sym->type = type;
+    buf_push(global_syms, sym);
+    return sym;
 }
 
 typedef struct ResolvedExpr {
@@ -326,20 +361,23 @@ ResolvedExpr resolved_const(int64_t val) {
     };
 }
 
-Entity *resolve_name(const char *name);
+Sym *resolve_name(const char *name);
 int64_t resolve_const_expr(Expr *expr);
 ResolvedExpr resolve_expr(Expr *expr);
 ResolvedExpr resolve_expected_expr(Expr *expr, Type *expected_type);
 
 Type *resolve_typespec(Typespec *typespec) {
+    if (!typespec) {
+        return type_void;
+    }
     switch (typespec->kind) {
     case TYPESPEC_NAME: {
-        Entity *entity = resolve_name(typespec->name);
-        if (entity->kind != ENTITY_TYPE) {
+        Sym *sym = resolve_name(typespec->name);
+        if (sym->kind != SYM_TYPE) {
             fatal("%s must denote a type", typespec->name);
             return NULL;
         }
-        return entity->type;
+        return sym->type;
     }
     case TYPESPEC_PTR:
         return type_ptr(resolve_typespec(typespec->ptr.elem));
@@ -367,7 +405,7 @@ Type *resolve_typespec(Typespec *typespec) {
     }
 }
 
-Entity **ordered_entities;
+Sym **ordered_syms;
 
 void complete_type(Type *type) {
     if (type->kind == TYPE_COMPLETING) {
@@ -377,7 +415,7 @@ void complete_type(Type *type) {
         return;
     }
     type->kind = TYPE_COMPLETING;
-    Decl *decl = type->entity->decl;
+    Decl *decl = type->sym->decl;
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
     TypeField *fields = NULL;
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
@@ -400,7 +438,7 @@ void complete_type(Type *type) {
         assert(decl->kind == DECL_UNION);
         type_complete_union(type, fields, buf_len(fields));
     }
-    buf_push(ordered_entities, type->entity);
+    buf_push(ordered_syms, type->sym);
 }
 
 Type *resolve_decl_type(Decl *decl) {
@@ -448,51 +486,187 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type);
 }
 
-void resolve_entity(Entity *entity) {
-    if (entity->state == ENTITY_RESOLVED) {
-        return;
-    } else if (entity->state == ENTITY_RESOLVING) {
-        fatal("Cyclic dependency");
-        return;
+/*
+STMT_DECL,
+STMT_RETURN,
+STMT_BREAK,
+STMT_CONTINUE,
+STMT_BLOCK,
+STMT_IF,
+STMT_WHILE,
+STMT_DO_WHILE,
+STMT_FOR,
+STMT_SWITCH,
+STMT_ASSIGN,
+STMT_INIT,
+STMT_EXPR,
+*/
+
+void resolve_stmt_block(StmtList block, Type *ret_type);
+
+void resolve_cond_expr(Expr *expr) {
+    ResolvedExpr cond = resolve_expr(expr);
+    if (cond.type != type_int) {
+        fatal("conditional expression must have type int");
     }
-    assert(entity->state == ENTITY_UNRESOLVED);
-    entity->state = ENTITY_RESOLVING;
-    switch (entity->kind) {
-    case ENTITY_TYPE:
-        entity->type = resolve_decl_type(entity->decl);
+}
+
+void resolve_stmt(Stmt *stmt, Type *ret_type) {
+    switch (stmt->kind) {
+    case STMT_RETURN: {
+        if (stmt->expr) {
+            ResolvedExpr result = resolve_expected_expr(stmt->expr, ret_type);
+            if (result.type != ret_type) {
+                fatal("Return type mismatch");
+            }
+        } else {
+            if (ret_type != type_void) {
+                fatal("Empty return expression for function with non-void return type");
+            }
+        }
         break;
-    case ENTITY_VAR:
-        entity->type = resolve_decl_var(entity->decl);
+    }
+    case STMT_BREAK:
+    case STMT_CONTINUE:
+        // Do nothing
         break;
-    case ENTITY_CONST:
-        entity->type = resolve_decl_const(entity->decl, &entity->val);
+    case STMT_BLOCK:
+        resolve_stmt_block(stmt->block, ret_type);
         break;
-    case ENTITY_FUNC:
-        entity->type = resolve_decl_func(entity->decl);
+    case STMT_IF: {
+        resolve_cond_expr(stmt->if_stmt.cond);
+        resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
+        for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
+            ElseIf elseif = stmt->if_stmt.elseifs[i];
+            resolve_cond_expr(elseif.cond);
+            resolve_stmt_block(elseif.block, ret_type);
+        }
+        if (stmt->if_stmt.else_block.stmts) {
+            resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
+        }
+        break;
+    }
+    case STMT_WHILE:
+    case STMT_DO_WHILE:
+        resolve_cond_expr(stmt->while_stmt.cond);
+        resolve_stmt_block(stmt->while_stmt.block, ret_type);
+        break;
+    case STMT_FOR: {
+        Sym **syms = sym_enter();
+        resolve_stmt(stmt->for_stmt.init, ret_type);
+        resolve_cond_expr(stmt->for_stmt.cond);
+        resolve_stmt_block(stmt->for_stmt.block, ret_type);
+        resolve_stmt(stmt->for_stmt.next, ret_type);
+        sym_leave(syms);
+        break;
+    }
+    case STMT_SWITCH: {
+        ResolvedExpr result = resolve_expr(stmt->switch_stmt.expr);
+        for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
+            SwitchCase switch_case = stmt->switch_stmt.cases[i];
+            for (size_t j = 0; j < switch_case.num_exprs; j++) {
+                ResolvedExpr case_result = resolve_expr(switch_case.exprs[j]);
+                if (case_result.type != result.type) {
+                    fatal("Switch case expression type mismatch");
+                }
+                resolve_stmt_block(switch_case.block, ret_type);
+            }
+        }
+        break;
+    }
+    case STMT_ASSIGN: {
+        ResolvedExpr left = resolve_expr(stmt->assign.left);
+        if (stmt->assign.right) {
+            ResolvedExpr right = resolve_expected_expr(stmt->assign.right, left.type);
+            if (left.type != right.type) {
+                fatal("Left-hand side type of assignment does not match right-hand side type");
+            }
+        }
+        if (!left.is_lvalue) {
+            fatal("Cannot assign to non-lvalue");
+        }
+        if (stmt->assign.op != TOKEN_ASSIGN && left.type != type_int) {
+            fatal("Can only use assignment operators with type int");
+        }
+        break;
+    }
+    case STMT_INIT:
+        sym_push(sym_var(stmt->init.name, resolve_expr(stmt->init.expr).type));
         break;
     default:
         assert(0);
         break;
     }
-    entity->state = ENTITY_RESOLVED;
-    buf_push(ordered_entities, entity);
 }
 
-void complete_entity(Entity *entity) {
-    resolve_entity(entity);
-    if (entity->kind == ENTITY_TYPE) {
-        complete_type(entity->type);
+void resolve_stmt_block(StmtList block, Type *ret_type) {
+    Sym **syms = sym_enter();
+    for (size_t i = 0; i < block.num_stmts; i++) {
+        resolve_stmt(block.stmts[i], ret_type);
+    }
+    sym_leave(syms);
+}
+
+void resolve_func(Sym *sym) {
+    Decl *decl = sym->decl;
+    assert(decl->kind == DECL_FUNC);
+    assert(sym->state == SYM_RESOLVED);
+    Sym **syms = sym_enter();
+    for (size_t i = 0; i < decl->func.num_params; i++) {
+        FuncParam param = decl->func.params[i];
+        sym_push(sym_var(param.name, resolve_typespec(param.type)));
+    }
+    resolve_stmt_block(decl->func.block, resolve_typespec(decl->func.ret_type));
+    sym_leave(syms);
+}
+
+void resolve_sym(Sym *sym) {
+    if (sym->state == SYM_RESOLVED) {
+        return;
+    } else if (sym->state == SYM_RESOLVING) {
+        fatal("Cyclic dependency");
+        return;
+    }
+    assert(sym->state == SYM_UNRESOLVED);
+    sym->state = SYM_RESOLVING;
+    switch (sym->kind) {
+    case SYM_TYPE:
+        sym->type = resolve_decl_type(sym->decl);
+        break;
+    case SYM_VAR:
+        sym->type = resolve_decl_var(sym->decl);
+        break;
+    case SYM_CONST:
+        sym->type = resolve_decl_const(sym->decl, &sym->val);
+        break;
+    case SYM_FUNC:
+        sym->type = resolve_decl_func(sym->decl);
+        break;
+    default:
+        assert(0);
+        break;
+    }
+    sym->state = SYM_RESOLVED;
+    buf_push(ordered_syms, sym);
+}
+
+void complete_sym(Sym *sym) {
+    resolve_sym(sym);
+    if (sym->kind == SYM_TYPE) {
+        complete_type(sym->type);
+    } else if (sym->kind == SYM_FUNC) {
+        resolve_func(sym);
     }
 }
 
-Entity *resolve_name(const char *name) {
-    Entity *entity = entity_get(name);
-    if (!entity) {
+Sym *resolve_name(const char *name) {
+    Sym *sym = sym_get(name);
+    if (!sym) {
         fatal("Non-existent name");
         return NULL;
     }
-    resolve_entity(entity);
-    return entity;
+    resolve_sym(sym);
+    return sym;
 }
 
 ResolvedExpr resolve_expr_field(Expr *expr) {
@@ -522,20 +696,6 @@ ResolvedExpr ptr_decay(ResolvedExpr expr) {
     }
 }
 
-ResolvedExpr resolve_expr_name(Expr *expr) {
-    assert(expr->kind == EXPR_NAME);
-    Entity *entity = resolve_name(expr->name);
-    if (entity->kind == ENTITY_VAR) {
-        return resolved_lvalue(entity->type);
-    } else if (entity->kind == ENTITY_CONST) {
-        return resolved_const(entity->val);
-    } else if (entity->kind == ENTITY_FUNC) {
-        return resolved_rvalue(entity->type);
-    } else {
-        fatal("%s must be a var or const", expr->name);
-        return resolved_null;
-    }
-}
 
 int64_t eval_int_unary(TokenKind op, int64_t val) {
     switch (op) {
@@ -563,7 +723,7 @@ int64_t eval_int_binary(TokenKind op, int64_t left, int64_t right) {
         return right != 0 ? left % right : 0;
     case TOKEN_AND:
         return left & right;
-    // TODO: Don't allow UB in shifts, etc
+        // TODO: Don't allow UB in shifts, etc
     case TOKEN_LSHIFT:
         return left << right;
     case TOKEN_RSHIFT:
@@ -588,7 +748,7 @@ int64_t eval_int_binary(TokenKind op, int64_t left, int64_t right) {
         return left > right;
     case TOKEN_GTEQ:
         return left >= right;
-    // TODO: Probably handle logical AND/OR separately
+        // TODO: Probably handle logical AND/OR separately
     case TOKEN_AND_AND:
         return left && right;
     case TOKEN_OR_OR:
@@ -599,6 +759,21 @@ int64_t eval_int_binary(TokenKind op, int64_t left, int64_t right) {
     }
 }
 
+ResolvedExpr resolve_expr_name(Expr *expr) {
+    assert(expr->kind == EXPR_NAME);
+    Sym *sym = resolve_name(expr->name);
+    if (sym->kind == SYM_VAR) {
+        return resolved_lvalue(sym->type);
+    } else if (sym->kind == SYM_CONST) {
+        return resolved_const(sym->val);
+    } else if (sym->kind == SYM_FUNC) {
+        return resolved_rvalue(sym->type);
+    } else {
+        fatal("%s must be a var or const", expr->name);
+        return resolved_null;
+    }
+}
+ 
 ResolvedExpr resolve_expr_unary(Expr *expr) {
     assert(expr->kind == EXPR_UNARY);
     ResolvedExpr operand = resolve_expr(expr->unary.expr);
@@ -856,18 +1031,27 @@ void resolve_test(void) {
     assert(int_int_func != int_func);
     assert(int_func == type_func(NULL, 0, type_int));
 
-    entity_install_type(str_intern("void"), type_void);
-    entity_install_type(str_intern("char"), type_char);
-    entity_install_type(str_intern("int"), type_int);
+    sym_install_type(str_intern("void"), type_void);
+    sym_install_type(str_intern("char"), type_char);
+    sym_install_type(str_intern("int"), type_int);
+    sym_install_type(str_intern("float"), type_float);
 
     const char *code[] = {
+        "struct Vector { x, y: int; }",
+        "var i: int",
+        "func f1() { v := Vector{1, 2}; j := i; i++; j++; v.x = 2*j; }",
+        "func f2(n: int): int { return 2*n; }",
+        "func f3(x: int): int { if (x) { return -x; } else if (x % 2 == 0) { return 42; } else { return -1; } }",
+        "func f4(n: int): int { for (i := 0; i < n; i++) { if (i % 3 == 0) { return n; } } return 0; }",
+        "func f5(x: int): int { switch(x) { case 0: case 1: return 42; case 3: default: return -1; } }",
+        "func f6(n: int): int { p := 1; while (n) { p *= 2; n--; } return p; }",
+        "func f7(n: int): int { p := 1; do { p *= 2; n--; } while (n); return p; }",
+        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
+        /*
         "union IntOrPtr { i: int; p: int*; }",
         "var u1 = IntOrPtr{i = 42}",
         "var u2 = IntOrPtr{p = cast(int*, 42)}",
         "var a: int[256] = {1, 2, ['a'] = 42, [255] = 123}",
-        /*
-        "struct Vector { x, y: int; }",
-        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
         "var v: Vector = 0 ? {1,2} : {3,4}",
         "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
         "struct A { c: char; }",
@@ -924,18 +1108,18 @@ void resolve_test(void) {
     for (size_t i = 0; i < sizeof(code)/sizeof(*code); i++) {
         init_stream(code[i]);
         Decl *decl = parse_decl();
-        entity_install_decl(decl);
+        sym_install_decl(decl);
     }
-    for (Entity **it = entities; it != buf_end(entities); it++) {
-        Entity *entity = *it;
-        complete_entity(entity);
+    for (Sym **it = global_syms; it != buf_end(global_syms); it++) {
+        Sym *sym = *it;
+        complete_sym(sym);
     }
-    for (Entity **it = ordered_entities; it != buf_end(ordered_entities); it++) {
-        Entity *entity = *it;
-        if (entity->decl) {
-            print_decl(entity->decl);
+    for (Sym **it = ordered_syms; it != buf_end(ordered_syms); it++) {
+        Sym *sym = *it;
+        if (sym->decl) {
+            print_decl(sym->decl);
         } else {
-            printf("%s", entity->name);
+            printf("%s", sym->name);
         }
         printf("\n");
     }
