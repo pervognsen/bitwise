@@ -1,3 +1,9 @@
+# Day 9: Functions & Statements
+- Video: https://www.youtube.com/watch?v=VRMxHYuW2BY
+- Fun: [Compiler Construction - The Art of Niklaus Wirth](https://pdfs.semanticscholar.org/036f/c4effda4bbbe9f6a9ee762df717bd0af1324.pdf)
+- Diff review
+- Continue coding
+
 # Day 8: Type Checking/Inference, Constant Evaluation (March 28, 2018)
 - Video: https://www.youtube.com/watch?v=-eCwBwTbjAI
 - Extra: https://www.youtube.com/watch?v=ls_YmJ21JZg
