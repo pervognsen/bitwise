@@ -223,7 +223,6 @@ typedef struct Sym {
     int64_t val;
 } Sym;
 
-
 enum {
     MAX_LOCAL_SYMS = 1024
 };
@@ -302,7 +301,7 @@ void sym_push_var(const char *name, Type *type) {
     };
 }
 
-Sym *sym_enter() {
+Sym *sym_enter(void) {
     return local_syms_end;
 }
 
@@ -505,14 +504,11 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
-            ResolvedExpr result = resolve_expected_expr(stmt->expr, ret_type);
-            if (result.type != ret_type) {
+            if (resolve_expected_expr(stmt->expr, ret_type).type != ret_type) {
                 fatal("Return type mismatch");
             }
-        } else {
-            if (ret_type != type_void) {
-                fatal("Empty return expression for function with non-void return type");
-            }
+        } else if (ret_type != type_void) {
+            fatal("Empty return expression for function with non-void return type");
         }
         break;
     case STMT_BREAK:
@@ -540,21 +536,20 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         resolve_stmt_block(stmt->while_stmt.block, ret_type);
         break;
     case STMT_FOR: {
-        Sym *sym = sym_enter();
+        Sym *start = sym_enter();
         resolve_stmt(stmt->for_stmt.init, ret_type);
         resolve_cond_expr(stmt->for_stmt.cond);
         resolve_stmt_block(stmt->for_stmt.block, ret_type);
         resolve_stmt(stmt->for_stmt.next, ret_type);
-        sym_leave(sym);
+        sym_leave(start);
         break;
     }
     case STMT_SWITCH: {
-        ResolvedExpr result = resolve_expr(stmt->switch_stmt.expr);
+        ResolvedExpr expr = resolve_expr(stmt->switch_stmt.expr);
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
-                ResolvedExpr case_result = resolve_expr(switch_case.exprs[j]);
-                if (case_result.type != result.type) {
+                if (resolve_expr(switch_case.exprs[j]).type != expr.type) {
                     fatal("Switch case expression type mismatch");
                 }
                 resolve_stmt_block(switch_case.block, ret_type);
