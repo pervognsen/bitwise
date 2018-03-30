@@ -756,6 +756,7 @@ ResolvedExpr resolve_expr_unary(Expr *expr) {
     switch (expr->unary.op) {
     case TOKEN_MUL:
         operand = ptr_decay(operand);
+        type = operand.type;
         if (type->kind != TYPE_PTR) {
             fatal("Cannot deref non-ptr type");
         }
