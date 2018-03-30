@@ -486,28 +486,12 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type);
 }
 
-/*
-STMT_DECL,
-STMT_RETURN,
-STMT_BREAK,
-STMT_CONTINUE,
-STMT_BLOCK,
-STMT_IF,
-STMT_WHILE,
-STMT_DO_WHILE,
-STMT_FOR,
-STMT_SWITCH,
-STMT_ASSIGN,
-STMT_INIT,
-STMT_EXPR,
-*/
-
 void resolve_stmt_block(StmtList block, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     ResolvedExpr cond = resolve_expr(expr);
     if (cond.type != type_int) {
-        fatal("conditional expression must have type int");
+        fatal("Conditional expression must have type int");
     }
 }
 
@@ -533,7 +517,7 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
     case STMT_BLOCK:
         resolve_stmt_block(stmt->block, ret_type);
         break;
-    case STMT_IF: {
+    case STMT_IF:
         resolve_cond_expr(stmt->if_stmt.cond);
         resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
@@ -545,7 +529,6 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
             resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
         }
         break;
-    }
     case STMT_WHILE:
     case STMT_DO_WHILE:
         resolve_cond_expr(stmt->while_stmt.cond);

@@ -25,10 +25,6 @@ void main_test(void) {
     // print_test();
     //parse_test();
     resolve_test();
-    int *(x[100]);
-    (void)x;
-    int (*y)[100];
-    (void)y;
 }
 
 int main(int argc, char **argv) {
