@@ -1,8 +1,8 @@
-Decl *parse_decl_opt();
-Decl *parse_decl();
-Typespec *parse_type();
-Stmt *parse_stmt();
-Expr *parse_expr();
+Decl *parse_decl_opt(void);
+Decl *parse_decl(void);
+Typespec *parse_type(void);
+Stmt *parse_stmt(void);
+Expr *parse_expr(void);
 
 Typespec *parse_type_func(void) {
     Typespec **args = NULL;
@@ -57,7 +57,7 @@ Typespec *parse_type(void) {
     return type;
 }
 
-CompoundField parse_expr_compound_field() {
+CompoundField parse_expr_compound_field(void) {
     if (match_token(TOKEN_LBRACKET)) {
         Expr *index = parse_expr();
         expect_token(TOKEN_RBRACKET);
