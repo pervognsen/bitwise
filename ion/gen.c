@@ -1,3 +1,5 @@
+// This file is in rapid flux, so there's not much point in reporting bugs yet.
+
 char *gen_buf = NULL;
 
 #define genf(...) buf_printf(gen_buf, __VA_ARGS__)
@@ -409,7 +411,7 @@ void gen_sym(Sym *sym) {
     case DECL_CONST:
         genlnf("enum { %s = ", sym->name);
         gen_expr(decl->const_decl.expr);
-        genf("};");
+        genf(" };");
         break;
     case DECL_VAR:
         if (decl->var.type) {
@@ -439,7 +441,7 @@ void gen_sym(Sym *sym) {
     }
 }
 
-void gen_ordered_syms(void) {
+void gen_ordered_decls(void) {
     for (size_t i = 0; i < buf_len(ordered_syms); i++) {
         gen_sym(ordered_syms[i]);
     }
@@ -465,7 +467,7 @@ void gen_all(void) {
     gen_forward_decls();
     genln();
     genlnf("// Ordered declarations");
-    gen_ordered_syms();
+    gen_ordered_decls();
 }
 
 void gen_test(void) {
