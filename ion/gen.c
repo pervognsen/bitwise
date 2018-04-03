@@ -68,6 +68,15 @@ char *type_to_cdecl(Type *type, const char *str) {
 
 void gen_expr(Expr *expr);
 
+const char *gen_expr_str(Expr *expr) {
+    char *temp = gen_buf;
+    gen_buf = NULL;
+    gen_expr(expr);
+    const char *result = gen_buf;
+    gen_buf = temp;
+    return result;
+}
+
 char *typespec_to_cdecl(Typespec *typespec, const char *str) {
     // TODO: Figure out how to handle type vs typespec in C gen for inferred types. How to prevent "flattened" const values?
     switch (typespec->kind) {
@@ -75,14 +84,8 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
         return strf("%s%s%s", typespec->name, *str ? " " : "", str);
     case TYPESPEC_PTR:
         return typespec_to_cdecl(typespec->ptr.elem, cdecl_paren(strf("*%s", str), *str));
-    case TYPESPEC_ARRAY: {
-        char *old_gen_buf = gen_buf;
-        gen_buf = NULL;
-        gen_expr(typespec->array.size);
-        char *result = typespec_to_cdecl(typespec->array.elem, cdecl_paren(strf("%s[%s]", str, gen_buf), *str));
-        gen_buf = old_gen_buf;
-        return result;
-    }
+    case TYPESPEC_ARRAY:
+        return typespec_to_cdecl(typespec->array.elem, cdecl_paren(strf("%s[%s]", str, gen_expr_str(typespec->array.size)), *str));
     case TYPESPEC_FUNC: {
         char *result = NULL;
         buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
@@ -433,7 +436,7 @@ void gen_sym(Sym *sym) {
         gen_aggregate(sym->decl);
         break;
     case DECL_TYPEDEF:
-        genlnf("typedef %s", type_to_cdecl(sym->type, sym->name));
+        genlnf("typedef %s;", type_to_cdecl(sym->type, sym->name));
         break;
     default:
         assert(0);
@@ -474,6 +477,7 @@ void gen_test(void) {
     cdecl_test();
 
     const char *code = 
+        "func example_test(): int { return fact_rec(10) == fact_iter(10); }\n"
         "union IntOrPtr { i: int; p: int*; }\n"
         "func f() {\n"
         "    u1 := IntOrPtr{i = 42};\n"
@@ -483,8 +487,8 @@ void gen_test(void) {
         "}\n"
         "var i: int\n"
         "struct Vector { x: int; y: int; }\n"
-        "func fact_rec(n: int): int { r := 1; for (i := 2; i <= n; i++) { r *= i; } return r; }\n"
-        "func example_test(): int { return fact_rec(10); }\n"
+        "func fact_iter(n: int): int { r := 1; for (i := 2; i <= n; i++) { r *= i; } return r; }\n"
+        "func fact_rec(n: int): int { if (n == 0) { return 1; } else { return n * fact_rec(n-1); } }\n"
 #if 0
         "func f1() { v := Vector{1, 2}; j := i; i++; j++; v.x = 2*j; }\n"
         "func f2(n: int): int { return 2*n; }\n"
@@ -501,23 +505,46 @@ void gen_test(void) {
 
     init_stream(code);
     init_global_syms();
-    sym_global_declset(parse_file());
+    sym_global_decls(parse_file());
     finalize_syms();
 
     gen_all();
-    printf("%s", gen_buf);
+    printf("%s\n", gen_buf);
+
+#if 0
+    extern int example_test(void);
+    printf("example_test() == %d\n", example_test());
+#endif
 }
 
 #if 0
 // Forward declarations
+int example_test(void);
 typedef union IntOrPtr IntOrPtr;
 void f(void);
 typedef struct Vector Vector;
+int fact_iter(int n);
 int fact_rec(int n);
-int example_test(void);
 typedef struct T T;
 
 // Ordered declarations
+int example_test(void) {
+    return (fact_rec(10)) == (fact_iter(10));
+}
+int fact_rec(int n) {
+    if ((n) == (0)) {
+        return 1;
+    } else {
+        return (n) * (fact_rec((n) - (1)));
+    }
+}
+int fact_iter(int n) {
+    int r = 1;
+    for (int i = 2; (i) <= (n); i++) {
+        r *= i;
+    }
+    return r;
+}
 union IntOrPtr {
     int i;
     int (*p);
@@ -533,18 +560,8 @@ struct Vector {
     int x;
     int y;
 };
-int fact_rec(int n) {
-    int r = 1;
-    for (int i = 2; (i) <= (n); i++) {
-        r *= i;
-    }
-    return r;
-}
-int example_test(void) {
-    return fact_rec(10);
-}
 T (*p);
-enum { n = (1) + (sizeof(p))};
+enum { n = (1) + (sizeof(p)) };
 struct T {
     int (a[n]);
 };

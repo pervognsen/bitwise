@@ -1021,7 +1021,7 @@ void init_global_syms(void) {
     sym_global_type(str_intern("float"), type_float);
 }
 
-void sym_global_declset(DeclSet *declset) {
+void sym_global_decls(DeclSet *declset) {
     for (size_t i = 0; i < declset->num_decls; i++) {
         sym_global_decl(declset->decls[i]);
     }
