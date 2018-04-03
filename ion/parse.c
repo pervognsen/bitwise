@@ -175,7 +175,13 @@ Expr *parse_expr_base(void) {
 }
 
 bool is_unary_op(void) {
-    return is_token(TOKEN_ADD) || is_token(TOKEN_SUB) || is_token(TOKEN_MUL) || is_token(TOKEN_AND) || is_token(TOKEN_NEG) || is_token(TOKEN_NOT);
+    return
+        is_token(TOKEN_ADD) ||
+        is_token(TOKEN_SUB) ||
+        is_token(TOKEN_MUL) ||
+        is_token(TOKEN_AND) ||
+        is_token(TOKEN_NEG) ||
+        is_token(TOKEN_NOT);
 }
 
 Expr *parse_expr_unary(void) {
@@ -566,6 +572,14 @@ Decl *parse_decl(void) {
         fatal_syntax_error("Expected declaration keyword, got %s", token_info());
     }
     return decl;
+}
+
+DeclSet *parse_file(void) {
+    Decl **decls = NULL;
+    while (!is_token(TOKEN_EOF)) {
+        buf_push(decls, parse_decl());
+    }
+    return decl_set(decls, buf_len(decls));
 }
 
 void parse_test(void) {

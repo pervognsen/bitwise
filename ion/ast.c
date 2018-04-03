@@ -56,6 +56,13 @@ Typespec *typespec_func(Typespec **args, size_t num_args, Typespec *ret) {
     return t;
 }
 
+DeclSet *decl_set(Decl **decls, size_t num_decls) {
+    DeclSet *declset = ast_alloc(sizeof(DeclSet));
+    declset->decls = AST_DUP(decls);
+    declset->num_decls = num_decls;
+    return declset;
+}
+
 Decl *decl_new(DeclKind kind, const char *name) {
     Decl *d = ast_alloc(sizeof(Decl));
     d->kind = kind;
