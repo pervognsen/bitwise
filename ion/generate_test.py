@@ -48,6 +48,5 @@ struct T(?) {
 
 import re
 
-pattern = r"\(\?\)"
 for i in range(128 * 1024):
-    print(re.sub(pattern, str(i), template))
+    print(template.replace("(?)", str(i)))
