@@ -128,11 +128,10 @@ void gen_func_decl(Decl *decl) {
 
 void gen_forward_decls(void) {
     for (size_t i = 0; i < global_syms.cap; i++) {
-        MapEntry *entry = global_syms.entries + i;
-        if (!entry->key) {
+        if (!global_syms.keys[i]) {
             continue;
         }
-        Sym *sym = entry->val;
+        Sym *sym = global_syms.vals[i];
         Decl *decl = sym->decl;
         if (!decl) {
             continue;

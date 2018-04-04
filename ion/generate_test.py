@@ -46,7 +46,5 @@ struct T(?) {
 }
 """
 
-import re
-
 for i in range(128 * 1024):
     print(template.replace("(?)", str(i)))

@@ -1020,11 +1020,10 @@ void sym_global_decls(DeclSet *declset) {
 
 void finalize_syms(void) {
     for (size_t i = 0; i < global_syms.cap; i++) {
-        MapEntry *entry = global_syms.entries + i;
-        if (!entry->key) {
+        if (!global_syms.keys[i]) {
             continue;
         }
-        Sym *sym = entry->val;
+        Sym *sym = global_syms.vals[i];
         finalize_sym(sym);
     }
 }

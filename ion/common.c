@@ -76,23 +76,19 @@ bool write_file(const char *path, const char *buf, size_t len) {
     if (!file) {
         return false;
     }
-    bool result = false;
-    if (fwrite(buf, len, 1, file) != 1) {
-        goto done;
-    }
-    result = true;
-done:
+    size_t n = fwrite(buf, len, 1, file);
     fclose(file);
-    return result;
+    return n == 1;
 }
 
 const char *get_ext(const char *path) {
-    for (const char *ptr = path + strlen(path); ptr != path; ptr--) {
-        if (ptr[-1] == '.') {
-            return ptr;
+    const char *ext = NULL;
+    for (; *path; path++) {
+        if (*path == '.') {
+            ext = path + 1;
         }
     }
-    return NULL;
+    return ext;
 }
 
 char *replace_ext(const char *path, const char *new_ext) {
@@ -240,40 +236,34 @@ uint64_t ptr_hash(void *ptr) {
 }
 
 uint64_t str_hash(const char *str, size_t len) {
-    uint64_t x = 14695981039346656037ull;
+    uint64_t x = 0xcbf29ce484222325ull;
     for (size_t i = 0; i < len; i++) {
         x ^= str[i];
-        x *= 1099511628211ull;
+        x *= 0x100000001b3ull;
         x ^= x >> 32;
     }
     return x;
 }
 
-typedef struct MapEntry {
-    void *key;
-    void *val;
-    uint64_t hash;
-} MapEntry;
-
 typedef struct Map {
-    MapEntry *entries;
+    void **keys;
+    void **vals;
     size_t len;
     size_t cap;
 } Map;
 
-void *map_get_hashed(Map *map, void *key, uint64_t hash) {
+void *map_get(Map *map, void *key) {
     if (map->len == 0) {
         return NULL;
     }
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)hash;
+    uint32_t i = (uint32_t)ptr_hash(key);
     assert(map->len < map->cap);
     for (;;) {
         i &= map->cap - 1;
-        MapEntry *entry = map->entries + i;
-        if (entry->key == key) {
-            return entry->val;
-        } else if (!entry->key) {
+        if (map->keys[i] == key) {
+            return map->vals[i];
+        } else if (!map->keys[i]) {
             return NULL;
         }
         i++;
@@ -281,25 +271,26 @@ void *map_get_hashed(Map *map, void *key, uint64_t hash) {
     return NULL;
 }
 
-void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash);
+void **map_put(Map *map, void *key, void *val);
 
-void map_grow(Map *map, size_t new_cap) {
+ void map_grow(Map *map, size_t new_cap) {
     new_cap = MAX(16, new_cap);
     Map new_map = {
-        .entries = xcalloc(new_cap, sizeof(MapEntry)),
+        .keys = xcalloc(new_cap, sizeof(void *)),
+        .vals = xmalloc(new_cap * sizeof(void *)),
         .cap = new_cap,
     };
     for (size_t i = 0; i < map->cap; i++) {
-        MapEntry *entry = map->entries + i;
-        if (entry->key) {
-            map_put_hashed(&new_map, entry->key, entry->val, entry->hash);
+        if (map->keys[i]) {
+            map_put(&new_map, map->keys[i], map->vals[i]);
         }
     }
-    free(map->entries);
+    free(map->keys);
+    free(map->vals);
     *map = new_map;
 }
 
-void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash) {
+void **map_put(Map *map, void *key, void *val) {
     assert(key);
     assert(val);
     if (2*map->len >= map->cap) {
@@ -307,30 +298,20 @@ void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash) {
     }
     assert(2*map->len < map->cap);
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)hash;
+    uint32_t i = (uint32_t)ptr_hash(key);
     for (;;) {
         i &= map->cap - 1;
-        MapEntry *entry = map->entries + i;
-        if (!entry->key) {
+        if (!map->keys[i]) {
             map->len++;
-            entry->key = key;
-            entry->val = val;
-            entry->hash = hash;
-            return &entry->val;
-        } else if (entry->key == key) {
-            entry->val = val;
-            return &entry->val;
+            map->keys[i] = key;
+            map->vals[i] = val;
+            return map->vals + i;
+        } else if (map->keys[i] == key) {
+            map->vals[i] = val;
+            return map->vals + i;
         }
         i++;
     }
-}
-
-void **map_put(Map *map, void *key, void *val) {
-    return map_put_hashed(map, key, val, ptr_hash(key));
-}
-
-void *map_get(Map *map, void *key) {
-    return map_get_hashed(map, key, ptr_hash(key));
 }
 
 void map_test(void) {
@@ -359,11 +340,8 @@ Map interns;
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
     uint64_t hash = str_hash(start, len);
-    if (hash == 0) {
-        // Prevent NULL pointers from being used as keys in the map.
-        hash = 1;
-    }
-    Intern *intern = map_get_hashed(&interns, (void *)hash, hash);
+    void *key = (void *)(hash ? hash : 1);
+    Intern *intern = map_get(&interns, key);
     for (Intern *it = intern; it; it = it->next) {
         if (it->len == len && strncmp(it->str, start, len) == 0) {
             return it->str;
@@ -374,7 +352,7 @@ const char *str_intern_range(const char *start, const char *end) {
     new_intern->next = intern;
     memcpy(new_intern->str, start, len);
     new_intern->str[len] = 0;
-    map_put_hashed(&interns, (void *)hash, new_intern, hash);
+    map_put(&interns, key, new_intern);
     return new_intern->str;
 }
 
