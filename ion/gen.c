@@ -127,8 +127,12 @@ void gen_func_decl(Decl *decl) {
 }
 
 void gen_forward_decls(void) {
-    for (size_t i = 0; i < buf_len(global_syms); i++) {
-        Sym *sym = global_syms[i];
+    for (size_t i = 0; i < global_syms.cap; i++) {
+        MapEntry *entry = global_syms.entries + i;
+        if (!entry->key) {
+            continue;
+        }
+        Sym *sym = entry->val;
         Decl *decl = sym->decl;
         if (!decl) {
             continue;
@@ -461,6 +465,7 @@ void cdecl_test(void) {
 }
 
 void gen_all(void) {
+    gen_buf = NULL;
     genf("// Forward declarations");
     gen_forward_decls();
     genln();
@@ -474,12 +479,12 @@ void gen_test(void) {
     const char *code = 
         "func example_test(): int { return fact_rec(10) == fact_iter(10); }\n"
         "union IntOrPtr { i: int; p: int*; }\n"
-        "func f() {\n"
-        "    u1 := IntOrPtr{i = 42};\n"
-        "    u2 := IntOrPtr{p = cast(int*, 42)};\n"
-        "    u1.i = 0;\n"
-        "    u2.p = cast(int*, 0);\n"
-        "}\n"
+        "// func f() {\n"
+        "//     u1 := IntOrPtr{i = 42};\n"
+        "//     u2 := IntOrPtr{p = cast(int*, 42)};\n"
+        "//     u1.i = 0;\n"
+        "//     u2.p = cast(int*, 0);\n"
+        "// }\n"
         "var i: int\n"
         "struct Vector { x, y: int; }\n"
         "func fact_iter(n: int): int { r := 1; for (i := 2; i <= n; i++) { r *= i; } return r; }\n"
@@ -498,7 +503,7 @@ void gen_test(void) {
         "struct T { a: int[n]; }\n"
         ;
 
-    init_stream(code);
+    init_stream(NULL, code);
     init_global_syms();
     sym_global_decls(parse_file());
     finalize_syms();
@@ -544,12 +549,6 @@ union IntOrPtr {
     int i;
     int (*p);
 };
-void f(void) {
-    IntOrPtr u1 = (IntOrPtr){.i = 42};
-    IntOrPtr u2 = (IntOrPtr){.p = (int *)(42)};
-    u1.i = 0;
-    u2.p = (int *)(0);
-}
 int i;
 struct Vector {
     int x;

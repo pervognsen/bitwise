@@ -38,35 +38,6 @@ void *memdup(void *src, size_t size) {
     return dest;
 }
 
-void fatal(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    printf("FATAL: ");
-    vprintf(fmt, args);
-    printf("\n");
-    va_end(args);
-    exit(1);
-}
-
-void syntax_error(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    printf("Syntax Error: ");
-    vprintf(fmt, args);
-    printf("\n");
-    va_end(args);
-}
-
-void fatal_syntax_error(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    printf("Syntax Error: ");
-    vprintf(fmt, args);
-    printf("\n");
-    va_end(args);
-    exit(1);
-}
-
 char *strf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -77,6 +48,66 @@ char *strf(const char *fmt, ...) {
     vsnprintf(str, n, fmt, args);
     va_end(args);
     return str;
+}
+
+char *read_file(const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+        return NULL;
+    }
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    char *buf = xmalloc(size + 1);
+    if (size != 0) {
+        if (fread(buf, size, 1, file) != 1) {
+            fclose(file);
+            free(buf);
+            return NULL;
+        }
+    }
+    fclose(file);   
+    buf[size] = 0;
+    return buf;
+}
+
+bool write_file(const char *path, const char *buf, size_t len) {
+    FILE *file = fopen(path, "w");
+    if (!file) {
+        return false;
+    }
+    bool result = false;
+    if (fwrite(buf, len, 1, file) != 1) {
+        goto done;
+    }
+    result = true;
+done:
+    fclose(file);
+    return result;
+}
+
+const char *get_ext(const char *path) {
+    for (const char *ptr = path + strlen(path); ptr != path; ptr--) {
+        if (ptr[-1] == '.') {
+            return ptr;
+        }
+    }
+    return NULL;
+}
+
+char *replace_ext(const char *path, const char *new_ext) {
+    const char *ext = get_ext(path);
+    if (!ext) {
+        return NULL;
+    }
+    size_t base_len = ext - path;
+    size_t new_ext_len = strlen(new_ext);
+    size_t new_path_len = base_len + new_ext_len;
+    char *new_path = xmalloc(new_path_len + 1);
+    memcpy(new_path, path, base_len);
+    memcpy(new_path + base_len, new_ext, new_ext_len);
+    new_path[new_path_len] = 0;
+    return new_path;
 }
 
 // Stretchy buffers, invented (?) by Sean Barrett
@@ -166,8 +197,8 @@ typedef struct Arena {
 } Arena;
 
 #define ARENA_ALIGNMENT 8
-//#define ARENA_BLOCK_SIZE (1024 * 1024)
-#define ARENA_BLOCK_SIZE 1024
+#define ARENA_BLOCK_SIZE (1024 * 1024)
+// #define ARENA_BLOCK_SIZE 1024
 
 void arena_grow(Arena *arena, size_t min_size) {
     size_t size = ALIGN_UP(MAX(ARENA_BLOCK_SIZE, min_size), ARENA_ALIGNMENT);
@@ -196,28 +227,157 @@ void arena_free(Arena *arena) {
     buf_free(arena->blocks);
 }
 
+// Hash map
+
+uint64_t uint64_hash(uint64_t x) {
+    x *= 0xff51afd7ed558ccdul;
+    x ^= x >> 32;
+    return x;
+}
+
+uint64_t ptr_hash(void *ptr) {
+    return uint64_hash((uintptr_t)ptr);
+}
+
+uint64_t str_hash(const char *str, size_t len) {
+    uint64_t fnv_init = 14695981039346656037ull;
+    uint64_t fnv_mul = 1099511628211ull;
+    uint64_t h = fnv_init;
+    for (size_t i = 0; i < len; i++) {
+        h ^= str[i];
+        h *= fnv_mul;
+    }
+    return h;
+}
+
+typedef struct MapEntry {
+    void *key;
+    void *val;
+    uint64_t hash;
+} MapEntry;
+
+typedef struct Map {
+    MapEntry *entries;
+    size_t len;
+    size_t cap;
+} Map;
+
+void *map_get_hashed(Map *map, void *key, uint64_t hash) {
+    if (map->len == 0) {
+        return NULL;
+    }
+    assert(IS_POW2(map->cap));
+    uint32_t i = (uint32_t)(hash & (map->cap - 1));
+    assert(map->len < map->cap);
+    for (;;) {
+        MapEntry *entry = map->entries + i;
+        if (entry->key == key) {
+            return entry->val;
+        } else if (!entry->key) {
+            return NULL;
+        }
+        i++;
+        if (i == map->cap) {
+            i = 0;
+        }
+    }
+    return NULL;
+}
+
+void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash);
+
+void map_grow(Map *map, size_t new_cap) {
+    new_cap = MAX(16, new_cap);
+    Map new_map = {
+        .entries = xcalloc(new_cap, sizeof(MapEntry)),
+        .cap = new_cap
+    };
+    for (size_t i = 0; i < map->cap; i++) {
+        MapEntry *entry = map->entries + i;
+        if (entry->key) {
+            map_put_hashed(&new_map, entry->key, entry->val, entry->hash);
+        }
+    }
+    free(map->entries);
+    *map = new_map;
+}
+
+void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash) {
+    assert(key);
+    assert(val);
+    if (2*map->len >= map->cap) {
+        map_grow(map, 2*map->cap);
+    }
+    assert(2*map->len < map->cap);
+    assert(IS_POW2(map->cap));
+    uint32_t i = (uint32_t)(hash & (map->cap - 1));
+    for (;;) {
+        MapEntry *entry = map->entries + i;
+        if (!entry->key) {
+            map->len++;
+            entry->key = key;
+            entry->val = val;
+            entry->hash = hash;
+            return &entry->val;
+        } else if (entry->key == key) {
+            entry->val = val;
+            return &entry->val;
+        }
+        i++;
+        if (i == map->cap) {
+            i = 0;
+        }
+    }
+}
+
+void **map_put(Map *map, void *key, void *val) {
+    return map_put_hashed(map, key, val, ptr_hash(key));
+}
+
+void *map_get(Map *map, void *key) {
+    return map_get_hashed(map, key, ptr_hash(key));
+}
+
+void map_test(void) {
+    Map map = {0};
+    enum { N = 1024 };
+    for (size_t i = 1; i < N; i++) {
+        map_put(&map, (void *)i, (void *)(i+1));
+    }
+    for (size_t i = 1; i < N; i++) {
+        void *val = map_get(&map, (void *)i);
+        assert(val == (void *)(i+1));
+    }
+}
+
 // String interning
 
 typedef struct Intern {
     size_t len;
-    const char *str;
+    struct Intern *next;
+    char str[];
 } Intern;
 
 Arena str_arena;
-Intern *interns;
+
+Map interns;
 
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
-    for (Intern *it = interns; it != buf_end(interns); it++) {
+    uint64_t hash = str_hash(start, len) | 1;
+    Intern *intern = map_get_hashed(&interns, (void *)hash, hash);
+    for (Intern *it = intern; it; it = it->next) {
         if (it->len == len && strncmp(it->str, start, len) == 0) {
             return it->str;
         }
     }
-    char *str = arena_alloc(&str_arena, len + 1);
-    memcpy(str, start, len);
-    str[len] = 0;
-    buf_push(interns, (Intern){len, str});
-    return str;
+    Intern *new_intern = arena_alloc(&str_arena, offsetof(Intern, str) + len + 1);
+    new_intern->len = len;
+    new_intern->next = intern;
+    memcpy(new_intern->str, start, len);
+    new_intern->str[len] = 0;
+    map_put_hashed(&interns, (void *)hash, new_intern, hash);
+    return new_intern->str;
 }
 
 const char *str_intern(const char *str) {
@@ -241,6 +401,7 @@ void intern_test(void) {
 void common_test(void) {
     buf_test();
     intern_test();
+    map_test();
 
     char *str1 = strf("%d %d", 1, 2);
     assert(strcmp(str1, "1 2") == 0);

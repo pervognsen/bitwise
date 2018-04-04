@@ -74,24 +74,17 @@ size_t type_alignof(Type *type) {
     return type->align;
 }
 
-typedef struct CachedPtrType {
-    Type *elem;
-    Type *ptr;
-} CachedPtrType;
-
-CachedPtrType *cached_ptr_types;
+Map cached_ptr_types;
 
 Type *type_ptr(Type *elem) {
-    for (CachedPtrType *it = cached_ptr_types; it != buf_end(cached_ptr_types); it++) {
-        if (it->elem == elem) {
-            return it->ptr;
-        }
+    Type *type = map_get(&cached_ptr_types, elem);
+    if (!type) {
+        type = type_alloc(TYPE_PTR);
+        type->size = PTR_SIZE;
+        type->align = PTR_ALIGN;
+        type->ptr.elem = elem;
+        map_put(&cached_ptr_types, elem, type);
     }
-    Type *type = type_alloc(TYPE_PTR);
-    type->size = PTR_SIZE;
-    type->align = PTR_ALIGN;
-    type->ptr.elem = elem;
-    buf_push(cached_ptr_types, (CachedPtrType){elem, type});
     return type;
 }
 
@@ -227,7 +220,7 @@ enum {
     MAX_LOCAL_SYMS = 1024
 };
 
-Sym **global_syms;
+Map global_syms;
 Sym local_syms[MAX_LOCAL_SYMS];
 Sym *local_syms_end = local_syms;
 
@@ -280,13 +273,7 @@ Sym *sym_get(const char *name) {
             return sym;
         }
     }
-    for (Sym **it = global_syms; it != buf_end(global_syms); it++) {
-        Sym *sym = *it;
-        if (sym->name == name) {
-            return sym;
-        }
-    }
-    return NULL;
+    return map_get(&global_syms, (void *)name);
 }
 
 void sym_push_var(const char *name, Type *type) {
@@ -309,13 +296,17 @@ void sym_leave(Sym *sym) {
     local_syms_end = sym;
 }
 
+void sym_global_put(Sym *sym) {
+    map_put(&global_syms, (void *)sym->name, sym);
+}
+
 Sym *sym_global_decl(Decl *decl) {
     Sym *sym = sym_decl(decl);
-    buf_push(global_syms, sym);
+    sym_global_put(sym);
     decl->sym = sym;
     if (decl->kind == DECL_ENUM) {
         for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
-            buf_push(global_syms, sym_enum_const(decl->enum_decl.items[i].name, decl));
+            sym_global_put(sym_enum_const(decl->enum_decl.items[i].name, decl));
         }
     }
     return sym;
@@ -325,7 +316,7 @@ Sym *sym_global_type(const char *name, Type *type) {
     Sym *sym = sym_new(SYM_TYPE, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
-    buf_push(global_syms, sym);
+    sym_global_put(sym);
     return sym;
 }
 
@@ -373,7 +364,7 @@ Type *resolve_typespec(Typespec *typespec) {
     case TYPESPEC_NAME: {
         Sym *sym = resolve_name(typespec->name);
         if (sym->kind != SYM_TYPE) {
-            fatal("%s must denote a type", typespec->name);
+            fatal_error(typespec->loc, "%s must denote a type", typespec->name);
             return NULL;
         }
         result = sym->type;
@@ -1028,8 +1019,12 @@ void sym_global_decls(DeclSet *declset) {
 }
 
 void finalize_syms(void) {
-    for (Sym **it = global_syms; it != buf_end(global_syms); it++) {
-        Sym *sym = *it;
+    for (size_t i = 0; i < global_syms.cap; i++) {
+        MapEntry *entry = global_syms.entries + i;
+        if (!entry->key) {
+            continue;
+        }
+        Sym *sym = entry->val;
         finalize_sym(sym);
     }
 }
@@ -1126,7 +1121,7 @@ void resolve_test(void) {
 */
     };
     for (size_t i = 0; i < sizeof(code)/sizeof(*code); i++) {
-        init_stream(code[i]);
+        init_stream(NULL, code[i]);
         Decl *decl = parse_decl();
         sym_global_decl(decl);
     }

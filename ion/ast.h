@@ -20,6 +20,7 @@ typedef enum TypespecKind {
 
 struct Typespec {
     TypespecKind kind;
+    SrcLoc loc;
     struct Type *type;
     union {
         const char *name;
@@ -67,6 +68,7 @@ typedef enum DeclKind {
 
 struct Decl {
     DeclKind kind;
+    SrcLoc loc;
     const char *name;
     struct Sym *sym;
     union {
@@ -137,6 +139,7 @@ typedef struct CompoundField {
 
 struct Expr {
     ExprKind kind;
+    SrcLoc loc;
     struct Type *type;
     union {
         int64_t int_val;
@@ -215,6 +218,7 @@ typedef enum StmtKind {
 
 struct Stmt {
     StmtKind kind;
+    SrcLoc loc;
     union {
         Expr *expr;
         Decl *decl;

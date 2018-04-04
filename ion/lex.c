@@ -30,8 +30,8 @@ void init_keywords(void) {
     if (inited) {
         return;
     }
-    char *arena_end = str_arena.end;
     KEYWORD(typedef);
+    char *arena_end = str_arena.end;
     KEYWORD(enum);
     KEYWORD(struct);
     KEYWORD(union);
@@ -213,7 +213,9 @@ typedef struct Token {
 Token token;
 const char *stream;
 const char *line_start;
-size_t line_number;
+
+int src_line;
+const char *src_name;
 
 const char *token_info(void) {
     if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {
@@ -423,7 +425,7 @@ repeat:
         while (isspace(*stream)) {
             if (*stream++ == '\n') {
                 line_start = stream;
-                line_number++;
+                src_line++;
             }
         }
         goto repeat;
@@ -546,10 +548,11 @@ repeat:
 #undef CASE2
 #undef CASE3
 
-void init_stream(const char *str) {
-    stream = str;
+void init_stream(const char *name, const char *buf) {
+    stream = buf;
+    src_name = name ? name : "<anonymous>";
+    src_line = 1;
     line_start = stream;
-    line_number = 1;
     next_token();
 }
 
@@ -617,8 +620,10 @@ void keyword_test(void) {
 
 void lex_test(void) {
     keyword_test();
+    assert(str_intern("func") == func_keyword);
+
     // Integer literal tests
-    init_stream("0 18446744073709551615 0xffffffffffffffff 042 0b1111");
+    init_stream(NULL, "0 18446744073709551615 0xffffffffffffffff 042 0b1111");
     assert_token_int(0);
     assert_token_int(18446744073709551615ull);
     assert(token.mod == TOKENMOD_HEX);
@@ -630,7 +635,7 @@ void lex_test(void) {
     assert_token_eof();
 
     // Float literal tests
-    init_stream("3.14 .123 42. 3e10");
+    init_stream(NULL, "3.14 .123 42. 3e10");
     assert_token_float(3.14);
     assert_token_float(.123);
     assert_token_float(42.);
@@ -638,19 +643,19 @@ void lex_test(void) {
     assert_token_eof();
 
     // Char literal tests
-    init_stream("'a' '\\n'");
+    init_stream(NULL, "'a' '\\n'");
     assert_token_int('a');
     assert_token_int('\n');
     assert_token_eof();
 
     // String literal tests
-    init_stream("\"foo\" \"a\\nb\"");
+    init_stream(NULL, "\"foo\" \"a\\nb\"");
     assert_token_str("foo");
     assert_token_str("a\nb");
     assert_token_eof();
 
     // Operator tests
-    init_stream(": := + += ++ < <= << <<=");
+    init_stream(NULL, ": := + += ++ < <= << <<=");
     assert_token(TOKEN_COLON);
     assert_token(TOKEN_COLON_ASSIGN);
     assert_token(TOKEN_ADD);
@@ -663,7 +668,7 @@ void lex_test(void) {
     assert_token_eof();
 
     // Misc tests
-    init_stream("XY+(XY)_HELLO1,234+994");
+    init_stream(NULL, "XY+(XY)_HELLO1,234+994");
     assert_token_name("XY");
     assert_token(TOKEN_ADD);
     assert_token(TOKEN_LPAREN);

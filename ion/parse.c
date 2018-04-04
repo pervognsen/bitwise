@@ -605,7 +605,7 @@ void parse_test(void) {
         "func f() { if (1) { return 1; } else if (2) { return 2; } else { return 3; } }",
     };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
-        init_stream(*it);
+        init_stream(NULL, *it);
         Decl *decl = parse_decl();
         print_decl(decl);
         printf("\n");
