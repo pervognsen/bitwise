@@ -31,7 +31,7 @@ void init_keywords(void) {
         return;
     }
     KEYWORD(typedef);
-    char *arena_end = str_arena.end;
+    char *arena_end = intern_arena.end;
     KEYWORD(enum);
     KEYWORD(struct);
     KEYWORD(union);
@@ -51,7 +51,7 @@ void init_keywords(void) {
     KEYWORD(switch);
     KEYWORD(case);
     KEYWORD(default);
-    assert(str_arena.end == arena_end);
+    assert(intern_arena.end == arena_end);
     first_keyword = typedef_keyword;
     last_keyword = default_keyword;
     inited = true;

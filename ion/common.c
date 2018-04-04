@@ -240,14 +240,13 @@ uint64_t ptr_hash(void *ptr) {
 }
 
 uint64_t str_hash(const char *str, size_t len) {
-    uint64_t fnv_init = 14695981039346656037ull;
-    uint64_t fnv_mul = 1099511628211ull;
-    uint64_t h = fnv_init;
+    uint64_t x = 14695981039346656037ull;
     for (size_t i = 0; i < len; i++) {
-        h ^= str[i];
-        h *= fnv_mul;
+        x ^= str[i];
+        x *= 1099511628211ull;
+        x ^= x >> 32;
     }
-    return h;
+    return x;
 }
 
 typedef struct MapEntry {
@@ -267,9 +266,10 @@ void *map_get_hashed(Map *map, void *key, uint64_t hash) {
         return NULL;
     }
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)(hash & (map->cap - 1));
+    uint32_t i = (uint32_t)hash;
     assert(map->len < map->cap);
     for (;;) {
+        i &= map->cap - 1;
         MapEntry *entry = map->entries + i;
         if (entry->key == key) {
             return entry->val;
@@ -277,9 +277,6 @@ void *map_get_hashed(Map *map, void *key, uint64_t hash) {
             return NULL;
         }
         i++;
-        if (i == map->cap) {
-            i = 0;
-        }
     }
     return NULL;
 }
@@ -290,7 +287,7 @@ void map_grow(Map *map, size_t new_cap) {
     new_cap = MAX(16, new_cap);
     Map new_map = {
         .entries = xcalloc(new_cap, sizeof(MapEntry)),
-        .cap = new_cap
+        .cap = new_cap,
     };
     for (size_t i = 0; i < map->cap; i++) {
         MapEntry *entry = map->entries + i;
@@ -310,8 +307,9 @@ void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash) {
     }
     assert(2*map->len < map->cap);
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)(hash & (map->cap - 1));
+    uint32_t i = (uint32_t)hash;
     for (;;) {
+        i &= map->cap - 1;
         MapEntry *entry = map->entries + i;
         if (!entry->key) {
             map->len++;
@@ -324,9 +322,6 @@ void **map_put_hashed(Map *map, void *key, void *val, uint64_t hash) {
             return &entry->val;
         }
         i++;
-        if (i == map->cap) {
-            i = 0;
-        }
     }
 }
 
@@ -358,20 +353,23 @@ typedef struct Intern {
     char str[];
 } Intern;
 
-Arena str_arena;
-
+Arena intern_arena;
 Map interns;
 
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
-    uint64_t hash = str_hash(start, len) | 1;
+    uint64_t hash = str_hash(start, len);
+    if (hash == 0) {
+        // Prevent NULL pointers from being used as keys in the map.
+        hash = 1;
+    }
     Intern *intern = map_get_hashed(&interns, (void *)hash, hash);
     for (Intern *it = intern; it; it = it->next) {
         if (it->len == len && strncmp(it->str, start, len) == 0) {
             return it->str;
         }
     }
-    Intern *new_intern = arena_alloc(&str_arena, offsetof(Intern, str) + len + 1);
+    Intern *new_intern = arena_alloc(&intern_arena, offsetof(Intern, str) + len + 1);
     new_intern->len = len;
     new_intern->next = intern;
     memcpy(new_intern->str, start, len);
