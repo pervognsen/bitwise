@@ -378,7 +378,7 @@ Type *resolve_typespec(Typespec *typespec) {
         if (size < 0) {
             fatal("Negative array size");
         }
-        result = type_array(resolve_typespec(typespec->array.elem), size);
+        result = type_array(resolve_typespec(typespec->array.elem), (size_t)size);
         break;
     }
     case TYPESPEC_FUNC: {
@@ -847,7 +847,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                 if (result < 0) {
                     fatal("Field initializer index cannot be negative");
                 }
-                index = result;
+                index = (size_t)result;
             }
             if (index >= type->array.size) {
                 fatal("Field initializer in array compound literal out of range");

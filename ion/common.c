@@ -171,7 +171,7 @@ void buf_test(void) {
         buf_push(buf, i);
     }
     assert(buf_len(buf) == n);
-    for (int i = 0; i < buf_len(buf); i++) {
+    for (size_t i = 0; i < buf_len(buf); i++) {
         assert(buf[i] == i);
     }
     buf_free(buf);
@@ -257,7 +257,7 @@ void *map_get(Map *map, void *key) {
         return NULL;
     }
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)ptr_hash(key);
+    size_t i = (size_t)ptr_hash(key);
     assert(map->len < map->cap);
     for (;;) {
         i &= map->cap - 1;
@@ -271,7 +271,7 @@ void *map_get(Map *map, void *key) {
     return NULL;
 }
 
-void **map_put(Map *map, void *key, void *val);
+void map_put(Map *map, void *key, void *val);
 
  void map_grow(Map *map, size_t new_cap) {
     new_cap = MAX(16, new_cap);
@@ -290,7 +290,7 @@ void **map_put(Map *map, void *key, void *val);
     *map = new_map;
 }
 
-void **map_put(Map *map, void *key, void *val) {
+void map_put(Map *map, void *key, void *val) {
     assert(key);
     assert(val);
     if (2*map->len >= map->cap) {
@@ -298,17 +298,17 @@ void **map_put(Map *map, void *key, void *val) {
     }
     assert(2*map->len < map->cap);
     assert(IS_POW2(map->cap));
-    uint32_t i = (uint32_t)ptr_hash(key);
+    size_t i = (size_t)ptr_hash(key);
     for (;;) {
         i &= map->cap - 1;
         if (!map->keys[i]) {
             map->len++;
             map->keys[i] = key;
             map->vals[i] = val;
-            return map->vals + i;
+            return;
         } else if (map->keys[i] == key) {
             map->vals[i] = val;
-            return map->vals + i;
+            return;
         }
         i++;
     }
@@ -340,7 +340,7 @@ Map interns;
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
     uint64_t hash = str_hash(start, len);
-    void *key = (void *)(hash ? hash : 1);
+    void *key = (void *)(uintptr_t)(hash ? hash : 1);
     Intern *intern = map_get(&interns, key);
     for (Intern *it = intern; it; it = it->next) {
         if (it->len == len && strncmp(it->str, start, len) == 0) {
