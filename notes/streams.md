@@ -1,3 +1,10 @@
+# Day 11: End-to-End Workflow & Clean-Up
+- Video: https://www.youtube.com/watch?v=Y4ykmb9zdJM
+- Extra: https://www.youtube.com/watch?v=Fj4g7HrjZBU
+- Quick review of code from extra stream
+- Next steps
+- Start coding
+
 # Day 10: C Code Generation
 - Video: https://www.youtube.com/watch?v=X9YWYlp8iQg
 - Extra: https://www.youtube.com/watch?v=C4H8UJDXfak
