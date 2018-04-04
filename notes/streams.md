@@ -1,3 +1,10 @@
+# Day 10: C Code Generation
+- Video: https://www.youtube.com/watch?v=X9YWYlp8iQg
+- Extra: https://www.youtube.com/watch?v=C4H8UJDXfak
+- Overview
+- C declaration syntax
+- Start coding
+
 # Day 9: Functions & Statements
 - Video: https://www.youtube.com/watch?v=VRMxHYuW2BY
 - Fun: [Compiler Construction - The Art of Niklaus Wirth](https://pdfs.semanticscholar.org/036f/c4effda4bbbe9f6a9ee762df717bd0af1324.pdf)
