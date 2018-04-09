@@ -27,7 +27,6 @@ void main_test(void) {
     // print_test();
     // parse_test();
     // resolve_test();
-    // gen_test();
     // ion_test();
 }
 
