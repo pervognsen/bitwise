@@ -1,3 +1,10 @@
+# Day 12: More Optimization & Clean-Up
+- Video: https://www.youtube.com/watch?v=Hf5PevrUx4g
+- Fun: http://nothings.org/computer/judy/
+- Review code from extra stream
+- Notes on hash tables
+- More profiling and coding
+
 # Day 11: End-to-End Workflow & Clean-Up
 - Video: https://www.youtube.com/watch?v=Y4ykmb9zdJM
 - Extra: https://www.youtube.com/watch?v=Fj4g7HrjZBU
