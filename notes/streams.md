@@ -1,3 +1,9 @@
+# Day 13: More Code Generation
+- Video, Part 1: https://www.youtube.com/watch?v=uIjd094EKPM
+- Video, Part 2: https://www.youtube.com/watch?v=PVnRVadB7g0
+- Follow-up on failed optimization from last time
+- Continue work on code generation
+
 # Day 12: More Optimization & Clean-Up
 - Video: https://www.youtube.com/watch?v=Hf5PevrUx4g
 - Fun: http://nothings.org/computer/judy/
