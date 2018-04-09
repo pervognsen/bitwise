@@ -411,7 +411,7 @@ Type *resolve_typespec(Typespec *typespec) {
     return result;
 }
 
-Sym **ordered_syms;
+Sym **sorted_syms;
 
 void complete_type(Type *type) {
     if (type->kind == TYPE_COMPLETING) {
@@ -444,7 +444,7 @@ void complete_type(Type *type) {
         assert(decl->kind == DECL_UNION);
         type_complete_union(type, fields, buf_len(fields));
     }
-    buf_push(ordered_syms, type->sym);
+    buf_push(sorted_syms, type->sym);
 }
 
 Type *resolve_decl_type(Decl *decl) {
@@ -631,7 +631,7 @@ void resolve_sym(Sym *sym) {
         break;
     }
     sym->state = SYM_RESOLVED;
-    buf_push(ordered_syms, sym);
+    buf_push(sorted_syms, sym);
 }
 
 void finalize_sym(Sym *sym) {
@@ -1018,11 +1018,11 @@ int64_t resolve_const_expr(Expr *expr) {
 }
 
 void init_global_syms(void) {
-    sym_global_type(str_intern("void"), type_void);
-    sym_global_type(str_intern("char"), type_char);
-    sym_global_type(str_intern("int"), type_int);
-    sym_global_type(str_intern("float"), type_float);
-    sym_global_func(str_intern("puts"), type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
+    sym_global_type("void", type_void);
+    sym_global_type("char", type_char);
+    sym_global_type("int", type_int);
+    sym_global_type("float", type_float);
+    sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
 }
 
 void sym_global_decls(DeclSet *declset) {
@@ -1137,7 +1137,7 @@ void resolve_test(void) {
         sym_global_decl(decl);
     }
     finalize_syms();
-    for (Sym **it = ordered_syms; it != buf_end(ordered_syms); it++) {
+    for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         if (sym->decl) {
             print_decl(sym->decl);

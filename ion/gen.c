@@ -499,9 +499,9 @@ void gen_sym(Sym *sym) {
     }
 }
 
-void gen_ordered_decls(void) {
-    for (size_t i = 0; i < buf_len(ordered_syms); i++) {
-        gen_sym(ordered_syms[i]);
+void gen_defs(void) {
+    for (size_t i = 0; i < buf_len(sorted_syms); i++) {
+        gen_sym(sorted_syms[i]);
     }
 }
 
@@ -530,8 +530,8 @@ void gen_all(void) {
     genf("// Function declarations");
     gen_func_decls();
     genln();
-    genlnf("// Ordered declarations");
-    gen_ordered_decls();
+    genlnf("// Definitions");
+    gen_defs();
 }
 
 void gen_test(void) {
