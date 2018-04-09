@@ -464,15 +464,15 @@ void gen_decl(Sym *sym) {
         genf(";");
         break;
     case DECL_FUNC:
-        gen_func_decl(sym->decl);
+        gen_func_decl(decl);
         genf(";");
         break;
     case DECL_STRUCT:
     case DECL_UNION:
-        gen_aggregate(sym->decl);
+        gen_aggregate(decl);
         break;
     case DECL_TYPEDEF:
-        genlnf("typedef %s;", type_to_cdecl(sym->type, sym->name));
+        genlnf("typedef %s;", typespec_to_cdecl(decl->typedef_decl.type, sym->name));
         break;
     default:
         assert(0);
@@ -523,7 +523,6 @@ void gen_all(void) {
     genln();
     genlnf("// Sorted declarations");
     gen_sorted_decls();
-    genln();
     genlnf("// Function definitions");
     gen_func_defs();
 }
