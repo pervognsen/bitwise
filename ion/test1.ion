@@ -1,3 +1,5 @@
+typedef U = IntOrPtr
+
 func example_test(): int {
     return fact_rec(10) == fact_iter(10);
 }
@@ -5,6 +7,19 @@ func example_test(): int {
 union IntOrPtr {
     i: int;
     p: int*;
+}
+
+func is_even(digit: int): int {
+    b := 0;
+    switch (digit) {
+        case 0:
+        case 2:
+        case 4:
+        case 6:
+        case 8:
+            b = 1;
+    }
+    return b;
 }
 
 // func f() {
