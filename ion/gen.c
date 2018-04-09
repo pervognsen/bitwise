@@ -422,7 +422,15 @@ void gen_stmt(Stmt *stmt) {
                 genlnf("default:");
             }
             genf(" ");
-            gen_stmt_block(switch_case.block);
+            genf("{");
+            gen_indent++;
+            StmtList block = switch_case.block;
+            for (size_t j = 0; i < block.num_stmts; i++) {
+                gen_stmt(block.stmts[j]);
+            }
+            genlnf("break;");
+            gen_indent--;
+            genlnf("}");
         }
         genlnf("}");
         break;
