@@ -9,6 +9,7 @@ int gen_indent;
 SrcPos gen_pos;
 
 const char *gen_preamble = \
+    "// Preamble\n"
     "#include <stdio.h>\n\n";
 
 void genln(void) {
@@ -183,20 +184,6 @@ void gen_forward_decls(void) {
         default:
             // Do nothing.
             break;
-        }
-    }
-}
-
-void gen_func_decls(void) {
-    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
-        Sym *sym = *it;
-        Decl *decl = sym->decl;
-        if (!decl) {
-            continue;
-        }
-        if (decl->kind == DECL_FUNC) {
-            gen_func_decl(sym->decl);
-            genf(";");
         }
     }
 }
@@ -452,14 +439,7 @@ void gen_stmt(Stmt *stmt) {
     }
 }
 
-void gen_func(Decl *decl) {
-    assert(decl->kind == DECL_FUNC);
-    gen_func_decl(decl);
-    genf(" ");
-    gen_stmt_block(decl->func.block);
-}
-
-void gen_sym(Sym *sym) {
+void gen_decl(Sym *sym) {
     Decl *decl = sym->decl;
     if (!decl) {
         return;
@@ -484,7 +464,8 @@ void gen_sym(Sym *sym) {
         genf(";");
         break;
     case DECL_FUNC:
-        gen_func(sym->decl);
+        gen_func_decl(sym->decl);
+        genf(";");
         break;
     case DECL_STRUCT:
     case DECL_UNION:
@@ -497,11 +478,12 @@ void gen_sym(Sym *sym) {
         assert(0);
         break;
     }
+    genln();
 }
 
-void gen_defs(void) {
+void gen_sorted_decls(void) {
     for (size_t i = 0; i < buf_len(sorted_syms); i++) {
-        gen_sym(sorted_syms[i]);
+        gen_decl(sorted_syms[i]);
     }
 }
 
@@ -520,18 +502,30 @@ void cdecl_test(void) {
     #endif
 }
 
+void gen_func_defs(void) {
+    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
+        Sym *sym = *it;
+        Decl *decl = sym->decl;
+        if (decl && decl->kind == DECL_FUNC) {
+            gen_func_decl(decl);
+            genf(" ");
+            gen_stmt_block(decl->func.block);
+            genln();
+        }
+    }
+}
+
 void gen_all(void) {
     gen_buf = NULL;
     genf("%s", gen_preamble);
     genf("// Forward declarations");
     gen_forward_decls();
     genln();
+    genlnf("// Sorted declarations");
+    gen_sorted_decls();
     genln();
-    genf("// Function declarations");
-    gen_func_decls();
-    genln();
-    genlnf("// Definitions");
-    gen_defs();
+    genlnf("// Function definitions");
+    gen_func_defs();
 }
 
 void gen_test(void) {

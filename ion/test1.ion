@@ -1,3 +1,7 @@
+func g(u: U): int {
+    return u.i;
+}
+
 typedef U = IntOrPtr
 
 func example_test(): int {
