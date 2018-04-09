@@ -180,13 +180,23 @@ void gen_forward_decls(void) {
         case DECL_UNION:
             genlnf("typedef union %s %s;", sym->name, sym->name);
             break;
-        case DECL_FUNC:
-            gen_func_decl(sym->decl);
-            genf(";");
-            break;
         default:
             // Do nothing.
             break;
+        }
+    }
+}
+
+void gen_func_decls(void) {
+    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
+        Sym *sym = *it;
+        Decl *decl = sym->decl;
+        if (!decl) {
+            continue;
+        }
+        if (decl->kind == DECL_FUNC) {
+            gen_func_decl(sym->decl);
+            genf(";");
         }
     }
 }
@@ -197,8 +207,8 @@ void gen_aggregate(Decl *decl) {
     gen_indent++;
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
         AggregateItem item = decl->aggregate.items[i];
-        gen_sync_pos(item.pos);
         for (size_t j = 0; j < item.num_names; j++) {
+            gen_sync_pos(item.pos);
             genlnf("%s;", typespec_to_cdecl(item.type, item.names[j]));
         }
     }
@@ -515,6 +525,10 @@ void gen_all(void) {
     genf("%s", gen_preamble);
     genf("// Forward declarations");
     gen_forward_decls();
+    genln();
+    genln();
+    genf("// Function declarations");
+    gen_func_decls();
     genln();
     genlnf("// Ordered declarations");
     gen_ordered_decls();
