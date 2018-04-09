@@ -5,6 +5,16 @@
 #define ALIGN_DOWN_PTR(p, a) ((void *)ALIGN_DOWN((uintptr_t)(p), (a)))
 #define ALIGN_UP_PTR(p, a) ((void *)ALIGN_UP((uintptr_t)(p), (a)))
 
+void fatal(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    printf("FATAL: ");
+    vprintf(fmt, args);
+    printf("\n");
+    va_end(args);
+    exit(1);
+}
+
 void *xcalloc(size_t num_elems, size_t elem_size) {
     void *ptr = calloc(num_elems, elem_size);
     if (!ptr) {
@@ -56,18 +66,16 @@ char *read_file(const char *path) {
         return NULL;
     }
     fseek(file, 0, SEEK_END);
-    long size = ftell(file);
+    long len = ftell(file);
     fseek(file, 0, SEEK_SET);
-    char *buf = xmalloc(size + 1);
-    if (size != 0) {
-        if (fread(buf, size, 1, file) != 1) {
-            fclose(file);
-            free(buf);
-            return NULL;
-        }
+    char *buf = xmalloc(len + 1);
+    if (len && fread(buf, len, 1, file) != 1) {
+        fclose(file);
+        free(buf);
+        return NULL;
     }
     fclose(file);   
-    buf[size] = 0;
+    buf[len] = 0;
     return buf;
 }
 
@@ -126,7 +134,7 @@ typedef struct BufHdr {
 #define buf_push(b, ...) (buf_fit((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
 #define buf_printf(b, ...) ((b) = buf__printf((b), __VA_ARGS__))
 #define buf_clear(b) ((b) ? buf__hdr(b)->len = 0 : 0)
-
+    
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
     size_t new_cap = MAX(16, MAX(1 + 2*buf_cap(buf), new_len));
@@ -139,7 +147,7 @@ void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     } else {
         new_hdr = xmalloc(new_size);
         new_hdr->len = 0;
-    }   
+    }
     new_hdr->cap = new_cap;
     return new_hdr->buf;
 }
@@ -161,7 +169,6 @@ char *buf__printf(char *buf, const char *fmt, ...) {
     buf__hdr(buf)->len += n - 1;
     return buf;
 }
-
 
 void buf_test(void) {
     int *buf = NULL;
@@ -225,21 +232,21 @@ void arena_free(Arena *arena) {
 
 // Hash map
 
-uint64_t uint64_hash(uint64_t x) {
-    x *= 0xff51afd7ed558ccdul;
+uint64_t hash_uint64(uint64_t x) {
+    x *= 0xff51afd7ed558ccd;
     x ^= x >> 32;
     return x;
 }
 
-uint64_t ptr_hash(void *ptr) {
-    return uint64_hash((uintptr_t)ptr);
+uint64_t hash_ptr(void *ptr) {
+    return hash_uint64((uintptr_t)ptr);
 }
 
-uint64_t str_hash(const char *str, size_t len) {
-    uint64_t x = 0xcbf29ce484222325ull;
+uint64_t hash_bytes(const char *buf, size_t len) {
+    uint64_t x = 0xcbf29ce484222325;
     for (size_t i = 0; i < len; i++) {
-        x ^= str[i];
-        x *= 0x100000001b3ull;
+        x ^= buf[i];
+        x *= 0x100000001b3;
         x ^= x >> 32;
     }
     return x;
@@ -257,7 +264,7 @@ void *map_get(Map *map, void *key) {
         return NULL;
     }
     assert(IS_POW2(map->cap));
-    size_t i = (size_t)ptr_hash(key);
+    size_t i = (size_t)hash_ptr(key);
     assert(map->len < map->cap);
     for (;;) {
         i &= map->cap - 1;
@@ -298,7 +305,7 @@ void map_put(Map *map, void *key, void *val) {
     }
     assert(2*map->len < map->cap);
     assert(IS_POW2(map->cap));
-    size_t i = (size_t)ptr_hash(key);
+    size_t i = (size_t)hash_ptr(key);
     for (;;) {
         i &= map->cap - 1;
         if (!map->keys[i]) {
@@ -339,7 +346,7 @@ Map interns;
 
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
-    uint64_t hash = str_hash(start, len);
+    uint64_t hash = hash_bytes(start, len);
     void *key = (void *)(uintptr_t)(hash ? hash : 1);
     Intern *intern = map_get(&interns, key);
     for (Intern *it = intern; it; it = it->next) {

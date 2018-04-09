@@ -12,7 +12,6 @@
 #include <inttypes.h>
 
 #include "common.c"
-#include "error.c"
 #include "lex.c"
 #include "ast.h"
 #include "ast.c"    
@@ -32,7 +31,7 @@ void main_test(void) {
     // ion_test();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) {  
 //   main_test();
     return ion_main(argc, argv);
 }
