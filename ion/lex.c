@@ -510,8 +510,6 @@ repeat:
             }
         } else if (*stream == '=') {
             token.kind = TOKEN_GTEQ;
-            int x = 0;
-            x |= 1;
             stream++;
         }
         break;
