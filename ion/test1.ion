@@ -1,3 +1,9 @@
+typedef A = int[sizeof(h())]
+
+func h(): int {
+    return 42;
+}
+
 func g(u: U): int {
     return u.i;
 }
