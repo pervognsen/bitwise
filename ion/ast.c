@@ -141,7 +141,7 @@ Expr *expr_sizeof_type(SrcPos pos, Typespec *type) {
     return e;
 }
 
-Expr *expr_int(SrcPos pos, int64_t int_val) {
+Expr *expr_int(SrcPos pos, int int_val) {
     Expr *e = expr_new(EXPR_INT, pos);
     e->int_val = int_val;
     return e;

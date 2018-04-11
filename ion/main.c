@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #include "common.c"
 #include "lex.c"
@@ -23,14 +24,14 @@
 
 void main_test(void) {
     common_test();
-    lex_test();
+    // lex_test();
     // print_test();
     // parse_test();
-    // resolve_test();
+    resolve_test();
     // ion_test();
 }
 
 int main(int argc, char **argv) {  
-//   main_test();
+//    main_test();
     return ion_main(argc, argv);
 }

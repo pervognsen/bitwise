@@ -147,7 +147,7 @@ struct Expr {
     SrcPos pos;
     struct Type *type;
     union {
-        int64_t int_val;
+        int int_val;
         double float_val;
         const char *str_val;
         const char *name;

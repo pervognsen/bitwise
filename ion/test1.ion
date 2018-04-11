@@ -1,4 +1,6 @@
-typedef A = int[sizeof(h())]
+const N = (:char)42 + 8
+
+typedef A = int[1 + 2*sizeof(h())]
 
 func h(): int {
     return 42;
@@ -19,14 +21,22 @@ union IntOrPtr {
     p: int*;
 }
 
+var escape_to_char: int[256] = {
+    ['n'] = '\n',
+    ['r'] = '\r',
+    ['t'] = '\t',
+    ['v'] = '\v',
+    ['b'] = '\b',
+    ['a'] = '\a',
+    ['0'] = 0,
+}
+
+var array: int[] = {1, 2, 3, [10]=4}
+
 func is_even(digit: int): int {
     b := 0;
     switch (digit) {
-        case 0:
-        case 2:
-        case 4:
-        case 6:
-        case 8:
+        case 0, 2, 4, 6, 8:
             b = 1;
     }
     return b;
@@ -69,8 +79,16 @@ struct T {
     a: int[n];
 }
 
+func benchmark(n: int) {
+    r := 1;
+    for (i := 1; i < n; i++) {
+        r *= i;
+    }
+}
+
 func main(argc: int, argv: char**): int {
     b := example_test();
     puts("Hello, world!");
+    c := getchar();
     return 0;
 }

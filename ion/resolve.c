@@ -4,14 +4,25 @@ typedef enum TypeKind {
     TYPE_COMPLETING,
     TYPE_VOID,
     TYPE_CHAR,
+    TYPE_SCHAR,
+    TYPE_UCHAR,
+    TYPE_SHORT,
+    TYPE_USHORT,
     TYPE_INT,
+    TYPE_UINT,
+    TYPE_LONG,
+    TYPE_ULONG,
+    TYPE_LONGLONG,
+    TYPE_ULONGLONG,
     TYPE_FLOAT,
+    TYPE_DOUBLE,
     TYPE_PTR,
     TYPE_ARRAY,
     TYPE_STRUCT,
     TYPE_UNION,
     TYPE_ENUM,
     TYPE_FUNC,
+    MAX_TYPES,
 } TypeKind;
 
 typedef struct Type Type;
@@ -57,11 +68,87 @@ Type *type_alloc(TypeKind kind) {
 
 Type *type_void = &(Type){TYPE_VOID, 0};
 Type *type_char = &(Type){TYPE_CHAR, 1, 1};
+Type *type_uchar = &(Type){TYPE_UCHAR, 1, 1};
+Type *type_schar = &(Type){TYPE_SCHAR, 1, 1};
+Type *type_short = &(Type){TYPE_SHORT, 2, 2};
+Type *type_ushort = &(Type){TYPE_USHORT, 2, 2};
 Type *type_int = &(Type){TYPE_INT, 4, 4};
+Type *type_uint = &(Type){TYPE_UINT, 4, 4};
+Type *type_long = &(Type){TYPE_LONG, 4, 4}; // 4 on 64-bit windows, 8 on 64-bit linux, probably factor this out to the backend
+Type *type_ulong = &(Type){TYPE_ULONG, 4, 4};
+Type *type_longlong = &(Type){TYPE_LONGLONG, 8, 8};
+Type *type_ulonglong = &(Type){TYPE_ULONGLONG, 8, 8};
 Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
+Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
+
+#define type_size_t type_int // temp hack
 
 const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
+
+bool is_integer_type(Type *type) {
+    return TYPE_CHAR <= type->kind && type->kind <= TYPE_ULONGLONG;
+}
+
+bool is_arithmetic_type(Type *type) {
+    return TYPE_CHAR && type->kind && type->kind <= TYPE_DOUBLE;
+}
+
+bool is_signed_type(Type *type) {
+    switch (type->kind) {
+    // TODO: TYPE_CHAR signedness is platform independent, needs to factor into backend
+    case TYPE_SCHAR:
+    case TYPE_SHORT:
+    case TYPE_INT:
+    case TYPE_LONG:
+    case TYPE_LONGLONG:
+        return true;
+    default:
+        return false;
+    }
+}
+
+int type_ranks[MAX_TYPES] = {
+    [TYPE_CHAR] = 1,
+    [TYPE_SCHAR] = 1,
+    [TYPE_UCHAR] = 1,
+    [TYPE_SHORT] = 2,
+    [TYPE_USHORT] = 2,
+    [TYPE_INT] = 3,
+    [TYPE_UINT] = 3,
+    [TYPE_LONG] = 4,
+    [TYPE_ULONG] = 4,
+    [TYPE_LONGLONG] = 5,
+    [TYPE_ULONGLONG] = 5,
+};
+
+int type_rank(Type *type) {
+    return type_ranks[type->kind];
+}
+
+Type *unsigned_type(Type *type) {
+    switch (type->kind) {
+    case TYPE_CHAR:
+    case TYPE_SCHAR:
+    case TYPE_UCHAR:
+        return type_uchar;
+    case TYPE_SHORT:
+    case TYPE_USHORT:
+        return type_ushort;
+    case TYPE_INT:
+    case TYPE_UINT:
+        return type_uint;
+    case TYPE_LONG:
+    case TYPE_ULONG:
+        return type_ulong;
+    case TYPE_LONGLONG:
+    case TYPE_ULONGLONG:
+        return type_ulonglong;
+    default:
+        assert(0);
+        return NULL;
+    }
+}
 
 size_t type_sizeof(Type *type) {
     assert(type->kind > TYPE_COMPLETING);
@@ -207,13 +294,29 @@ typedef enum SymState {
     SYM_RESOLVED,
 } SymState;
 
+typedef union Val {
+    char c;
+    unsigned char uc;
+    signed char sc;
+    short s;
+    unsigned short us;
+    int i;
+    unsigned u;
+    long l;
+    unsigned long ul;
+    long long ll;
+    unsigned long long ull;
+    float f;
+    double d;
+} Val;
+
 typedef struct Sym {
     const char *name;
     SymKind kind;
     SymState state;
     Decl *decl;
     Type *type;
-    int64_t val;
+    Val val;
 } Sym;
 
 enum {
@@ -333,7 +436,7 @@ typedef struct Operand {
     Type *type;
     bool is_lvalue;
     bool is_const;
-    int64_t val;
+    Val val;
 } Operand;
 
 Operand operand_null;
@@ -351,16 +454,163 @@ Operand operand_lvalue(Type *type) {
     };
 }
 
-Operand operand_const(int64_t val) {
+Operand operand_const(Type *type, Val val) {
     return (Operand){
-        .type = type_int,
+        .type = type,
         .is_const = true,
         .val = val,
     };
 }
 
+#define CASE(k, t) \
+    case k: \
+        switch (type->kind) { \
+        case TYPE_CHAR: \
+            operand->val.c = (char)operand->val.t; \
+            break; \
+        case TYPE_UCHAR: \
+            operand->val.uc = (unsigned char)operand->val.t; \
+            break; \
+        case TYPE_SCHAR: \
+            operand->val.sc = (signed char)operand->val.t; \
+            break; \
+        case TYPE_SHORT: \
+            operand->val.s = (short)operand->val.t; \
+            break; \
+        case TYPE_USHORT: \
+            operand->val.us = (unsigned short)operand->val.t; \
+            break; \
+        case TYPE_INT: \
+            operand->val.i = (int)operand->val.t; \
+            break; \
+        case TYPE_UINT: \
+            operand->val.u = (unsigned)operand->val.t; \
+            break; \
+        case TYPE_LONG: \
+            operand->val.l = (long)operand->val.t; \
+            break; \
+        case TYPE_ULONG: \
+            operand->val.ul = (unsigned long)operand->val.t; \
+            break; \
+        case TYPE_LONGLONG: \
+            operand->val.ll = (long long)operand->val.t; \
+            break; \
+        case TYPE_ULONGLONG: \
+            operand->val.ull = (unsigned long long)operand->val.t; \
+            break; \
+        case TYPE_FLOAT: \
+            operand->val.f = (float)operand->val.t; \
+            break; \
+        case TYPE_DOUBLE: \
+            operand->val.d = (double)operand->val.t; \
+            break; \
+        default: \
+            assert(0); \
+            break; \
+        } \
+        break;
+
+void convert_operand(Operand *operand, Type *type) {
+    // TODO: check for legal conversion
+    if (operand->is_const) {
+        switch (operand->type->kind) {
+        CASE(TYPE_CHAR, c)
+        CASE(TYPE_UCHAR, uc)
+        CASE(TYPE_SCHAR, sc)
+        CASE(TYPE_SHORT, s)
+        CASE(TYPE_USHORT, us)
+        CASE(TYPE_INT, i)
+        CASE(TYPE_UINT, u)
+        CASE(TYPE_LONG, l)
+        CASE(TYPE_ULONG, ul)
+        CASE(TYPE_LONGLONG, ll)
+        CASE(TYPE_ULONGLONG, ull)
+        CASE(TYPE_FLOAT, f)
+        CASE(TYPE_DOUBLE, d)
+        default:
+            operand->is_const = false;
+            break;
+        }
+    }
+    operand->type = type;
+}
+
+#undef CASE
+
+Val convert_const(Type *dest_type, Type *src_type, Val src_val) {
+    Operand operand = operand_const(src_type, src_val);
+    convert_operand(&operand, dest_type);
+    return operand.val;
+}
+
+void promote_operand(Operand *operand) {
+    switch (operand->type->kind) {
+    case TYPE_CHAR:
+    case TYPE_SCHAR:
+    case TYPE_UCHAR:
+    case TYPE_SHORT:
+    case TYPE_USHORT:
+        convert_operand(operand, type_int);
+        break;
+    default:
+        // Do nothing
+        break;
+    }
+}
+
+Type *promote_type(Type *type) {
+    Operand operand = operand_rvalue(type);
+    promote_operand(&operand);
+    return operand.type;
+}
+
+void unify_arithmetic_operands(Operand *left, Operand *right) {
+    if (left->type == type_double) {
+        convert_operand(right, type_double);
+    } else if (right->type == type_double) {
+        convert_operand(left, type_double);
+    } else if (left->type == type_float) {
+        convert_operand(right, type_float);
+    } else if (right->type == type_float) {
+        convert_operand(left, type_float);
+    } else {
+        promote_operand(left);
+        promote_operand(right);
+        if (left->type != right->type) {
+            if (is_signed_type(left->type) == is_signed_type(right->type)) {
+                if (type_rank(left->type) <= type_rank(right->type)) {
+                    convert_operand(left, right->type);
+                } else {
+                    convert_operand(right, left->type);
+                }
+            } else if (is_signed_type(left->type) && type_rank(right->type) >= type_rank(left->type)) {
+                convert_operand(left, right->type);
+            } else if (is_signed_type(right->type) && type_rank(left->type) >= type_rank(right->type)) {
+                convert_operand(right, left->type);
+            } else if (is_signed_type(left->type) && type_sizeof(left->type) > type_sizeof(right->type)) {
+                convert_operand(right, left->type);            
+            } else if (is_signed_type(right->type) && type_sizeof(right->type) > type_sizeof(left->type)) {
+                convert_operand(left, right->type);
+            } else { 
+                Type *type = unsigned_type(is_signed_type(left->type) ? left->type : right->type);
+                convert_operand(left, type);
+                convert_operand(right, type);
+            }
+        }
+    }
+    assert(left->type == right->type);
+}
+
+Type *unify_arithmetic_types(Type *left, Type *right) {
+    Operand left_operand = operand_rvalue(left);
+    Operand right_operand = operand_rvalue(right);
+    unify_arithmetic_operands(&left_operand, &right_operand);
+    assert(left_operand.type == right_operand.type);
+    return left_operand.type;
+}
+
 Sym *resolve_name(const char *name);
-int64_t resolve_const_expr(Expr *expr);
+Operand resolve_const_expr(Expr *expr);
 Operand resolve_expr(Expr *expr);
 Operand resolve_expected_expr(Expr *expr, Type *expected_type);
 
@@ -383,11 +633,18 @@ Type *resolve_typespec(Typespec *typespec) {
         result = type_ptr(resolve_typespec(typespec->ptr.elem));
         break;
     case TYPESPEC_ARRAY: {
-        int64_t size = resolve_const_expr(typespec->array.size);
-        if (size < 0) {
-            fatal("Negative array size");
+        int size = 0;
+        if (typespec->array.size) {
+            Operand size_operand = resolve_const_expr(typespec->array.size);
+            if (size_operand.type != type_int) {
+                fatal_error(typespec->pos, "Array size constant expression must have type int");
+            }
+            size = size_operand.val.i;
+            if (size <= 0) {
+                fatal("Non-positive array size");
+            }
         }
-        result = type_array(resolve_typespec(typespec->array.elem), (size_t)size);
+        result = type_array(resolve_typespec(typespec->array.elem), size);
         break;
     }
     case TYPESPEC_FUNC: {
@@ -461,7 +718,11 @@ Type *resolve_decl_var(Decl *decl) {
     if (decl->var.expr) {
         Operand result = resolve_expected_expr(decl->var.expr, type);
         if (type && result.type != type) {
-            fatal("Declared var type does not match inferred type");
+            if (type->kind == TYPE_ARRAY && result.type->kind == TYPE_ARRAY && type->array.elem == result.type->array.elem && !type->array.size) {
+                // Incomplete array size, so infer the size from the initializer expression's type.
+            } else {
+                fatal("Declared var type does not match inferred type");
+            }
         }
         type = result.type;
     }
@@ -469,7 +730,7 @@ Type *resolve_decl_var(Decl *decl) {
     return type;
 }
 
-Type *resolve_decl_const(Decl *decl, int64_t *val) {
+Type *resolve_decl_const(Decl *decl, Val *val) {
     assert(decl->kind == DECL_CONST);
     Operand result = resolve_expr(decl->const_decl.expr);
     if (!result.is_const) {
@@ -580,6 +841,7 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         break;
     }
     case STMT_INIT:
+
         sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
         break;
     case STMT_EXPR:
@@ -680,66 +942,196 @@ Operand ptr_decay(Operand expr) {
     }
 }
 
-int64_t eval_int_unary(TokenKind op, int64_t val) {
-    switch (op) {
-    case TOKEN_ADD:
-        return +val;
-    case TOKEN_SUB:
-        return -val;
-    case TOKEN_NEG:
-        return ~val;
-    case TOKEN_NOT:
-        return !val;
-    default:
-        assert(0);
-        return 0;
+Val eval_unary_op(TokenKind op, Type *type, Val val) {
+    Operand operand = operand_const(type, val);
+    if (is_signed_type(type)) {
+        convert_operand(&operand, type_longlong);
+        long long x = operand.val.ll;
+        long long r;
+        switch (op) {
+        case TOKEN_ADD:
+            r = +x;
+            break;
+        case TOKEN_SUB:
+            r = -x;
+            break;
+        case TOKEN_NEG:
+            r = ~x;
+            break;
+        case TOKEN_NOT:
+            r = !x;
+            break;
+        default:
+            assert(0);
+        }
+        operand.val.ll = r;
+    } else {
+        convert_operand(&operand, type_ulonglong);
+        unsigned long long x = operand.val.ull;
+        unsigned long long r;
+        switch (op) {
+        case TOKEN_ADD:
+            r = +x;
+            break;
+        case TOKEN_SUB:
+            // Do nothing
+            r = x;
+            break;
+        case TOKEN_NEG:
+            r = ~x;
+            break;
+        case TOKEN_NOT:
+            r = !x;
+            break;
+        default:
+            assert(0);
+        }
+        operand.val.ll = r;
     }
+    convert_operand(&operand, type);
+    return operand.val;
 }
 
-int64_t eval_int_binary(TokenKind op, int64_t left, int64_t right) {
-    switch (op) {
-    case TOKEN_MUL:
-        return left * right;
-    case TOKEN_DIV:
-        return right != 0 ? left / right : 0;
-    case TOKEN_MOD:
-        return right != 0 ? left % right : 0;
-    case TOKEN_AND:
-        return left & right;
-        // TODO: Don't allow UB in shifts, etc
-    case TOKEN_LSHIFT:
-        return left << right;
-    case TOKEN_RSHIFT:
-        return left >> right;
-    case TOKEN_ADD:
-        return left + right;
-    case TOKEN_SUB:
-        return left - right;
-    case TOKEN_OR:
-        return left | right;
-    case TOKEN_XOR:
-        return left ^ right;
-    case TOKEN_EQ:
-        return left == right;
-    case TOKEN_NOTEQ:
-        return left != right;
-    case TOKEN_LT:
-        return left < right;
-    case TOKEN_LTEQ:
-        return left <= right;
-    case TOKEN_GT:
-        return left > right;
-    case TOKEN_GTEQ:
-        return left >= right;
-        // TODO: Probably handle logical AND/OR separately
-    case TOKEN_AND_AND:
-        return left && right;
-    case TOKEN_OR_OR:
-        return left || right;
-    default:
-        assert(0);
-        return 0;
+Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
+    Operand left_operand = operand_const(type, left);
+    Operand right_operand = operand_const(type, right);
+    Operand result_operand;
+    if (is_signed_type(type)) {
+        convert_operand(&left_operand, type_longlong);
+        convert_operand(&right_operand, type_longlong);
+        long long x = left_operand.val.ll;
+        long long y = right_operand.val.ll;
+        long long r = 0;
+        switch (op) {
+        case TOKEN_MUL:
+            r = x * y;
+            break;
+        case TOKEN_DIV:
+            r = y != 0 ? x / y: 0;
+            break;
+        case TOKEN_MOD:
+            r = y != 0 ? x % y : 0;
+            break;
+        case TOKEN_AND:
+            r = x & y;
+            break;
+            // TODO: Arithmetic conversions for shift amounts shouldn't be the same as for other operations.
+        case TOKEN_LSHIFT:
+            r = x << y;
+            break;
+        case TOKEN_RSHIFT:
+            r = x >> y;
+            break;
+        case TOKEN_ADD:
+            r = x + y;
+            break;
+        case TOKEN_SUB:
+            r = x - y;
+            break;
+        case TOKEN_OR:
+            r = x | y;
+            break;
+        case TOKEN_XOR:
+            r = x ^ y;
+            break;
+        case TOKEN_EQ:
+            r = x == y;
+            break;
+        case TOKEN_NOTEQ:
+            r = x != y;
+            break;
+        case TOKEN_LT:
+            r = x < y;
+            break;
+        case TOKEN_LTEQ:
+            r = x <= y;
+            break;
+        case TOKEN_GT:
+            r = x > y;
+            break;
+        case TOKEN_GTEQ:
+            r = x >= y;
+            break;
+        case TOKEN_AND_AND:
+            r = x && y;
+            break;
+        case TOKEN_OR_OR:
+            r = x || y;
+            break;
+        default:
+            assert(0);
+            break;
+        }
+        result_operand = operand_const(type_longlong, (Val){.ll = r});
+    } else {
+        convert_operand(&left_operand, type_ulonglong);
+        convert_operand(&right_operand, type_ulonglong);
+        unsigned long long x = left_operand.val.ll;
+        unsigned long long y = right_operand.val.ll;
+        unsigned long long r = 0;
+        switch (op) {
+        case TOKEN_MUL:
+            r = x * y;
+            break;
+        case TOKEN_DIV:
+            r = y != 0 ? x / y: 0;
+            break;
+        case TOKEN_MOD:
+            r = y != 0 ? x % y : 0;
+            break;
+        case TOKEN_AND:
+            r = x & y;
+            break;
+        case TOKEN_LSHIFT:
+            r = x << y;
+            break;
+        case TOKEN_RSHIFT:
+            r = x >> y;
+            break;
+        case TOKEN_ADD:
+            r = x + y;
+            break;
+        case TOKEN_SUB:
+            r = x - y;
+            break;
+        case TOKEN_OR:
+            r = x | y;
+            break;
+        case TOKEN_XOR:
+            r = x ^ y;
+            break;
+        case TOKEN_EQ:
+            r = x == y;
+            break;
+        case TOKEN_NOTEQ:
+            r = x != y;
+            break;
+        case TOKEN_LT:
+            r = x < y;
+            break;
+        case TOKEN_LTEQ:
+            r = x <= y;
+            break;
+        case TOKEN_GT:
+            r = x > y;
+            break;
+        case TOKEN_GTEQ:
+            r = x >= y;
+            break;
+        case TOKEN_AND_AND:
+            r = x && y;
+            break;
+        case TOKEN_OR_OR:
+            r = x || y;
+            break;
+        default:
+            assert(0);
+            break;
+        }
+        result_operand = operand_const(type_ulonglong, (Val){.ull = r});
     }
+    convert_operand(&result_operand, type);
+    return result_operand.val;
 }
 
 Operand resolve_expr_name(Expr *expr) {
@@ -748,7 +1140,7 @@ Operand resolve_expr_name(Expr *expr) {
     if (sym->kind == SYM_VAR) {
         return operand_lvalue(sym->type);
     } else if (sym->kind == SYM_CONST) {
-        return operand_const(sym->val);
+        return operand_const(sym->type, sym->val);
     } else if (sym->kind == SYM_FUNC) {
         return operand_rvalue(sym->type);
     } else {
@@ -779,7 +1171,7 @@ Operand resolve_expr_unary(Expr *expr) {
             fatal("Can only use unary %s with ints", token_kind_name(expr->unary.op));
         }
         if (operand.is_const) {
-            return operand_const(eval_int_unary(expr->unary.op, operand.val));
+            return operand_const(type_int, eval_unary_op(expr->unary.op, operand.type, operand.val));
         } else {
             return operand_rvalue(type);
         }
@@ -790,14 +1182,9 @@ Operand resolve_expr_binary(Expr *expr) {
     assert(expr->kind == EXPR_BINARY);
     Operand left = resolve_expr(expr->binary.left);
     Operand right = resolve_expr(expr->binary.right);
-    if (left.type != type_int) {
-        fatal("left operand of + must be int");
-    }
-    if (right.type != left.type)  {
-        fatal("left and right operand of + must have same type");
-    }
+    unify_arithmetic_operands(&left, &right);
     if (left.is_const && right.is_const) {
-        return operand_const(eval_int_binary(expr->binary.op, left.val, right.val));
+        return operand_const(left.type, eval_binary_op(expr->binary.op, left.type, left.val, right.val));
     } else {
         return operand_rvalue(left.type);
     }
@@ -849,26 +1236,33 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         }
     } else {
         assert(type->kind == TYPE_ARRAY);
-        size_t index = 0;
+        int index = 0, max_index = 0;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             CompoundField field = expr->compound.fields[i];
             if (field.kind == FIELD_NAME) {
                 fatal("Named field initializer not allowed for array compound literals");
             } else if (field.kind == FIELD_INDEX) {
-                int64_t result = resolve_const_expr(field.index);
-                if (result < 0) {
+                Operand result = resolve_const_expr(field.index);
+                if (result.type != type_int) {
+                    fatal("Field initializer index expression must have type int");
+                }
+                if (result.val.i < 0) {
                     fatal("Field initializer index cannot be negative");
                 }
-                index = (size_t)result;
+                index = result.val.i;
             }
-            if (index >= type->array.size) {
+            if (type->array.size && index >= type->array.size) {
                 fatal("Field initializer in array compound literal out of range");
             }
             Operand init = resolve_expected_expr(expr->compound.fields[i].init, type->array.elem);
             if (init.type != type->array.elem) {
                 fatal("Compound literal element type mismatch");
             }
+            max_index = MAX(max_index, index);
             index++;
+        }
+        if (type->array.size == 0) {
+            type = type_array(type->array.elem, max_index + 1);
         }
     }
     return operand_rvalue(type);
@@ -905,7 +1299,7 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
         fatal("Ternary then/else expressions must have matching types");
     }
     if (cond.is_const && then_expr.is_const && else_expr.is_const) {
-        return operand_const(cond.val ? then_expr.val : else_expr.val);
+        return operand_const(then_expr.type, cond.val.i ? then_expr.val : else_expr.val);
     } else {
         return operand_rvalue(then_expr.type);
     }
@@ -927,9 +1321,10 @@ Operand resolve_expr_index(Expr *expr) {
 Operand resolve_expr_cast(Expr *expr) {
     assert(expr->kind == EXPR_CAST);
     Type *type = resolve_typespec(expr->cast.type);
-    Operand result = ptr_decay(resolve_expr(expr->cast.expr));
+    Operand operand = ptr_decay(resolve_expr(expr->cast.expr));
+#if 0
     if (type->kind == TYPE_PTR) {
-        if (result.type->kind != TYPE_PTR && result.type->kind != TYPE_INT) {
+        if (operand.type->kind != TYPE_PTR && operand.type != type_int) {
             fatal("Invalid cast to pointer type");
         }
     } else if (type->kind == TYPE_INT) {
@@ -939,14 +1334,16 @@ Operand resolve_expr_cast(Expr *expr) {
     } else {
         fatal("Invalid target cast type");
     }
-    return operand_rvalue(type);
+    #endif
+    convert_operand(&operand, type);
+    return operand;
 }
 
 Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     Operand result;
     switch (expr->kind) {
     case EXPR_INT:
-        result = operand_const(expr->int_val);
+        result = operand_const(type_int, (Val){.i = expr->int_val});
         break;
     case EXPR_FLOAT:
         result = operand_rvalue(type_float);
@@ -984,13 +1381,13 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     case EXPR_SIZEOF_EXPR: {
         Type *type = resolve_expr(expr->sizeof_expr).type;
         complete_type(type);
-        result = operand_const(type_sizeof(type));
+        result = operand_const(type_size_t, (Val){.ull = type_sizeof(type)});
         break;
     }
     case EXPR_SIZEOF_TYPE: {
         Type *type = resolve_typespec(expr->sizeof_type);
         complete_type(type);
-        result = operand_const(type_sizeof(type));
+        result = operand_const(type_size_t, (Val){.ull = type_sizeof(type)});
         break;
     }
     default:
@@ -1009,12 +1406,12 @@ Operand resolve_expr(Expr *expr) {
     return resolve_expected_expr(expr, NULL);
 }
 
-int64_t resolve_const_expr(Expr *expr) {
+Operand resolve_const_expr(Expr *expr) {
     Operand result = resolve_expr(expr);
     if (!result.is_const) {
         fatal("Expected constant expression");
     }
-    return result.val;
+    return result;
 }
 
 void init_global_syms(void) {
@@ -1023,6 +1420,7 @@ void init_global_syms(void) {
     sym_global_type("int", type_int);
     sym_global_type("float", type_float);
     sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
+    sym_global_func("getchar", type_func(NULL, 0, type_int));
 }
 
 void sym_global_decls(DeclSet *declset) {
@@ -1041,6 +1439,29 @@ void finalize_syms(void) {
 }
 
 void resolve_test(void) {
+    assert(promote_type(type_char) == type_int);
+    assert(promote_type(type_schar) == type_int);
+    assert(promote_type(type_uchar) == type_int);
+    assert(promote_type(type_short) == type_int);
+    assert(promote_type(type_ushort) == type_int);
+    assert(promote_type(type_int) == type_int);
+    assert(promote_type(type_uint) == type_uint);
+    assert(promote_type(type_long) == type_long);
+    assert(promote_type(type_ulong) == type_ulong);
+    assert(promote_type(type_longlong) == type_longlong);
+    assert(promote_type(type_ulonglong) == type_ulonglong);
+
+    assert(unify_arithmetic_types(type_char, type_char) == type_int);
+    assert(unify_arithmetic_types(type_char, type_ushort) == type_int);
+    assert(unify_arithmetic_types(type_int, type_uint) == type_uint);
+    assert(unify_arithmetic_types(type_int, type_long) == type_long);
+    assert(unify_arithmetic_types(type_ulong, type_long) == type_ulong);
+    assert(unify_arithmetic_types(type_long, type_uint) == type_ulong);
+
+    assert(convert_const(type_int, type_char, (Val){.c = 100}).i == 100);
+    assert(convert_const(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
+    assert(convert_const(type_uint, type_ulonglong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
+
     Type *int_ptr = type_ptr(type_int);
     assert(type_ptr(type_int) == int_ptr);
     Type *float_ptr = type_ptr(type_float);

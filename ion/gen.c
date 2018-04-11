@@ -45,8 +45,11 @@ void gen_str(const char *str) {
 
 void gen_sync_pos(SrcPos pos) {
     if (gen_pos.line != pos.line || gen_pos.name != pos.name) {
-        genlnf("#line %d ", pos.line);
-        gen_str(pos.name);
+        genlnf("#line %d", pos.line);
+        if (gen_pos.name != pos.name) {
+            genf(" ");
+            gen_str(pos.name);
+        }
         gen_pos = pos;
     }
 }
@@ -203,6 +206,31 @@ void gen_aggregate(Decl *decl) {
     genlnf("};");
 }
 
+void gen_expr_compound(Expr *expr, bool is_init) {
+    if (is_init) {
+        genf("{");
+    } else if (expr->compound.type) {
+        genf("(%s){", typespec_to_cdecl(expr->compound.type, ""));
+    } else {
+        genf("(%s){", type_to_cdecl(expr->type, ""));
+    }
+    for (size_t i = 0; i < expr->compound.num_fields; i++) {
+        if (i != 0) {
+            genf(", ");
+        }
+        CompoundField field = expr->compound.fields[i];
+        if (field.kind == FIELD_NAME) {
+            genf(".%s = ", field.name);
+        } else if (field.kind == FIELD_INDEX) {
+            genf("[");
+            gen_expr(field.index);
+            genf("] = ");
+        }
+        gen_expr(field.init);
+    }
+    genf("}");
+}
+
 void gen_expr(Expr *expr) {
     switch (expr->kind) {
     case EXPR_INT:
@@ -244,11 +272,8 @@ void gen_expr(Expr *expr) {
         genf(".%s", expr->field.name);
         break;
     case EXPR_COMPOUND:
-        if (expr->compound.type) {
-            genf("(%s){", typespec_to_cdecl(expr->compound.type, ""));
-        } else {
-            genf("(%s){", type_to_cdecl(expr->type, ""));
-        }
+        gen_expr_compound(expr, false);
+        break;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             if (i != 0) {
                 genf(", ");
@@ -311,6 +336,14 @@ void gen_stmt_block(StmtList block) {
     genlnf("}");
 }
 
+void gen_init_expr(Expr *expr) {
+    if (expr->kind == EXPR_COMPOUND) {
+        gen_expr_compound(expr, true);
+    } else {
+        gen_expr(expr);
+    }
+}
+
 void gen_simple_stmt(Stmt *stmt) {
     switch (stmt->kind) {
     case STMT_EXPR:
@@ -318,7 +351,7 @@ void gen_simple_stmt(Stmt *stmt) {
         break;
     case STMT_INIT:
         genf("%s = ", type_to_cdecl(stmt->init.expr->type, stmt->init.name));
-        gen_expr(stmt->init.expr);
+        gen_init_expr(stmt->init.expr);
         break;
     case STMT_ASSIGN:
         gen_expr(stmt->assign.left);
@@ -439,6 +472,10 @@ void gen_stmt(Stmt *stmt) {
     }
 }
 
+bool is_incomplete_array_type(Typespec *typespec) {
+    return typespec->kind == TYPESPEC_ARRAY && !typespec->array.size;
+}
+
 void gen_decl(Sym *sym) {
     Decl *decl = sym->decl;
     if (!decl) {
@@ -452,14 +489,14 @@ void gen_decl(Sym *sym) {
         genf(" };");
         break;
     case DECL_VAR:
-        if (decl->var.type) {
+        if (decl->var.type && !is_incomplete_array_type(decl->var.type)) {
             genlnf("%s", typespec_to_cdecl(decl->var.type, sym->name));
         } else {
             genlnf("%s", type_to_cdecl(sym->type, sym->name));
         }
         if (decl->var.expr) {
             genf(" = ");
-            gen_expr(decl->var.expr);
+            gen_init_expr(decl->var.expr);
         }
         genf(";");
         break;
