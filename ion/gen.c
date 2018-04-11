@@ -29,14 +29,14 @@ void gen_str(const char *str) {
     genf("\"");
     while (*str) {
         const char *start = str;
-        while (*str && !char_to_escape[*(unsigned char *)str]) {
+        while (*str && !char_to_escape[(unsigned char)*str]) {
             str++;
         }
         if (start != str) {
             genf("%.*s", str - start, start);
         }
-        if (*str && char_to_escape[*(unsigned char *)str]) {
-            genf("\\%c", char_to_escape[*(unsigned char *)str]);
+        if (*str && char_to_escape[(unsigned char)*str]) {
+            genf("\\%c", char_to_escape[(unsigned char)*str]);
             str++;
         }
     }

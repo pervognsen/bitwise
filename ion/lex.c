@@ -277,7 +277,7 @@ void scan_int(void) {
     }
     int val = 0;
     for (;;) {
-        int digit = char_to_digit[*(unsigned char *)stream];
+        int digit = char_to_digit[(unsigned char)*stream];
         if (digit == 0 && *stream != '0') {
             break;
         }
@@ -352,7 +352,7 @@ void scan_char(void) {
         syntax_error("Char literal cannot contain newline");
     } else if (*stream == '\\') {
         stream++;
-        val = escape_to_char[*(unsigned char *)stream];
+        val = escape_to_char[(unsigned char)*stream];
         if (val == 0 && *stream != '0') {
             syntax_error("Invalid char literal escape '\\%c'", *stream);
         }
@@ -382,7 +382,7 @@ void scan_str(void) {
             break;
         } else if (val == '\\') {
             stream++;
-            val = escape_to_char[*(unsigned char *)stream];
+            val = escape_to_char[(unsigned char)*stream];
             if (val == 0 && *stream != '0') {
                 syntax_error("Invalid string literal escape '\\%c'", *stream);
             }
