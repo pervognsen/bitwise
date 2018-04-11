@@ -527,11 +527,10 @@ Operand operand_const(Type *type, Val val) {
             operand->val.d = (double)operand->val.t; \
             break; \
         default: \
-            assert(0); \
+            operand->is_const = false; \
             break; \
         } \
         break;
-
 
 bool is_convertible(Type *dest, Type *src) {
     if (dest == src) {
