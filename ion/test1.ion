@@ -19,6 +19,11 @@ func k(vp: void*, ip: int*) {
     ip = vp;
 }
 
+func f1() {
+    p := &int{0};
+    *p = 42;
+}
+
 typedef U = IntOrPtr
 
 func example_test(): int {

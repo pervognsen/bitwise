@@ -31,6 +31,7 @@ typedef struct Sym Sym;
 typedef struct TypeField {
     const char *name;
     Type *type;
+    size_t offset;
 } TypeField;
 
 struct Type {
@@ -254,6 +255,7 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     type->align = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(IS_POW2(type_alignof(it->type)));
+        it->offset = type->size;
         type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
         type->align = MAX(type->align, type_alignof(it->type));
     }
@@ -268,6 +270,7 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->align = 0;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(it->type->kind > TYPE_COMPLETING);
+        it->offset = 0;
         type->size = MAX(type->size, type_sizeof(it->type));
         type->align = MAX(type->align, type_alignof(it->type));
     }
@@ -513,8 +516,10 @@ Operand operand_const(Type *type, Val val) {
         break;
 
 
-bool is_legal_conversion(Type *dest, Type *src) {
-    if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
+bool is_convertible(Type *dest, Type *src) {
+    if (dest == src) {
+        return true;
+    } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
     } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
         return dest->ptr.elem == type_void || src->ptr.elem == type_void;
@@ -527,7 +532,7 @@ bool convert_operand(Operand *operand, Type *type) {
     if (operand->type == type) {
         return true;
     }
-    if (!is_legal_conversion(operand->type, type)) {
+    if (!is_convertible(operand->type, type)) {
         return false;
     }
     if (operand->is_const) {
@@ -1200,57 +1205,53 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         type = expected_type;
     }
     complete_type(type);
-    if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION && type->kind != TYPE_ARRAY) {
-        fatal_error(expr->pos, "Compound literals can only be used with struct and array types");
-    }
     if (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION) {
         int index = 0;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             CompoundField field = expr->compound.fields[i];
             if (field.kind == FIELD_INDEX) {
-                fatal_error(field.init->pos, "Index field initializer not allowed for struct/union compound literal");
+                fatal_error(field.pos, "Index field initializer not allowed for struct/union compound literal");
             } else if (field.kind == FIELD_NAME) {
                 index = aggregate_field_index(type, field.name);
                 if (index == -1) {
-                    fatal_error(field.init->pos, "Named field in compound literal does not exist");
+                    fatal_error(field.pos, "Named field in compound literal does not exist");
                 }
             }
             if (index >= type->aggregate.num_fields) {
-                fatal_error(field.init->pos, "Field initializer in struct/union compound literal out of range");
+                fatal_error(field.pos, "Field initializer in struct/union compound literal out of range");
             }
             Type *field_type = type->aggregate.fields[index].type;
             Operand init = resolve_expected_expr(field.init, field_type);
             if (!convert_operand(&init, field_type)) {
-                fatal_error(field.init->pos, "Illegal conversion in compound literal initializer");
+                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
             index++;
         }
-    } else {
-        assert(type->kind == TYPE_ARRAY);
+    } else if (type->kind == TYPE_ARRAY) {
         int index = 0, max_index = 0;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             CompoundField field = expr->compound.fields[i];
             if (field.kind == FIELD_NAME) {
-                fatal_error(field.init->pos, "Named field initializer not allowed for array compound literals");
+                fatal_error(field.pos, "Named field initializer not allowed for array compound literals");
             } else if (field.kind == FIELD_INDEX) {
                 Operand operand = resolve_const_expr(field.index);
                 if (!is_integer_type(operand.type)) {
-                    fatal_error(field.init->pos, "Field initializer index expression must have type int");
+                    fatal_error(field.pos, "Field initializer index expression must have type int");
                 }
                 if (!convert_operand(&operand, type_int)) {
-                    fatal_error(field.init->pos, "Illegal conversion in field initializer index");
+                    fatal_error(field.pos, "Illegal conversion in field initializer index");
                 }
                 if (operand.val.i < 0) {
-                    fatal_error(field.init->pos, "Field initializer index cannot be negative");
+                    fatal_error(field.pos, "Field initializer index cannot be negative");
                 }
                 index = operand.val.i;
             }
             if (type->array.size && index >= type->array.size) {
-                fatal_error(field.init->pos, "Field initializer in array compound literal out of range");
+                fatal_error(field.pos, "Field initializer in array compound literal out of range");
             }
             Operand init = resolve_expected_expr(field.init, type->array.elem);
             if (!convert_operand(&init, type->array.elem)) {
-                fatal_error(field.init->pos, "Illegal conversion in compound literal initializer");
+                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
             max_index = MAX(max_index, index);
             index++;
@@ -1258,8 +1259,17 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         if (type->array.size == 0) {
             type = type_array(type->array.elem, max_index + 1);
         }
+    } else {
+        if (expr->compound.num_fields != 1) {
+            fatal_error(expr->pos, "Compound literal for aggregate type must have exactly 1 field");
+        }
+        CompoundField field = expr->compound.fields[0];
+        Operand init = resolve_expected_expr(field.init, type);
+        if (!convert_operand(&init, type)) {
+            fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+        }
     }
-    return operand_rvalue(type);
+    return operand_lvalue(type);
 }
 
 Operand resolve_expr_call(Expr *expr) {
@@ -1451,6 +1461,7 @@ void resolve_test(void) {
     assert(unify_arithmetic_types(type_long, type_uint) == type_ulong);
 
     assert(convert_const(type_int, type_char, (Val){.c = 100}).i == 100);
+    assert(convert_const(type_int, type_char, (Val){.c = -1}).i == -1);
     assert(convert_const(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
     assert(convert_const(type_uint, type_ullong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
 

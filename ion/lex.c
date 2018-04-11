@@ -608,7 +608,7 @@ bool expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        fatal_syntax_error("expected token %s, got %s", token_kind_name(kind), token_info());
+        fatal_syntax_error("Expected token %s, got %s", token_kind_name(kind), token_info());
         return false;
     }
 }
