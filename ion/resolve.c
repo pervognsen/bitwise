@@ -1382,7 +1382,16 @@ Operand resolve_const_expr(Expr *expr) {
 void init_global_syms(void) {
     sym_global_type("void", type_void);
     sym_global_type("char", type_char);
+    sym_global_type("schar", type_schar);
+    sym_global_type("uchar", type_uchar);
+    sym_global_type("short", type_short);
+    sym_global_type("ushort", type_ushort);
     sym_global_type("int", type_int);
+    sym_global_type("uint", type_uint);
+    sym_global_type("long", type_long);
+    sym_global_type("ulong", type_ulong);
+    sym_global_type("llong", type_llong);
+    sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
     sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
     sym_global_func("getchar", type_func(NULL, 0, type_int));

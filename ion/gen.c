@@ -8,9 +8,19 @@ char *gen_buf = NULL;
 int gen_indent;
 SrcPos gen_pos;
 
-const char *gen_preamble = \
+const char *gen_preamble =
     "// Preamble\n"
-    "#include <stdio.h>\n\n";
+    "#include <stdio.h>\n"
+    "\n"
+    "typedef unsigned char uchar;\n"
+    "typedef signed char schar;\n"
+    "typedef unsigned short ushort;\n"
+    "typedef unsigned int uint;\n"
+    "typedef unsigned long ulong;\n"
+    "typedef long long llong;\n"
+    "typedef unsigned long long ullong;\n"
+    "\n"
+    ;
 
 void genln(void) {
     genf("\n%.*s", gen_indent * 4, "                                                                  ");
