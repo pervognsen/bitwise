@@ -950,50 +950,137 @@ Val eval_unary_op(TokenKind op, Type *type, Val val) {
     if (is_signed_type(type)) {
         convert_operand(&operand, type_longlong);
         long long x = operand.val.ll;
-        long long r;
         switch (op) {
         case TOKEN_ADD:
-            r = +x;
+            x = +x;
             break;
         case TOKEN_SUB:
-            r = -x;
+            x = -x;
             break;
         case TOKEN_NEG:
-            r = ~x;
+            x = ~x;
             break;
         case TOKEN_NOT:
-            r = !x;
+            x = !x;
             break;
         default:
             assert(0);
         }
-        operand.val.ll = r;
+        operand.val.ll = x;
     } else {
         convert_operand(&operand, type_ulonglong);
         unsigned long long x = operand.val.ull;
-        unsigned long long r;
         switch (op) {
         case TOKEN_ADD:
-            r = +x;
+            x = +x;
             break;
         case TOKEN_SUB:
-            r = 0ull - x; // Shut up MSVC's unsigned unary minus warning by doing it manually
+            x = 0ull - x; // Shut up MSVC's unsigned unary minus warning by doing it manually
             break;
         case TOKEN_NEG:
-            r = ~x;
+            x = ~x;
             break;
         case TOKEN_NOT:
-            r = !x;
+            x = !x;
             break;
         default:
             assert(0);
         }
-        operand.val.ll = r;
+        operand.val.ll = x;
     }
     convert_operand(&operand, type);
     return operand.val;
 }
 
+long long eval_binary_op_ll(TokenKind op, long long left, long long right) {
+    switch (op) {
+    case TOKEN_MUL:
+        return left * right;
+    case TOKEN_DIV:
+        return right != 0 ? left / right : 0;
+    case TOKEN_MOD:
+        return right != 0 ? left % right : 0;
+    case TOKEN_AND:
+        return left & right;
+    case TOKEN_LSHIFT:
+        return left << right;
+    case TOKEN_RSHIFT:
+        return left >> right;
+    case TOKEN_ADD:
+        return left + right;
+    case TOKEN_SUB:
+        return left - right;
+    case TOKEN_OR:
+        return left | right;
+    case TOKEN_XOR:
+        return left ^ right;
+    case TOKEN_EQ:
+        return left == right;
+    case TOKEN_NOTEQ:
+        return left != right;
+    case TOKEN_LT:
+        return left < right;
+    case TOKEN_LTEQ:
+        return left <= right;
+    case TOKEN_GT:
+        return left > right;
+    case TOKEN_GTEQ:
+        return left >= right;
+    case TOKEN_AND_AND:
+        return left && right;
+    case TOKEN_OR_OR:
+        return left || right;
+    default:
+        assert(0);
+        break;
+    }
+    return 0;
+}
+
+unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, unsigned long long right) {
+    switch (op) {
+    case TOKEN_MUL:
+        return left * right;
+    case TOKEN_DIV:
+        return right != 0 ? left / right : 0;
+    case TOKEN_MOD:
+        return right != 0 ? left % right : 0;
+    case TOKEN_AND:
+        return left & right;
+    case TOKEN_LSHIFT:
+        return left << right;
+    case TOKEN_RSHIFT:
+        return left >> right;
+    case TOKEN_ADD:
+        return left + right;
+    case TOKEN_SUB:
+        return left - right;
+    case TOKEN_OR:
+        return left | right;
+    case TOKEN_XOR:
+        return left ^ right;
+    case TOKEN_EQ:
+        return left == right;
+    case TOKEN_NOTEQ:
+        return left != right;
+    case TOKEN_LT:
+        return left < right;
+    case TOKEN_LTEQ:
+        return left <= right;
+    case TOKEN_GT:
+        return left > right;
+    case TOKEN_GTEQ:
+        return left >= right;
+    case TOKEN_AND_AND:
+        return left && right;
+    case TOKEN_OR_OR:
+        return left || right;
+    default:
+        assert(0);
+        break;
+    }
+    return 0;
+}
 Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     Operand left_operand = operand_const(type, left);
     Operand right_operand = operand_const(type, right);
@@ -1001,136 +1088,11 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     if (is_signed_type(type)) {
         convert_operand(&left_operand, type_longlong);
         convert_operand(&right_operand, type_longlong);
-        long long x = left_operand.val.ll;
-        long long y = right_operand.val.ll;
-        long long r = 0;
-        switch (op) {
-        case TOKEN_MUL:
-            r = x * y;
-            break;
-        case TOKEN_DIV:
-            r = y != 0 ? x / y: 0;
-            break;
-        case TOKEN_MOD:
-            r = y != 0 ? x % y : 0;
-            break;
-        case TOKEN_AND:
-            r = x & y;
-            break;
-            // TODO: Arithmetic conversions for shift amounts shouldn't be the same as for other operations.
-        case TOKEN_LSHIFT:
-            r = x << y;
-            break;
-        case TOKEN_RSHIFT:
-            r = x >> y;
-            break;
-        case TOKEN_ADD:
-            r = x + y;
-            break;
-        case TOKEN_SUB:
-            r = x - y;
-            break;
-        case TOKEN_OR:
-            r = x | y;
-            break;
-        case TOKEN_XOR:
-            r = x ^ y;
-            break;
-        case TOKEN_EQ:
-            r = x == y;
-            break;
-        case TOKEN_NOTEQ:
-            r = x != y;
-            break;
-        case TOKEN_LT:
-            r = x < y;
-            break;
-        case TOKEN_LTEQ:
-            r = x <= y;
-            break;
-        case TOKEN_GT:
-            r = x > y;
-            break;
-        case TOKEN_GTEQ:
-            r = x >= y;
-            break;
-        case TOKEN_AND_AND:
-            r = x && y;
-            break;
-        case TOKEN_OR_OR:
-            r = x || y;
-            break;
-        default:
-            assert(0);
-            break;
-        }
-        result_operand = operand_const(type_longlong, (Val){.ll = r});
+        result_operand = operand_const(type_longlong, (Val){.ll = eval_binary_op_ll(op, left_operand.val.ll, right_operand.val.ll)});
     } else {
         convert_operand(&left_operand, type_ulonglong);
         convert_operand(&right_operand, type_ulonglong);
-        unsigned long long x = left_operand.val.ll;
-        unsigned long long y = right_operand.val.ll;
-        unsigned long long r = 0;
-        switch (op) {
-        case TOKEN_MUL:
-            r = x * y;
-            break;
-        case TOKEN_DIV:
-            r = y != 0 ? x / y: 0;
-            break;
-        case TOKEN_MOD:
-            r = y != 0 ? x % y : 0;
-            break;
-        case TOKEN_AND:
-            r = x & y;
-            break;
-        case TOKEN_LSHIFT:
-            r = x << y;
-            break;
-        case TOKEN_RSHIFT:
-            r = x >> y;
-            break;
-        case TOKEN_ADD:
-            r = x + y;
-            break;
-        case TOKEN_SUB:
-            r = x - y;
-            break;
-        case TOKEN_OR:
-            r = x | y;
-            break;
-        case TOKEN_XOR:
-            r = x ^ y;
-            break;
-        case TOKEN_EQ:
-            r = x == y;
-            break;
-        case TOKEN_NOTEQ:
-            r = x != y;
-            break;
-        case TOKEN_LT:
-            r = x < y;
-            break;
-        case TOKEN_LTEQ:
-            r = x <= y;
-            break;
-        case TOKEN_GT:
-            r = x > y;
-            break;
-        case TOKEN_GTEQ:
-            r = x >= y;
-            break;
-        case TOKEN_AND_AND:
-            r = x && y;
-            break;
-        case TOKEN_OR_OR:
-            r = x || y;
-            break;
-        default:
-            assert(0);
-            break;
-        }
-        result_operand = operand_const(type_ulonglong, (Val){.ull = r});
+        result_operand = operand_const(type_ulonglong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
     }
     convert_operand(&result_operand, type);
     return result_operand.val;
