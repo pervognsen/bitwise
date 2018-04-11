@@ -1,3 +1,10 @@
+# Day 14: Types Revisited
+- Video: https://www.youtube.com/watch?v=Dq2gKTdL1uI
+- Extra: https://www.youtube.com/watch?v=amSiLEFcjq4
+- More homework coming soon
+- Review diffs
+- Start filling in the rest of the type system
+
 # Day 13: More Code Generation
 - Video, Part 1: https://www.youtube.com/watch?v=uIjd094EKPM
 - Video, Part 2: https://www.youtube.com/watch?v=PVnRVadB7g0
