@@ -1,4 +1,4 @@
-const N = (:char)42 + 8
+const N = (:char)42 + 8 != 0
 
 typedef A = int[1 + 2*sizeof(h())]
 
