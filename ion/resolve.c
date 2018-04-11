@@ -517,8 +517,9 @@ bool convert_operand(Operand *operand, Type *type) {
         return true;
     }
     bool is_arithmetic = is_arithmetic_type(operand->type) && is_arithmetic_type(type);
-    bool is_void_ptr = type->kind == TYPE_PTR && type->kind == TYPE_PTR && type->ptr.elem == type_void;
-    if (!is_arithmetic && !is_void_ptr) {
+    bool is_void_ptr_dest = type->kind == TYPE_PTR && type->kind == TYPE_PTR && type->ptr.elem == type_void;
+    bool is_void_ptr_src = operand->type->kind == TYPE_PTR && operand->type->ptr.elem == type_void && type->kind == TYPE_PTR;
+    if (!is_arithmetic && !is_void_ptr_dest && !is_void_ptr_src) {
         return false;
     }
     if (operand->is_const) {
