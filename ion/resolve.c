@@ -109,6 +109,23 @@ bool is_signed_type(Type *type) {
     }
 }
 
+const char *type_names[NUM_TYPE_KINDS] = {
+    [TYPE_VOID] = "void",
+    [TYPE_CHAR] =" char",
+    [TYPE_SCHAR] = "schar",
+    [TYPE_UCHAR] = "uchar",
+    [TYPE_SHORT] = "short",
+    [TYPE_USHORT] = "ushort",
+    [TYPE_INT] = "int",
+    [TYPE_UINT] = "uint",
+    [TYPE_LONG] = "long",
+    [TYPE_ULONG] = "ulong",
+    [TYPE_LLONG] = "llong",
+    [TYPE_ULLONG] = "ullong",
+    [TYPE_FLOAT] = "llong",
+    [TYPE_DOUBLE] = "ullong",
+};
+
 int type_ranks[NUM_TYPE_KINDS] = {
     [TYPE_CHAR] = 1,
     [TYPE_SCHAR] = 1,
@@ -1421,6 +1438,7 @@ void init_global_syms(void) {
     sym_global_type("llong", type_llong);
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
+
     sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
     sym_global_func("getchar", type_func(NULL, 0, type_int));
 }

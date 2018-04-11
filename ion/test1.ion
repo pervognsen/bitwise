@@ -7,6 +7,7 @@ const N = (:char)42 + 8 != 0
 typedef A = int[1 + 2*sizeof(h())]
 
 func h(): uchar {
+    x := uint{1} + long{2};
     return 42;
 }
 

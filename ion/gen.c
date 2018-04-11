@@ -69,33 +69,17 @@ const char *cdecl_paren(const char *str, bool b) {
 }
 
 const char *cdecl_name(Type *type) {
-    switch (type->kind) {
-    case TYPE_VOID:
-        return "void";
-    case TYPE_CHAR:
-        return "char";
-    case TYPE_INT:
-        return "int";
-    case TYPE_FLOAT:
-        return "float";
-    case TYPE_STRUCT:
-    case TYPE_UNION:
+    const char *type_name = type_names[type->kind];
+    if (type_name) {
+        return type_name;
+    } else {
+        assert(type->sym);
         return type->sym->name;
-    default:
-        assert(0);
-        return NULL;
     }
 }
 
 char *type_to_cdecl(Type *type, const char *str) {
     switch (type->kind) {
-    case TYPE_VOID:
-    case TYPE_CHAR:
-    case TYPE_INT:
-    case TYPE_FLOAT:
-    case TYPE_STRUCT:
-    case TYPE_UNION:
-        return strf("%s%s%s", cdecl_name(type), *str ? " " : "", str);
     case TYPE_PTR:
         return type_to_cdecl(type->ptr.elem, cdecl_paren(strf("*%s", str), *str));
     case TYPE_ARRAY:
@@ -114,8 +98,7 @@ char *type_to_cdecl(Type *type, const char *str) {
         return type_to_cdecl(type->func.ret, result);
     }
     default:
-        assert(0);
-        return NULL;
+        return strf("%s%s%s", cdecl_name(type), *str ? " " : "", str);
     }
 }
 
