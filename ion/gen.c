@@ -274,22 +274,6 @@ void gen_expr(Expr *expr) {
     case EXPR_COMPOUND:
         gen_expr_compound(expr, false);
         break;
-        for (size_t i = 0; i < expr->compound.num_fields; i++) {
-            if (i != 0) {
-                genf(", ");
-            }
-            CompoundField field = expr->compound.fields[i];
-            if (field.kind == FIELD_NAME) {
-                genf(".%s = ", field.name);
-            } else if (field.kind == FIELD_INDEX) {
-                genf("[");
-                gen_expr(field.index);
-                genf("] = ");
-            }
-            gen_expr(field.init);
-        }
-        genf("}");
-        break;
     case EXPR_UNARY:
         genf("%s(", token_kind_name(expr->unary.op));
         gen_expr(expr->unary.expr);
