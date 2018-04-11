@@ -8,7 +8,7 @@ typedef A = int[1 + 2*sizeof(h())]
 
 func h(): uchar {
     x := uint{1} + long{2};
-    return 42;
+    return x;
 }
 
 func g(u: U): int {
@@ -51,8 +51,8 @@ var array: int[] = {1, 2, 3, [10]=4}
 func is_even(digit: int): int {
     b := 0;
     switch (digit) {
-        case 0, 2, 4, 6, 8:
-            b = 1;
+    case 0, 2, 4, 6, 8:
+        b = 1;
     }
     return b;
 }

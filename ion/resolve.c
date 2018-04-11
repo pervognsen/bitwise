@@ -122,8 +122,8 @@ const char *type_names[NUM_TYPE_KINDS] = {
     [TYPE_ULONG] = "ulong",
     [TYPE_LLONG] = "llong",
     [TYPE_ULLONG] = "ullong",
-    [TYPE_FLOAT] = "llong",
-    [TYPE_DOUBLE] = "ullong",
+    [TYPE_FLOAT] = "float",
+    [TYPE_DOUBLE] = "double",
 };
 
 int type_ranks[NUM_TYPE_KINDS] = {
@@ -1477,6 +1477,7 @@ void resolve_test(void) {
     assert(unify_arithmetic_types(type_int, type_long) == type_long);
     assert(unify_arithmetic_types(type_ulong, type_long) == type_ulong);
     assert(unify_arithmetic_types(type_long, type_uint) == type_ulong);
+    assert(unify_arithmetic_types(type_llong, type_ulong) == type_llong);
 
     assert(convert_const(type_int, type_char, (Val){.c = 100}).i == 100);
     assert(convert_const(type_int, type_char, (Val){.c = -1}).i == -1);
@@ -1513,7 +1514,7 @@ void resolve_test(void) {
         "func f2(n: int): int { return 2*n; }",
         "func f3(x: int): int { if (x) { return -x; } else if (x % 2 == 0) { return 42; } else { return -1; } }",
         "func f4(n: int): int { for (i := 0; i < n; i++) { if (i % 3 == 0) { return n; } } return 0; }",
-        "func f5(x: int): int { switch(x) { case 0: case 1: return 42; case 3: default: return -1; } }",
+        "func f5(x: int): int { switch(x) { case 0, 1: return 42; case 3: default: return -1; } }",
         "func f6(n: int): int { p := 1; while (n) { p *= 2; n--; } return p; }",
         "func f7(n: int): int { p := 1; do { p *= 2; n--; } while (n); return p; }",
         /*
