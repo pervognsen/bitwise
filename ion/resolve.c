@@ -945,51 +945,38 @@ Operand ptr_decay(Operand expr) {
     }
 }
 
-Val eval_unary_op(TokenKind op, Type *type, Val val) {
-    Operand operand = operand_const(type, val);
-    if (is_signed_type(type)) {
-        convert_operand(&operand, type_longlong);
-        long long x = operand.val.ll;
-        switch (op) {
-        case TOKEN_ADD:
-            x = +x;
-            break;
-        case TOKEN_SUB:
-            x = -x;
-            break;
-        case TOKEN_NEG:
-            x = ~x;
-            break;
-        case TOKEN_NOT:
-            x = !x;
-            break;
-        default:
-            assert(0);
-        }
-        operand.val.ll = x;
-    } else {
-        convert_operand(&operand, type_ulonglong);
-        unsigned long long x = operand.val.ull;
-        switch (op) {
-        case TOKEN_ADD:
-            x = +x;
-            break;
-        case TOKEN_SUB:
-            x = 0ull - x; // Shut up MSVC's unsigned unary minus warning by doing it manually
-            break;
-        case TOKEN_NEG:
-            x = ~x;
-            break;
-        case TOKEN_NOT:
-            x = !x;
-            break;
-        default:
-            assert(0);
-        }
-        operand.val.ll = x;
+long long eval_unary_op_ll(TokenKind op, long long val) {
+    switch (op) {
+    case TOKEN_ADD:
+        return +val;
+    case TOKEN_SUB:
+        return -val;
+    case TOKEN_NEG:
+        return ~val;
+    case TOKEN_NOT:
+        return !val;
+    default:
+        assert(0);
+        break;
     }
-    convert_operand(&operand, type);
-    return operand.val;
+    return 0;
+}
+
+unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
+    switch (op) {
+    case TOKEN_ADD:
+        return +val;
+    case TOKEN_SUB:
+        return 0ull - val; // Shut up MSVC's unary minus warning
+    case TOKEN_NEG:
+        return ~val;
+    case TOKEN_NOT:
+        return !val;
+    default:
+        assert(0);
+        break;
+    }
+    return 0;
 }
 
 long long eval_binary_op_ll(TokenKind op, long long left, long long right) {
@@ -1081,6 +1068,20 @@ unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, uns
     }
     return 0;
 }
+
+Val eval_unary_op(TokenKind op, Type *type, Val val) {
+    Operand operand = operand_const(type, val);
+    if (is_signed_type(type)) {
+        convert_operand(&operand, type_longlong);
+        operand.val.ll = eval_unary_op_ll(op, operand.val.ll);
+    } else {
+        convert_operand(&operand, type_ulonglong);
+        operand.val.ll = eval_unary_op_ull(op, operand.val.ull);
+    }
+    convert_operand(&operand, type);
+    return operand.val;
+}
+
 Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     Operand left_operand = operand_const(type, left);
     Operand right_operand = operand_const(type, right);
