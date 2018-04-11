@@ -12,8 +12,8 @@ typedef enum TypeKind {
     TYPE_UINT,
     TYPE_LONG,
     TYPE_ULONG,
-    TYPE_LONGLONG,
-    TYPE_ULONGLONG,
+    TYPE_LLONG,
+    TYPE_ULLONG,
     TYPE_FLOAT,
     TYPE_DOUBLE,
     TYPE_PTR,
@@ -76,8 +76,8 @@ Type *type_int = &(Type){TYPE_INT, 4, 4};
 Type *type_uint = &(Type){TYPE_UINT, 4, 4};
 Type *type_long = &(Type){TYPE_LONG, 4, 4}; // 4 on 64-bit windows, 8 on 64-bit linux, probably factor this out to the backend
 Type *type_ulong = &(Type){TYPE_ULONG, 4, 4};
-Type *type_longlong = &(Type){TYPE_LONGLONG, 8, 8};
-Type *type_ulonglong = &(Type){TYPE_ULONGLONG, 8, 8};
+Type *type_llong = &(Type){TYPE_LLONG, 8, 8};
+Type *type_ullong = &(Type){TYPE_ULLONG, 8, 8};
 Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
 Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
 
@@ -87,7 +87,7 @@ const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
 
 bool is_integer_type(Type *type) {
-    return TYPE_CHAR <= type->kind && type->kind <= TYPE_ULONGLONG;
+    return TYPE_CHAR <= type->kind && type->kind <= TYPE_ULLONG;
 }
 
 bool is_arithmetic_type(Type *type) {
@@ -101,7 +101,7 @@ bool is_signed_type(Type *type) {
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_LONG:
-    case TYPE_LONGLONG:
+    case TYPE_LLONG:
         return true;
     default:
         return false;
@@ -118,8 +118,8 @@ int type_ranks[NUM_TYPE_KINDS] = {
     [TYPE_UINT] = 3,
     [TYPE_LONG] = 4,
     [TYPE_ULONG] = 4,
-    [TYPE_LONGLONG] = 5,
-    [TYPE_ULONGLONG] = 5,
+    [TYPE_LLONG] = 5,
+    [TYPE_ULLONG] = 5,
 };
 
 int type_rank(Type *type) {
@@ -143,9 +143,9 @@ Type *unsigned_type(Type *type) {
     case TYPE_LONG:
     case TYPE_ULONG:
         return type_ulong;
-    case TYPE_LONGLONG:
-    case TYPE_ULONGLONG:
-        return type_ulonglong;
+    case TYPE_LLONG:
+    case TYPE_ULLONG:
+        return type_ullong;
     default:
         assert(0);
         return NULL;
@@ -494,10 +494,10 @@ Operand operand_const(Type *type, Val val) {
         case TYPE_ULONG: \
             operand->val.ul = (unsigned long)operand->val.t; \
             break; \
-        case TYPE_LONGLONG: \
+        case TYPE_LLONG: \
             operand->val.ll = (long long)operand->val.t; \
             break; \
-        case TYPE_ULONGLONG: \
+        case TYPE_ULLONG: \
             operand->val.ull = (unsigned long long)operand->val.t; \
             break; \
         case TYPE_FLOAT: \
@@ -525,8 +525,8 @@ void convert_operand(Operand *operand, Type *type) {
         CASE(TYPE_UINT, u)
         CASE(TYPE_LONG, l)
         CASE(TYPE_ULONG, ul)
-        CASE(TYPE_LONGLONG, ll)
-        CASE(TYPE_ULONGLONG, ull)
+        CASE(TYPE_LLONG, ll)
+        CASE(TYPE_ULLONG, ull)
         CASE(TYPE_FLOAT, f)
         CASE(TYPE_DOUBLE, d)
         default:
@@ -1072,10 +1072,10 @@ unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, uns
 Val eval_unary_op(TokenKind op, Type *type, Val val) {
     Operand operand = operand_const(type, val);
     if (is_signed_type(type)) {
-        convert_operand(&operand, type_longlong);
+        convert_operand(&operand, type_llong);
         operand.val.ll = eval_unary_op_ll(op, operand.val.ll);
     } else {
-        convert_operand(&operand, type_ulonglong);
+        convert_operand(&operand, type_ullong);
         operand.val.ll = eval_unary_op_ull(op, operand.val.ull);
     }
     convert_operand(&operand, type);
@@ -1087,13 +1087,13 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     Operand right_operand = operand_const(type, right);
     Operand result_operand;
     if (is_signed_type(type)) {
-        convert_operand(&left_operand, type_longlong);
-        convert_operand(&right_operand, type_longlong);
-        result_operand = operand_const(type_longlong, (Val){.ll = eval_binary_op_ll(op, left_operand.val.ll, right_operand.val.ll)});
+        convert_operand(&left_operand, type_llong);
+        convert_operand(&right_operand, type_llong);
+        result_operand = operand_const(type_llong, (Val){.ll = eval_binary_op_ll(op, left_operand.val.ll, right_operand.val.ll)});
     } else {
-        convert_operand(&left_operand, type_ulonglong);
-        convert_operand(&right_operand, type_ulonglong);
-        result_operand = operand_const(type_ulonglong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
+        convert_operand(&left_operand, type_ullong);
+        convert_operand(&right_operand, type_ullong);
+        result_operand = operand_const(type_ullong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
     }
     convert_operand(&result_operand, type);
     return result_operand.val;
@@ -1413,8 +1413,8 @@ void resolve_test(void) {
     assert(promote_type(type_uint) == type_uint);
     assert(promote_type(type_long) == type_long);
     assert(promote_type(type_ulong) == type_ulong);
-    assert(promote_type(type_longlong) == type_longlong);
-    assert(promote_type(type_ulonglong) == type_ulonglong);
+    assert(promote_type(type_llong) == type_llong);
+    assert(promote_type(type_ullong) == type_ullong);
 
     assert(unify_arithmetic_types(type_char, type_char) == type_int);
     assert(unify_arithmetic_types(type_char, type_ushort) == type_int);
@@ -1425,7 +1425,7 @@ void resolve_test(void) {
 
     assert(convert_const(type_int, type_char, (Val){.c = 100}).i == 100);
     assert(convert_const(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
-    assert(convert_const(type_uint, type_ulonglong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
+    assert(convert_const(type_uint, type_ullong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
 
     Type *int_ptr = type_ptr(type_int);
     assert(type_ptr(type_int) == int_ptr);
