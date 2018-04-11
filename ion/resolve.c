@@ -512,14 +512,22 @@ Operand operand_const(Type *type, Val val) {
         } \
         break;
 
+
+bool is_legal_conversion(Type *dest, Type *src) {
+    if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
+        return true;
+    } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
+        return dest->ptr.elem == type_void || src->ptr.elem == type_void;
+    } else {
+        return false;
+    }
+}
+
 bool convert_operand(Operand *operand, Type *type) {
     if (operand->type == type) {
         return true;
     }
-    bool is_arithmetic = is_arithmetic_type(operand->type) && is_arithmetic_type(type);
-    bool is_void_ptr_dest = type->kind == TYPE_PTR && type->kind == TYPE_PTR && type->ptr.elem == type_void;
-    bool is_void_ptr_src = operand->type->kind == TYPE_PTR && operand->type->ptr.elem == type_void && type->kind == TYPE_PTR;
-    if (!is_arithmetic && !is_void_ptr_dest && !is_void_ptr_src) {
+    if (!is_legal_conversion(operand->type, type)) {
         return false;
     }
     if (operand->is_const) {
