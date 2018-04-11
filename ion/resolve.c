@@ -977,8 +977,7 @@ Val eval_unary_op(TokenKind op, Type *type, Val val) {
             r = +x;
             break;
         case TOKEN_SUB:
-            // Do nothing
-            r = x;
+            r = 0ull - x; // Shut up MSVC's unsigned unary minus warning by doing it manually
             break;
         case TOKEN_NEG:
             r = ~x;
