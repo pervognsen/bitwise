@@ -95,7 +95,7 @@ struct T {
 
 func benchmark(n: int) {
     r := 1;
-    for (i := 1; i < n; i++) {
+    for (i := 1; i <= n; i++) {
         r *= i;
     }
 }

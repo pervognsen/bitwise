@@ -82,7 +82,7 @@ Type *type_ullong = &(Type){TYPE_ULLONG, 8, 8};
 Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
 Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
 
-#define type_size_t type_int // temp hack
+#define type_usize type_ullong
 
 const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
@@ -1374,13 +1374,13 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     case EXPR_SIZEOF_EXPR: {
         Type *type = resolve_expr(expr->sizeof_expr).type;
         complete_type(type);
-        result = operand_const(type_size_t, (Val){.ull = type_sizeof(type)});
+        result = operand_const(type_usize, (Val){.ull = type_sizeof(type)});
         break;
     }
     case EXPR_SIZEOF_TYPE: {
         Type *type = resolve_typespec(expr->sizeof_type);
         complete_type(type);
-        result = operand_const(type_size_t, (Val){.ull = type_sizeof(type)});
+        result = operand_const(type_usize, (Val){.ull = type_sizeof(type)});
         break;
     }
     default:
