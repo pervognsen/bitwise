@@ -1,8 +1,12 @@
+var c: char = 1
+var uc: uchar = 1
+var sc: schar = 1
+
 const N = (:char)42 + 8 != 0
 
 typedef A = int[1 + 2*sizeof(h())]
 
-func h(): int {
+func h(): uchar {
     return 42;
 }
 

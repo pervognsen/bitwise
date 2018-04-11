@@ -512,8 +512,15 @@ Operand operand_const(Type *type, Val val) {
         } \
         break;
 
-void convert_operand(Operand *operand, Type *type) {
-    // TODO: check for legal conversion
+bool convert_operand(Operand *operand, Type *type) {
+    if (operand->type == type) {
+        return true;
+    }
+    bool is_arithmetic = is_arithmetic_type(operand->type) && is_arithmetic_type(type);
+    bool is_void_ptr = type->kind == TYPE_PTR && type->kind == TYPE_PTR && type->ptr.elem == type_void;
+    if (!is_arithmetic && !is_void_ptr) {
+        return false;
+    }
     if (operand->is_const) {
         switch (operand->type->kind) {
         CASE(TYPE_CHAR, c)
@@ -535,6 +542,7 @@ void convert_operand(Operand *operand, Type *type) {
         }
     }
     operand->type = type;
+    return true;
 }
 
 #undef CASE
@@ -644,7 +652,7 @@ Type *resolve_typespec(Typespec *typespec) {
             convert_operand(&operand, type_int);
             size = operand.val.i;
             if (size <= 0) {
-                fatal("Non-positive array size");
+                fatal_error(typespec->array.size->pos, "Non-positive array size");
             }
         }
         result = type_array(resolve_typespec(typespec->array.elem), size);
@@ -675,13 +683,13 @@ Sym **sorted_syms;
 
 void complete_type(Type *type) {
     if (type->kind == TYPE_COMPLETING) {
-        fatal("Type completion cycle");
+        fatal_error(type->sym->decl->pos, "Type completion cycle");
         return;
     } else if (type->kind != TYPE_INCOMPLETE) {
         return;
     }
-    type->kind = TYPE_COMPLETING;
     Decl *decl = type->sym->decl;
+    type->kind = TYPE_COMPLETING;
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
     TypeField *fields = NULL;
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
@@ -693,10 +701,10 @@ void complete_type(Type *type) {
         }
     }
     if (buf_len(fields) == 0) {
-        fatal("No fields");
+        fatal_error(decl->pos, "No fields");
     }
     if (duplicate_fields(fields, buf_len(fields))) {
-        fatal("Duplicate fields");
+        fatal_error(decl->pos, "Duplicate fields");
     }
     if (decl->kind == DECL_STRUCT) {
         type_complete_struct(type, fields, buf_len(fields));
@@ -719,15 +727,17 @@ Type *resolve_decl_var(Decl *decl) {
         type = resolve_typespec(decl->var.type);
     }
     if (decl->var.expr) {
-        Operand result = resolve_expected_expr(decl->var.expr, type);
-        if (type && result.type != type) {
-            if (type->kind == TYPE_ARRAY && result.type->kind == TYPE_ARRAY && type->array.elem == result.type->array.elem && !type->array.size) {
+        Operand operand = resolve_expected_expr(decl->var.expr, type);
+        if (type) {
+            if (type->kind == TYPE_ARRAY && operand.type->kind == TYPE_ARRAY && type->array.elem == operand.type->array.elem && !type->array.size) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
-                fatal("Declared var type does not match inferred type");
+                if (!convert_operand(&operand, type)) {
+                    fatal_error(decl->pos, "Illegal conversion in variable initializer");
+                }
             }
         }
-        type = result.type;
+        type = operand.type;
     }
     complete_type(type);
     return type;
@@ -737,7 +747,7 @@ Type *resolve_decl_const(Decl *decl, Val *val) {
     assert(decl->kind == DECL_CONST);
     Operand result = resolve_expr(decl->const_decl.expr);
     if (!result.is_const) {
-        fatal("Initializer for const is not a constant expression");
+        fatal_error(decl->pos, "Const initializer is not a constant expression");
     }
     *val = result.val;
     return result.type;
@@ -760,8 +770,8 @@ void resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
-    if (cond.type != type_int) {
-        fatal("Conditional expression must have type int");
+    if (!is_arithmetic_type(cond.type) && cond.type->kind != TYPE_PTR) {
+        fatal_error(expr->pos, "Conditional expression must have arithmetic or pointer type");
     }
 }
 
@@ -777,11 +787,12 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
-            if (resolve_expected_expr(stmt->expr, ret_type).type != ret_type) {
-                fatal("Return type mismatch");
+            Operand operand = resolve_expected_expr(stmt->expr, ret_type);
+            if (!convert_operand(&operand, ret_type)) {
+                fatal_error(stmt->pos, "Illegal conversion in return expression");
             }
         } else if (ret_type != type_void) {
-            fatal("Empty return expression for function with non-void return type");
+            fatal_error(stmt->pos, "Empty return expression for function with non-void return type");
         }
         break;
     case STMT_BREAK:
@@ -822,8 +833,10 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
-                if (resolve_expr(switch_case.exprs[j]).type != expr.type) {
-                    fatal("Switch case expression type mismatch");
+                Expr *case_expr = switch_case.exprs[j];
+                Operand case_operand = resolve_expr(case_expr);
+                if (!convert_operand(&case_operand, expr.type)) {
+                    fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
                 }
                 resolve_stmt_block(switch_case.block, ret_type);
             }
@@ -832,19 +845,18 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
     }
     case STMT_ASSIGN: {
         Operand left = resolve_expr(stmt->assign.left);
-        if (stmt->assign.right && resolve_expected_expr(stmt->assign.right, left.type).type != left.type) {
-            fatal("Left/right types do not match in assignment statement");
-        }
         if (!left.is_lvalue) {
-            fatal("Cannot assign to non-lvalue");
+            fatal_error(stmt->pos, "Cannot assign to non-lvalue");
         }
-        if (stmt->assign.op != TOKEN_ASSIGN && left.type != type_int) {
-            fatal("Can only use %s with type int", token_kind_name(stmt->assign.op));
+        if (stmt->assign.right) {
+            Operand right = resolve_expr(stmt->assign.right);
+            if (!convert_operand(&right, left.type)) {
+                fatal_error(stmt->pos, "Illegal conversion in assignment statement");
+            }
         }
         break;
     }
     case STMT_INIT:
-
         sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
         break;
     case STMT_EXPR:
@@ -873,7 +885,7 @@ void resolve_sym(Sym *sym) {
     if (sym->state == SYM_RESOLVED) {
         return;
     } else if (sym->state == SYM_RESOLVING) {
-        fatal("Cyclic dependency");
+        fatal_error(sym->decl->pos, "Cyclic dependency");
         return;
     }
     assert(sym->state == SYM_UNRESOLVED);
@@ -911,7 +923,6 @@ void finalize_sym(Sym *sym) {
 Sym *resolve_name(const char *name) {
     Sym *sym = sym_get(name);
     if (!sym) {
-        fatal("Undeclared name '%s'", name);
         return NULL;
     }
     resolve_sym(sym);
@@ -924,7 +935,7 @@ Operand resolve_expr_field(Expr *expr) {
     Type *type = left.type;
     complete_type(type);
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
-        fatal("Can only access fields on aggregate types");
+        fatal_error(expr->pos, "Can only access fields on aggregate types");
         return operand_null;
     }
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
@@ -933,7 +944,7 @@ Operand resolve_expr_field(Expr *expr) {
             return left.is_lvalue ? operand_lvalue(field.type) : operand_rvalue(field.type);
         }
     }
-    fatal("No field named '%s'", expr->field.name);
+    fatal_error(expr->pos, "No field named '%s'", expr->field.name);
     return operand_null;
 }
 
@@ -1102,6 +1113,9 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
 Operand resolve_expr_name(Expr *expr) {
     assert(expr->kind == EXPR_NAME);
     Sym *sym = resolve_name(expr->name);
+    if (!sym) {
+        fatal_error(expr->pos, "Name in expression does not exist");
+    }
     if (sym->kind == SYM_VAR) {
         return operand_lvalue(sym->type);
     } else if (sym->kind == SYM_CONST) {
@@ -1109,7 +1123,7 @@ Operand resolve_expr_name(Expr *expr) {
     } else if (sym->kind == SYM_FUNC) {
         return operand_rvalue(sym->type);
     } else {
-        fatal("%s must be a var or const", expr->name);
+        fatal_error(expr->pos, "%s must be a var or const", expr->name);
         return operand_null;
     }
 }
@@ -1123,17 +1137,17 @@ Operand resolve_expr_unary(Expr *expr) {
         operand = ptr_decay(operand);
         type = operand.type;
         if (type->kind != TYPE_PTR) {
-            fatal("Cannot deref non-ptr type");
+            fatal_error(expr->pos, "Cannot deref non-ptr type");
         }
         return operand_lvalue(type->ptr.elem);
     case TOKEN_AND:
         if (!operand.is_lvalue) {
-            fatal("Cannot take address of non-lvalue");
+            fatal_error(expr->pos, "Cannot take address of non-lvalue");
         }
         return operand_rvalue(type_ptr(type));
     default:
         if (type->kind != TYPE_INT) {
-            fatal("Can only use unary %s with ints", token_kind_name(expr->unary.op));
+            fatal_error(expr->pos, "Can only use unary %s with ints", token_kind_name(expr->unary.op));
         }
         if (operand.is_const) {
             return operand_const(type_int, eval_unary_op(expr->unary.op, operand.type, operand.val));
@@ -1155,21 +1169,20 @@ Operand resolve_expr_binary(Expr *expr) {
     }
 }
 
-size_t aggregate_field_index(Type *type, const char *name) {
+int aggregate_field_index(Type *type, const char *name) {
     assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
-    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+    for (int i = 0; i < type->aggregate.num_fields; i++) {
         if (type->aggregate.fields[i].name == name) {
             return i;
         }
     }
-    fatal("Field '%s' in compound literal not found in struct/union", name);
-    return SIZE_MAX;
+    return -1;
 }
 
 Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_COMPOUND);
     if (!expected_type && !expr->compound.type) {
-        fatal("Implicitly typed compound literals used in context without expected type");
+        fatal_error(expr->pos, "Implicitly typed compound literals used in context without expected type");
     }
     Type *type = NULL;
     if (expr->compound.type) {
@@ -1179,23 +1192,27 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
     }
     complete_type(type);
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION && type->kind != TYPE_ARRAY) {
-        fatal("Compound literals can only be used with struct and array types");
+        fatal_error(expr->pos, "Compound literals can only be used with struct and array types");
     }
     if (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION) {
-        size_t index = 0;
+        int index = 0;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             CompoundField field = expr->compound.fields[i];
             if (field.kind == FIELD_INDEX) {
-                fatal("Index field initializer not allowed for struct/union compound literal");
+                fatal_error(field.init->pos, "Index field initializer not allowed for struct/union compound literal");
             } else if (field.kind == FIELD_NAME) {
                 index = aggregate_field_index(type, field.name);
+                if (index == -1) {
+                    fatal_error(field.init->pos, "Named field in compound literal does not exist");
+                }
             }
             if (index >= type->aggregate.num_fields) {
-                fatal("Field initializer in struct/union compound literal out of range");
+                fatal_error(field.init->pos, "Field initializer in struct/union compound literal out of range");
             }
-            Operand init = resolve_expected_expr(expr->compound.fields[i].init, type->aggregate.fields[index].type);
-            if (init.type != type->aggregate.fields[index].type) {
-                fatal("Compound literal field type mismatch");
+            Type *field_type = type->aggregate.fields[index].type;
+            Operand init = resolve_expected_expr(field.init, field_type);
+            if (!convert_operand(&init, field_type)) {
+                fatal_error(field.init->pos, "Illegal conversion in compound literal initializer");
             }
             index++;
         }
@@ -1205,23 +1222,26 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
             CompoundField field = expr->compound.fields[i];
             if (field.kind == FIELD_NAME) {
-                fatal("Named field initializer not allowed for array compound literals");
+                fatal_error(field.init->pos, "Named field initializer not allowed for array compound literals");
             } else if (field.kind == FIELD_INDEX) {
-                Operand result = resolve_const_expr(field.index);
-                if (result.type != type_int) {
-                    fatal("Field initializer index expression must have type int");
+                Operand operand = resolve_const_expr(field.index);
+                if (!is_integer_type(operand.type)) {
+                    fatal_error(field.init->pos, "Field initializer index expression must have type int");
                 }
-                if (result.val.i < 0) {
-                    fatal("Field initializer index cannot be negative");
+                if (!convert_operand(&operand, type_int)) {
+                    fatal_error(field.init->pos, "Illegal conversion in field initializer index");
                 }
-                index = result.val.i;
+                if (operand.val.i < 0) {
+                    fatal_error(field.init->pos, "Field initializer index cannot be negative");
+                }
+                index = operand.val.i;
             }
             if (type->array.size && index >= type->array.size) {
-                fatal("Field initializer in array compound literal out of range");
+                fatal_error(field.init->pos, "Field initializer in array compound literal out of range");
             }
-            Operand init = resolve_expected_expr(expr->compound.fields[i].init, type->array.elem);
-            if (init.type != type->array.elem) {
-                fatal("Compound literal element type mismatch");
+            Operand init = resolve_expected_expr(field.init, type->array.elem);
+            if (!convert_operand(&init, type->array.elem)) {
+                fatal_error(field.init->pos, "Illegal conversion in compound literal initializer");
             }
             max_index = MAX(max_index, index);
             index++;
@@ -1237,16 +1257,16 @@ Operand resolve_expr_call(Expr *expr) {
     assert(expr->kind == EXPR_CALL);
     Operand func = resolve_expr(expr->call.expr);
     if (func.type->kind != TYPE_FUNC) {
-        fatal("Trying to call non-function value");
+        fatal_error(expr->pos, "Trying to call non-function value");
     }
     if (expr->call.num_args != func.type->func.num_params) {
-        fatal("Tried to call function with wrong number of arguments");
+        fatal_error(expr->pos, "Tried to call function with wrong number of arguments");
     }
     for (size_t i = 0; i < expr->call.num_args; i++) {
         Type *param_type = func.type->func.params[i];
         Operand arg = resolve_expected_expr(expr->call.args[i], param_type);
-        if (arg.type != param_type) {
-            fatal("Call argument expression type doesn't match expected param type");
+        if (!convert_operand(&arg, param_type)) {
+            fatal_error(expr->call.args[i]->pos, "Illegal conversion in call argument expression");
         }
     }
     return operand_rvalue(func.type->func.ret);
@@ -1256,12 +1276,12 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_TERNARY);
     Operand cond = ptr_decay(resolve_expr(expr->ternary.cond));
     if (cond.type->kind != TYPE_INT && cond.type->kind != TYPE_PTR) {
-        fatal("Ternary cond expression must have type int or ptr");
+        fatal_error(expr->pos, "Ternary cond expression must have type int or ptr");
     }
     Operand then_expr = ptr_decay(resolve_expected_expr(expr->ternary.then_expr, expected_type));
     Operand else_expr = ptr_decay(resolve_expected_expr(expr->ternary.else_expr, expected_type));
     if (then_expr.type != else_expr.type) {
-        fatal("Ternary then/else expressions must have matching types");
+        fatal_error(expr->pos, "Ternary then/else expressions must have matching types");
     }
     if (cond.is_const && then_expr.is_const && else_expr.is_const) {
         return operand_const(then_expr.type, cond.val.i ? then_expr.val : else_expr.val);
@@ -1274,11 +1294,11 @@ Operand resolve_expr_index(Expr *expr) {
     assert(expr->kind == EXPR_INDEX);
     Operand operand = ptr_decay(resolve_expr(expr->index.expr));
     if (operand.type->kind != TYPE_PTR) {
-        fatal("Can only index arrays or pointers");
+        fatal_error(expr->pos, "Can only index arrays or pointers");
     }
     Operand index = resolve_expr(expr->index.index);
     if (index.type->kind != TYPE_INT) {
-        fatal("Index expression must have type int");
+        fatal_error(expr->pos, "Index expression must have type int");
     }
     return operand_lvalue(operand.type->ptr.elem);
 }
@@ -1287,20 +1307,9 @@ Operand resolve_expr_cast(Expr *expr) {
     assert(expr->kind == EXPR_CAST);
     Type *type = resolve_typespec(expr->cast.type);
     Operand operand = ptr_decay(resolve_expr(expr->cast.expr));
-#if 0
-    if (type->kind == TYPE_PTR) {
-        if (operand.type->kind != TYPE_PTR && operand.type != type_int) {
-            fatal("Invalid cast to pointer type");
-        }
-    } else if (type->kind == TYPE_INT) {
-        if (result.type->kind != TYPE_PTR && result.type->kind != TYPE_INT) {
-            fatal("Invalid cast to int type");
-        }
-    } else {
-        fatal("Invalid target cast type");
+    if (!convert_operand(&operand, type)) {
+        fatal_error(expr->pos, "Illegal conversion in cast");
     }
-    #endif
-    convert_operand(&operand, type);
     return operand;
 }
 
@@ -1374,7 +1383,7 @@ Operand resolve_expr(Expr *expr) {
 Operand resolve_const_expr(Expr *expr) {
     Operand result = resolve_expr(expr);
     if (!result.is_const) {
-        fatal("Expected constant expression");
+        fatal_error(expr->pos, "Expected constant expression");
     }
     return result;
 }
