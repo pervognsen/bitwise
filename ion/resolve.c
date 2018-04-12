@@ -54,6 +54,7 @@ struct Type {
         struct {
             Type **params;
             size_t num_params;
+            bool variadic;
             Type *ret;
         } func;
     };
@@ -226,15 +227,16 @@ Type *type_array(Type *elem, size_t size) {
 typedef struct CachedFuncType {
     Type **params;
     size_t num_params;
+    bool variadic;
     Type *ret;
     Type *func;
 } CachedFuncType;
 
 CachedFuncType *cached_func_types;
 
-Type *type_func(Type **params, size_t num_params, Type *ret) {
+Type *type_func(Type **params, size_t num_params, Type *ret, bool variadic) {
     for (CachedFuncType *it = cached_func_types; it != buf_end(cached_func_types); it++) {
-        if (it->num_params == num_params && it->ret == ret) {
+        if (it->num_params == num_params && it->ret == ret && it->variadic == variadic) {
             bool match = true;
             for (size_t i = 0; i < num_params; i++) {
                 if (it->params[i] != params[i]) {
@@ -252,6 +254,7 @@ Type *type_func(Type **params, size_t num_params, Type *ret) {
     type->align = PTR_ALIGN;
     type->func.params = memdup(params, num_params * sizeof(*params));
     type->func.num_params = num_params;
+    type->func.variadic = variadic;
     type->func.ret = ret;
     buf_push(cached_func_types, (CachedFuncType){params, num_params, ret, type});
     return type;
@@ -581,7 +584,7 @@ bool convert_operand(Operand *operand, Type *type) {
 
 #undef CASE
 
-Val convert_const(Type *dest_type, Type *src_type, Val src_val) {
+Val convert_val(Type *dest_type, Type *src_type, Val src_val) {
     Operand operand = operand_const(src_type, src_val);
     convert_operand(&operand, dest_type);
     return operand.val;
@@ -645,12 +648,12 @@ void unify_arithmetic_operands(Operand *left, Operand *right) {
     assert(left->type == right->type);
 }
 
-Type *unify_arithmetic_types(Type *left, Type *right) {
-    Operand left_operand = operand_rvalue(left);
-    Operand right_operand = operand_rvalue(right);
-    unify_arithmetic_operands(&left_operand, &right_operand);
-    assert(left_operand.type == right_operand.type);
-    return left_operand.type;
+Type *unify_arithmetic_types(Type *left_type, Type *right_type) {
+    Operand left = operand_rvalue(left_type);
+    Operand right = operand_rvalue(right_type);
+    unify_arithmetic_operands(&left, &right);
+    assert(left.type == right.type);
+    return left.type;
 }
 
 Sym *resolve_name(const char *name);
@@ -701,7 +704,7 @@ Type *resolve_typespec(Typespec *typespec) {
         if (typespec->func.ret) {
             ret = resolve_typespec(typespec->func.ret);
         }
-        result = type_func(args, buf_len(args), ret);
+        result = type_func(args, buf_len(args), ret, false);
         break;
     }
     default:
@@ -797,7 +800,7 @@ Type *resolve_decl_func(Decl *decl) {
     if (decl->func.ret_type) {
         ret_type = resolve_typespec(decl->func.ret_type);
     }
-    return type_func(params, buf_len(params), ret_type);
+    return type_func(params, buf_len(params), ret_type, false);
 }
 
 void resolve_stmt(Stmt *stmt, Type *ret_type);
@@ -1299,15 +1302,22 @@ Operand resolve_expr_call(Expr *expr) {
     if (func.type->kind != TYPE_FUNC) {
         fatal_error(expr->pos, "Trying to call non-function value");
     }
-    if (expr->call.num_args != func.type->func.num_params) {
-        fatal_error(expr->pos, "Tried to call function with wrong number of arguments");
+    size_t num_params = func.type->func.num_params;
+    if (expr->call.num_args < num_params) {
+        fatal_error(expr->pos, "Tried to call function with too few arguments");
     }
-    for (size_t i = 0; i < expr->call.num_args; i++) {
+    if (expr->call.num_args > num_params && !func.type->func.variadic) {
+        fatal_error(expr->pos, "Tried to call function with too many arguments");
+    }
+    for (size_t i = 0; i < num_params; i++) {
         Type *param_type = func.type->func.params[i];
         Operand arg = resolve_expected_expr(expr->call.args[i], param_type);
         if (!convert_operand(&arg, param_type)) {
             fatal_error(expr->call.args[i]->pos, "Illegal conversion in call argument expression");
         }
+    }
+    for (size_t i = num_params; i < expr->call.num_args; i++) {
+        resolve_expr(expr->call.args[i]);
     }
     return operand_rvalue(func.type->func.ret);
 }
@@ -1443,8 +1453,9 @@ void init_global_syms(void) {
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
 
-    sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int));
-    sym_global_func("getchar", type_func(NULL, 0, type_int));
+    sym_global_func("puts", type_func((Type*[]){type_ptr(type_char)}, 1, type_int, false));
+    sym_global_func("printf", type_func((Type*[]){type_ptr(type_char)}, 1, type_int, true));
+    sym_global_func("getchar", type_func(NULL, 0, type_int, false));
 }
 
 void sym_global_decls(DeclSet *declset) {
@@ -1483,10 +1494,10 @@ void resolve_test(void) {
     assert(unify_arithmetic_types(type_long, type_uint) == type_ulong);
     assert(unify_arithmetic_types(type_llong, type_ulong) == type_llong);
 
-    assert(convert_const(type_int, type_char, (Val){.c = 100}).i == 100);
-    assert(convert_const(type_int, type_char, (Val){.c = -1}).i == -1);
-    assert(convert_const(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
-    assert(convert_const(type_uint, type_ullong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
+    assert(convert_val(type_int, type_char, (Val){.c = 100}).i == 100);
+    assert(convert_val(type_int, type_char, (Val){.c = -1}).i == -1);
+    assert(convert_val(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
+    assert(convert_val(type_uint, type_ullong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
 
     Type *int_ptr = type_ptr(type_int);
     assert(type_ptr(type_int) == int_ptr);
@@ -1500,11 +1511,11 @@ void resolve_test(void) {
     Type *float3_array = type_array(type_float, 3);
     assert(type_array(type_float, 3) == float3_array);
     assert(float4_array != float3_array);
-    Type *int_int_func = type_func(&type_int, 1, type_int);
-    assert(type_func(&type_int, 1, type_int) == int_int_func);
-    Type *int_func = type_func(NULL, 0, type_int);
+    Type *int_int_func = type_func(&type_int, 1, type_int, false);
+    assert(type_func(&type_int, 1, type_int, false) == int_int_func);
+    Type *int_func = type_func(NULL, 0, type_int, false);
     assert(int_int_func != int_func);
-    assert(int_func == type_func(NULL, 0, type_int));
+    assert(int_func == type_func(NULL, 0, type_int, false));
 
     init_global_syms();
 

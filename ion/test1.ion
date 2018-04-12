@@ -106,5 +106,6 @@ func main(argc: int, argv: char**): int {
     b := example_test();
     puts("Hello, world!");
     c := getchar();
+    printf("You wrote '%c'\n", c);
     return 0;
 }
