@@ -91,6 +91,10 @@ bool is_integer_type(Type *type) {
     return TYPE_CHAR <= type->kind && type->kind <= TYPE_ULLONG;
 }
 
+bool is_floating_type(Type *type) {
+    return TYPE_FLOAT <= type->kind && type->kind <= TYPE_DOUBLE;
+}
+
 bool is_arithmetic_type(Type *type) {
     return TYPE_CHAR && type->kind && type->kind <= TYPE_DOUBLE;
 }
@@ -111,7 +115,7 @@ bool is_signed_type(Type *type) {
 
 const char *type_names[NUM_TYPE_KINDS] = {
     [TYPE_VOID] = "void",
-    [TYPE_CHAR] =" char",
+    [TYPE_CHAR] ="char",
     [TYPE_SCHAR] = "schar",
     [TYPE_UCHAR] = "uchar",
     [TYPE_SHORT] = "short",
@@ -1176,13 +1180,14 @@ Operand resolve_expr_unary(Expr *expr) {
         }
         return operand_rvalue(type_ptr(type));
     default:
-        if (type->kind != TYPE_INT) {
-            fatal_error(expr->pos, "Can only use unary %s with ints", token_kind_name(expr->unary.op));
+        if (!is_integer_type(type)) {
+            fatal_error(expr->pos, "Can only use unary %s with integer types", token_kind_name(expr->unary.op));
         }
+        promote_operand(&operand);
         if (operand.is_const) {
-            return operand_const(type_int, eval_unary_op(expr->unary.op, operand.type, operand.val));
+            return operand_const(operand.type, eval_unary_op(expr->unary.op, operand.type, operand.val));
         } else {
-            return operand_rvalue(type);
+            return operand;
         }
     }
 }
