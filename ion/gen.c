@@ -230,6 +230,9 @@ void gen_expr_compound(Expr *expr, bool is_init) {
         }
         gen_expr(field.init);
     }
+    if (expr->compound.num_fields == 0) {
+        genf("0");
+    }
     genf("}");
 }
 

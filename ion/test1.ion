@@ -71,6 +71,10 @@ struct Vector {
     x, y: int;
 }
 
+func f2(v: Vector) {
+    v = {};
+}
+
 func fact_iter(n: int): int {
     r := 1;
     for (i := 2; i <= n; i++) {

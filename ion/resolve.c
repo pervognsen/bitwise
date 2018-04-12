@@ -886,7 +886,7 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
             fatal_error(stmt->pos, "Cannot assign to non-lvalue");
         }
         if (stmt->assign.right) {
-            Operand right = resolve_expr(stmt->assign.right);
+            Operand right = resolve_expected_expr(stmt->assign.right, left.type);
             if (!convert_operand(&right, left.type)) {
                 fatal_error(stmt->pos, "Illegal conversion in assignment statement");
             }
@@ -1284,13 +1284,15 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             type = type_array(type->array.elem, max_index + 1);
         }
     } else {
-        if (expr->compound.num_fields != 1) {
-            fatal_error(expr->pos, "Compound literal for aggregate type must have exactly 1 field");
+        if (expr->compound.num_fields > 1) {
+            fatal_error(expr->pos, "Compound literal for aggregate type cannot have more than one argument");
         }
-        CompoundField field = expr->compound.fields[0];
-        Operand init = resolve_expected_expr(field.init, type);
-        if (!convert_operand(&init, type)) {
-            fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+        if (expr->compound.num_fields == 1) {
+            CompoundField field = expr->compound.fields[0];
+            Operand init = resolve_expected_expr(field.init, type);
+            if (!convert_operand(&init, type)) {
+                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+            }
         }
     }
     return operand_lvalue(type);
