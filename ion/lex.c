@@ -221,7 +221,7 @@ const char *line_start;
 void error(SrcPos pos, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
-    printf("%s(%d): ", pos.name, pos.line);
+    printf("%s(%d): error: ", pos.name, pos.line);
     vprintf(fmt, args);
     printf("\n");
     va_end(args);
