@@ -29,6 +29,7 @@ struct Typespec {
             Typespec **args;
             size_t num_args;
             Typespec *ret;
+            bool variadic;
         } func;
         struct {
             Typespec *elem;
@@ -88,6 +89,7 @@ struct Decl {
             FuncParam *params;
             size_t num_params;
             Typespec *ret_type;
+            bool variadic;
             StmtList block;
         } func;
         struct {

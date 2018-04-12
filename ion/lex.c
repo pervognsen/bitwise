@@ -72,6 +72,7 @@ typedef enum TokenKind {
     TOKEN_RBRACKET,
     TOKEN_COMMA,
     TOKEN_DOT,
+    TOKEN_ELLIPSIS,
     TOKEN_QUESTION,
     TOKEN_SEMICOLON,
     TOKEN_KEYWORD,
@@ -146,6 +147,7 @@ const char *token_kind_names[] = {
     [TOKEN_RBRACKET] = "]",
     [TOKEN_COMMA] = ",",
     [TOKEN_DOT] = ".",
+    [TOKEN_ELLIPSIS] = "...",
     [TOKEN_QUESTION] = "?",
     [TOKEN_SEMICOLON] = ";",
     [TOKEN_KEYWORD] = "keyword",
@@ -452,6 +454,9 @@ repeat:
     case '.':
         if (isdigit(stream[1])) {
             scan_float();
+        } else if (stream[1] == '.' && stream[2] == '.') {
+            token.kind = TOKEN_ELLIPSIS;
+            stream += 3;
         } else {
             token.kind = TOKEN_DOT;
             stream++;

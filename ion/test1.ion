@@ -102,10 +102,18 @@ func benchmark(n: int) {
     }
 }
 
+func varargs_test(x: int, ...): int {
+    return 0;
+}
+
+typedef F = func(int, ...): int
+
 func main(argc: int, argv: char**): int {
     b := example_test();
     puts("Hello, world!");
     c := getchar();
     printf("You wrote '%c'\n", c);
+    varargs_test(1);
+    varargs_test(1, 2);
     return 0;
 }

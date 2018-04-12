@@ -94,6 +94,9 @@ char *type_to_cdecl(Type *type, const char *str) {
                 buf_printf(result, "%s%s", i == 0 ? "" : ", ", type_to_cdecl(type->func.params[i], ""));
             }
         }
+        if (type->func.variadic) {
+            buf_printf(result, ", ...");
+        }
         buf_printf(result, ")");
         return type_to_cdecl(type->func.ret, result);
     }
@@ -132,6 +135,9 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
                 buf_printf(result, "%s%s", i == 0 ? "" : ", ", typespec_to_cdecl(typespec->func.args[i], ""));
             }
         }
+        if (typespec->func.variadic) {
+            buf_printf(result, ", ...");
+        }
         buf_printf(result, ")");
         return typespec_to_cdecl(typespec->func.ret, result);
     }
@@ -159,6 +165,9 @@ void gen_func_decl(Decl *decl) {
             }
             genf("%s", typespec_to_cdecl(param.type, param.name));
         }
+    }
+    if (decl->func.variadic) {
+        genf(", ...");
     }
     genf(")");
 }

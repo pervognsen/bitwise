@@ -800,7 +800,7 @@ Type *resolve_decl_func(Decl *decl) {
     if (decl->func.ret_type) {
         ret_type = resolve_typespec(decl->func.ret_type);
     }
-    return type_func(params, buf_len(params), ret_type, false);
+    return type_func(params, buf_len(params), ret_type, decl->func.variadic);
 }
 
 void resolve_stmt(Stmt *stmt, Type *ret_type);
