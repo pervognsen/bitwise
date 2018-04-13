@@ -827,7 +827,13 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type, decl->func.variadic);
 }
 
-void resolve_stmt(Stmt *stmt, Type *ret_type);
+typedef enum StmtCtrl {
+    CTRL_DEFAULT,
+    CTRL_ESCAPES,
+    CTRL_RETURNS,
+} StmtCtrl;
+
+StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
@@ -836,12 +842,17 @@ void resolve_cond_expr(Expr *expr) {
     }
 }
 
-void resolve_stmt_block(StmtList block, Type *ret_type) {
+StmtCtrl resolve_stmt_block(StmtList block, Type *ret_type) {
     Sym *scope = sym_enter();
+    bool returns = false;
+    bool escapes = false;
     for (size_t i = 0; i < block.num_stmts; i++) {
-        resolve_stmt(block.stmts[i], ret_type);
+        StmtCtrl ctrl = resolve_stmt(block.stmts[i], ret_type);
+        returns = returns || ctrl == CTRL_RETURNS;
+        escapes = escapes || ctrl == CTRL_ESCAPES;
     }
     sym_leave(scope);
+    return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
 }
 
 void resolve_stmt_assign(Stmt *stmt) {
@@ -858,7 +869,7 @@ void resolve_stmt_assign(Stmt *stmt) {
     }
 }
 
-void resolve_stmt(Stmt *stmt, Type *ret_type) {
+StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
@@ -869,42 +880,51 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
         } else if (ret_type != type_void) {
             fatal_error(stmt->pos, "Empty return expression for function with non-void return type");
         }
-        break;
+        return CTRL_RETURNS;
     case STMT_BREAK:
     case STMT_CONTINUE:
-        // Do nothing
-        break;
+        return CTRL_ESCAPES;
     case STMT_BLOCK:
-        resolve_stmt_block(stmt->block, ret_type);
-        break;
-    case STMT_IF:
+        return resolve_stmt_block(stmt->block, ret_type);
+    case STMT_IF: {
         resolve_cond_expr(stmt->if_stmt.cond);
-        resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
+        StmtCtrl if_ctrl = resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
+        bool escapes = if_ctrl == CTRL_ESCAPES;
+        bool returns = if_ctrl == CTRL_RETURNS;
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
             ElseIf elseif = stmt->if_stmt.elseifs[i];
             resolve_cond_expr(elseif.cond);
-            resolve_stmt_block(elseif.block, ret_type);
+            StmtCtrl elseif_ctrl = resolve_stmt_block(elseif.block, ret_type);
+            escapes = escapes || elseif_ctrl == CTRL_ESCAPES;
+            returns = returns && elseif_ctrl == CTRL_RETURNS;
         }
         if (stmt->if_stmt.else_block.stmts) {
-            resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
+            StmtCtrl else_ctrl = resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
+            escapes = escapes || else_ctrl == CTRL_ESCAPES;
+            returns = returns && else_ctrl == CTRL_RETURNS;
+        } else {
+            returns = false;
         }
-        break;
+        return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
+    }
     case STMT_WHILE:
     case STMT_DO_WHILE:
         resolve_cond_expr(stmt->while_stmt.cond);
-        resolve_stmt_block(stmt->while_stmt.block, ret_type);
-        break;
+        return resolve_stmt_block(stmt->while_stmt.block, ret_type);
     case STMT_FOR: {
         Sym *scope = sym_enter();
         resolve_stmt(stmt->for_stmt.init, ret_type);
         resolve_cond_expr(stmt->for_stmt.cond);
         resolve_stmt_block(stmt->for_stmt.block, ret_type);
-        resolve_stmt(stmt->for_stmt.next, ret_type);
+        StmtCtrl ctrl = resolve_stmt(stmt->for_stmt.next, ret_type);
         sym_leave(scope);
-        break;
+        return ctrl;
     }
     case STMT_SWITCH: {
         Operand expr = resolve_expr(stmt->switch_stmt.expr);
+        bool escapes = false;
+        bool returns = true;
+        bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
@@ -913,23 +933,34 @@ void resolve_stmt(Stmt *stmt, Type *ret_type) {
                 if (!convert_operand(&case_operand, expr.type)) {
                     fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
                 }
-                resolve_stmt_block(switch_case.block, ret_type);
+                StmtCtrl ctrl = resolve_stmt_block(switch_case.block, ret_type);
+                escapes = escapes || ctrl == CTRL_ESCAPES;
+                returns = returns && ctrl == CTRL_RETURNS;
+            }
+            if (switch_case.is_default) {
+                if (has_default) {
+                    fatal_error(stmt->pos, "Switch statement has multiple default clauses");
+                }
+                has_default = true;
             }
         }
-        break;
+        if (!has_default) {
+            returns = false;
+        }
+        return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
     }
     case STMT_ASSIGN:
         resolve_stmt_assign(stmt);
-        break;
+        return CTRL_DEFAULT;
     case STMT_INIT:
         sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
-        break;
+        return CTRL_DEFAULT;
     case STMT_EXPR:
         resolve_expr(stmt->expr);
-        break;
+        return CTRL_DEFAULT;
     default:
         assert(0);
-        break;
+        return CTRL_DEFAULT;
     }
 }
 
@@ -942,8 +973,12 @@ void resolve_func_body(Sym *sym) {
         FuncParam param = decl->func.params[i];
         sym_push_var(param.name, resolve_typespec(param.type));
     }
-    resolve_stmt_block(decl->func.block, resolve_typespec(decl->func.ret_type));
+    Type *ret_type = resolve_typespec(decl->func.ret_type);
+    StmtCtrl ctrl = resolve_stmt_block(decl->func.block, ret_type);
     sym_leave(scope);
+    if (ret_type != type_void && ctrl != CTRL_RETURNS) {
+        fatal_error(decl->pos, "Not all control paths return values");
+    }
 }
     
 void resolve_sym(Sym *sym) {

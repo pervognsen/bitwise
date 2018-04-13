@@ -1,11 +1,11 @@
 @foreign
-func printf(fmt: char*, ...): int {}
+func printf(fmt: char*, ...): int { return 0; }
 
 @foreign
-func puts(str: char*): int {}
+func puts(str: char*): int { return 0; }
 
 @foreign
-func getchar(): int {}
+func getchar(): int { return 0; }
 
 const PI = 3.14
 const PI2 = PI + PI
