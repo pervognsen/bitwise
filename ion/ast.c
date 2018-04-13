@@ -18,6 +18,10 @@ void *ast_dup(const void *src, size_t size) {
 
 #define AST_DUP(x) ast_dup(x, num_##x * sizeof(*x))
 
+NoteList note_list(Note *notes, size_t num_notes) {
+    return (NoteList){AST_DUP(notes), num_notes};
+}
+
 StmtList stmt_list(SrcPos pos, Stmt **stmts, size_t num_stmts) {
     return (StmtList){pos, AST_DUP(stmts), num_stmts};
 }
@@ -71,6 +75,20 @@ Decl *decl_new(DeclKind kind, SrcPos pos, const char *name) {
     d->pos = pos;
     d->name = name;
     return d;
+}
+
+Note *get_decl_note(Decl *decl, const char *name) {
+    for (size_t i = 0; i < decl->notes.num_notes; i++) {
+        Note *note = decl->notes.notes + i;
+        if (note->name == name) {
+            return note;
+        }
+    }
+    return NULL;
+}
+
+bool is_decl_foreign(Decl *decl) {
+    return get_decl_note(decl, foreign_name) != NULL;
 }
 
 Decl *decl_enum(SrcPos pos, const char *name, EnumItem *items, size_t num_items) {

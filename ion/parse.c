@@ -590,6 +590,14 @@ Decl *parse_decl_func(SrcPos pos) {
     return decl_func(pos, name, params, buf_len(params), ret_type, variadic, block);
 }
 
+NoteList parse_note_list(void) {
+    Note *notes = NULL;
+    while (match_token(TOKEN_AT)) {
+        buf_push(notes, (Note){.pos = token.pos, .name = parse_name()});
+    }
+    return note_list(notes, buf_len(notes));
+}
+
 Decl *parse_decl_opt(void) {
     SrcPos pos = token.pos;
     if (match_keyword(enum_keyword)) {
@@ -612,10 +620,12 @@ Decl *parse_decl_opt(void) {
 }
 
 Decl *parse_decl(void) {
+    NoteList notes = parse_note_list();
     Decl *decl = parse_decl_opt();
     if (!decl) {
         fatal_syntax_error("Expected declaration keyword, got %s", token_info());
     }
+    decl->notes = notes;
     return decl;
 }
 

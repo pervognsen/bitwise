@@ -3,6 +3,16 @@ typedef struct Stmt Stmt;
 typedef struct Decl Decl;
 typedef struct Typespec Typespec;
 
+typedef struct Note {
+    SrcPos pos;
+    const char *name;
+} Note;
+
+typedef struct NoteList {
+    Note *notes;
+    size_t num_notes;
+} NoteList;
+
 struct Type;
 
 typedef struct StmtList {
@@ -76,6 +86,7 @@ struct Decl {
     SrcPos pos;
     const char *name;
     struct Sym *sym;
+    NoteList notes;
     union {
         struct {
             EnumItem *items;

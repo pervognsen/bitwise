@@ -1,3 +1,12 @@
+@foreign
+func printf(fmt: char*, ...): int {}
+
+@foreign
+func puts(fmt: char*): int {}
+
+@foreign
+func getchar(): int {}
+
 var c: char = 1
 var uc: uchar = 1
 var sc: schar = 1
@@ -7,6 +16,8 @@ const N = (:char)42 + 8 != 0
 typedef A = int[1 + 2*sizeof(h())]
 
 func h(): uchar {
+    Vector{x=1, y=2}.x = 42;
+    p := &int{0};
     x := uint{1} + long{2};
     y := +c;
     return x;
@@ -77,7 +88,7 @@ func f2(v: Vector) {
 
 func fact_iter(n: int): int {
     r := 1;
-    for (i := 2; i <= n; i++) {
+    for (i := 0; i <= n; i++) {
         r *= i;
     }
     return r;
@@ -106,18 +117,49 @@ func benchmark(n: int) {
     }
 }
 
-func varargs_test(x: int, ...): int {
+func va_test(x: int, ...): int {
     return 0;
 }
 
 typedef F = func(int, ...): int
 
+func test_ops() {
+    pi := 3.14;
+    f := 0.0;
+    f = +pi;
+    f = -pi;
+    n := -1;
+    n = ~n;
+    f = f * pi;
+    f = pi / pi;
+    n = 3 % 2;
+    n = n + (:uchar)1;
+    p := &n;
+    p = p + 1;
+    n = (p + 1) - p;
+    n = n << 1;
+    n = n >> 1;
+    b := p + 1 > p;
+    b = p + 1 >= p;
+    b = p + 1 < p;
+    b = p + 1 <= p;
+    b = p + 1 == p;
+    b = 1 > 2;
+    b = 1.23 <= pi;
+    n = 0xff;
+    b = n & ~1;
+    b = n & 1;
+    b = (n & ~1) ^ 1;
+    b = p && pi;
+}
+
 func main(argc: int, argv: char**): int {
+    test_ops();
     b := example_test();
     puts("Hello, world!");
     c := getchar();
     printf("You wrote '%c'\n", c);
-    varargs_test(1);
-    varargs_test(1, 2);
+    va_test(1);
+    va_test(1, 2);
     return 0;
 }

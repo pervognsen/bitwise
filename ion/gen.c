@@ -490,8 +490,10 @@ void gen_decl(Sym *sym) {
         genf(";");
         break;
     case DECL_FUNC:
-        gen_func_decl(decl);
-        genf(";");
+        if (!is_decl_foreign(decl)) {
+            gen_func_decl(decl);
+            genf(";");
+        }
         break;
     case DECL_STRUCT:
     case DECL_UNION:
@@ -533,10 +535,12 @@ void gen_func_defs(void) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
         if (decl && decl->kind == DECL_FUNC) {
-            gen_func_decl(decl);
-            genf(" ");
-            gen_stmt_block(decl->func.block);
-            genln();
+            if (!is_decl_foreign(decl)) {
+                gen_func_decl(decl);
+                genf(" ");
+                gen_stmt_block(decl->func.block);
+                genln();
+            }
         }
     }
 }
