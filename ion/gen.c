@@ -242,7 +242,7 @@ void gen_expr(Expr *expr) {
         genf("%lld", expr->int_val);
         break;
     case EXPR_FLOAT:
-        genf("%f", expr->float_val);
+        genf("%ff", expr->float_val);
         break;
     case EXPR_STR:
         gen_str(expr->str_val);
@@ -473,9 +473,16 @@ void gen_decl(Sym *sym) {
     gen_sync_pos(decl->pos);
     switch (decl->kind) {
     case DECL_CONST:
-        genlnf("enum { %s = ", sym->name);
-        gen_expr(decl->const_decl.expr);
-        genf(" };");
+        if (is_integer_type(decl->sym->type)) {
+            genlnf("enum { %s = ", sym->name);
+            gen_expr(decl->const_decl.expr);
+            genf(" };");
+        } else {
+            assert(is_floating_type(decl->sym->type));
+            genlnf("#define %s (", sym->name);
+            gen_expr(decl->const_decl.expr);
+            genf(")");
+        }
         break;
     case DECL_VAR:
         if (decl->var.type && !is_incomplete_array_type(decl->var.type)) {

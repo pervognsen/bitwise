@@ -114,7 +114,7 @@ Expr *parse_expr_operand(void) {
         next_token();
         return expr_int(pos, val);
     } else if (is_token(TOKEN_FLOAT)) {
-        double val = token.float_val;
+        float val = token.float_val;
         next_token();
         return expr_float(pos, val);
     } else if (is_token(TOKEN_STR)) {

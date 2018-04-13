@@ -167,7 +167,7 @@ Expr *expr_int(SrcPos pos, int int_val) {
     return e;
 }
 
-Expr *expr_float(SrcPos pos, double float_val) {
+Expr *expr_float(SrcPos pos, float float_val) {
     Expr *e = expr_new(EXPR_FLOAT, pos);
     e->float_val = float_val;
     return e;

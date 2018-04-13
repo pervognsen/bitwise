@@ -2,10 +2,13 @@
 func printf(fmt: char*, ...): int {}
 
 @foreign
-func puts(fmt: char*): int {}
+func puts(str: char*): int {}
 
 @foreign
 func getchar(): int {}
+
+const PI = 3.14
+const PI2 = PI + PI
 
 var c: char = 1
 var uc: uchar = 1
@@ -121,7 +124,7 @@ func va_test(x: int, ...): int {
     return 0;
 }
 
-typedef F = func(int, ...): int
+typedef F = func(int, ...):int
 
 func test_ops() {
     pi := 3.14;
@@ -130,7 +133,7 @@ func test_ops() {
     f = -pi;
     n := -1;
     n = ~n;
-    f = f * pi;
+    f = f * pi + n;
     f = pi / pi;
     n = 3 % 2;
     n = n + (:uchar)1;

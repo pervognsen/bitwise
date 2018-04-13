@@ -218,7 +218,7 @@ typedef struct Token {
     const char *end;
     union {
         int int_val;
-        double float_val;
+        float float_val;
         const char *str_val;
         const char *name;
     };
@@ -333,8 +333,8 @@ void scan_float(void) {
             stream++;
         }
     }
-    double val = strtod(start, NULL);
-    if (val == HUGE_VAL) {
+    float val = strtof(start, NULL);
+    if (val == HUGE_VALF) {
         syntax_error("Float literal overflow");
     }
     token.kind = TOKEN_FLOAT;

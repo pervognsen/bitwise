@@ -161,7 +161,7 @@ struct Expr {
     struct Type *type;
     union {
         int int_val;
-        double float_val;
+        float float_val;
         const char *str_val;
         const char *name;
         Expr *sizeof_expr;

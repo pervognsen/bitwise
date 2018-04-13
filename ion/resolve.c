@@ -789,9 +789,9 @@ Type *resolve_decl_var(Decl *decl) {
 
 Type *resolve_decl_const(Decl *decl, Val *val) {
     assert(decl->kind == DECL_CONST);
-    Operand result = resolve_expr(decl->const_decl.expr);
-    if (!result.is_const) {
-        fatal_error(decl->pos, "Const initializer is not a constant expression");
+    Operand result = resolve_const_expr(decl->const_decl.expr);
+    if (!is_arithmetic_type(result.type)) {
+        fatal_error(decl->pos, "Const must have arithmetic type");
     }
     *val = result.val;
     return result.type;
@@ -1021,6 +1021,19 @@ long long eval_unary_op_ll(TokenKind op, long long val) {
     return 0;
 }
 
+double eval_unary_op_d(TokenKind op, double val) {
+    switch (op) {
+    case TOKEN_ADD:
+        return +val;
+    case TOKEN_SUB:
+        return -val;
+    default:
+        assert(0);
+        break;
+    }
+    return 0.0;
+}
+
 unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
     switch (op) {
     case TOKEN_ADD:
@@ -1036,6 +1049,24 @@ unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
         break;
     }
     return 0;
+}
+
+
+double eval_binary_op_d(TokenKind op, double left, double right) {
+    switch (op) {
+    case TOKEN_MUL:
+        return left * right;
+    case TOKEN_DIV:
+        return left / right;
+    case TOKEN_ADD:
+        return left + right;
+    case TOKEN_SUB:
+        return left - right;
+    default:
+        assert(0);
+        break;
+    }
+    return 0.0;
 }
 
 long long eval_binary_op_ll(TokenKind op, long long left, long long right) {
@@ -1130,12 +1161,17 @@ unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, uns
 
 Val eval_unary_op(TokenKind op, Type *type, Val val) {
     Operand operand = operand_const(type, val);
-    if (is_signed_type(type)) {
-        convert_operand(&operand, type_llong);
-        operand.val.ll = eval_unary_op_ll(op, operand.val.ll);
+    if (is_integer_type(type)) {
+        if (is_signed_type(type)) {
+            convert_operand(&operand, type_llong);
+            operand.val.ll = eval_unary_op_ll(op, operand.val.ll);
+        } else {
+            convert_operand(&operand, type_ullong);
+            operand.val.ll = eval_unary_op_ull(op, operand.val.ull);
+        }
     } else {
-        convert_operand(&operand, type_ullong);
-        operand.val.ll = eval_unary_op_ull(op, operand.val.ull);
+        convert_operand(&operand, type_double);
+        operand.val.d = eval_unary_op_d(op, operand.val.d);
     }
     convert_operand(&operand, type);
     return operand.val;
@@ -1145,14 +1181,20 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     Operand left_operand = operand_const(type, left);
     Operand right_operand = operand_const(type, right);
     Operand result_operand;
-    if (is_signed_type(type)) {
-        convert_operand(&left_operand, type_llong);
-        convert_operand(&right_operand, type_llong);
-        result_operand = operand_const(type_llong, (Val){.ll = eval_binary_op_ll(op, left_operand.val.ll, right_operand.val.ll)});
+    if (is_integer_type(type)) {
+        if (is_signed_type(type)) {
+            convert_operand(&left_operand, type_llong);
+            convert_operand(&right_operand, type_llong);
+            result_operand = operand_const(type_llong, (Val){.ll = eval_binary_op_ll(op, left_operand.val.ll, right_operand.val.ll)});
+        } else {
+            convert_operand(&left_operand, type_ullong);
+            convert_operand(&right_operand, type_ullong);
+            result_operand = operand_const(type_ullong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
+        }
     } else {
-        convert_operand(&left_operand, type_ullong);
-        convert_operand(&right_operand, type_ullong);
-        result_operand = operand_const(type_ullong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
+        convert_operand(&left_operand, type_double);
+        convert_operand(&right_operand, type_double);
+        result_operand = operand_const(type_double, (Val){.d = eval_binary_op_d(op, left_operand.val.d, right_operand.val.d)});
     }
     convert_operand(&result_operand, type);
     return result_operand.val;
@@ -1517,7 +1559,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_const(type_int, (Val){.i = expr->int_val});
         break;
     case EXPR_FLOAT:
-        result = operand_rvalue(type_float);
+        result = operand_const(type_float, (Val){.f = expr->float_val});
         break;
     case EXPR_STR:
         result = operand_rvalue(type_ptr(type_char));
