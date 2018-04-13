@@ -468,7 +468,7 @@ bool is_incomplete_array_type(Typespec *typespec) {
 
 void gen_decl(Sym *sym) {
     Decl *decl = sym->decl;
-    if (!decl) {
+    if (!decl || is_decl_foreign(decl)) {
         return;
     }
     gen_sync_pos(decl->pos);
@@ -498,10 +498,8 @@ void gen_decl(Sym *sym) {
         genf(";");
         break;
     case DECL_FUNC:
-        if (!is_decl_foreign(decl)) {
-            gen_func_decl(decl);
-            genf(";");
-        }
+        gen_func_decl(decl);
+        genf(";");
         break;
     case DECL_STRUCT:
     case DECL_UNION:
@@ -542,13 +540,11 @@ void gen_func_defs(void) {
     for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (decl && decl->kind == DECL_FUNC) {
-            if (!is_decl_foreign(decl)) {
-                gen_func_decl(decl);
-                genf(" ");
-                gen_stmt_block(decl->func.block);
-                genln();
-            }
+        if (decl && decl->kind == DECL_FUNC && !is_decl_foreign(decl)) {
+            gen_func_decl(decl);
+            genf(" ");
+            gen_stmt_block(decl->func.block);
+            genln();
         }
     }
 }
