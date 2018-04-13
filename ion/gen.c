@@ -11,6 +11,7 @@ SrcPos gen_pos;
 const char *gen_preamble =
     "// Preamble\n"
     "#include <stdio.h>\n"
+    "#include <stdbool.h>\n"
     "#include <math.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
@@ -474,16 +475,9 @@ void gen_decl(Sym *sym) {
     gen_sync_pos(decl->pos);
     switch (decl->kind) {
     case DECL_CONST:
-        if (is_integer_type(decl->sym->type)) {
-            genlnf("enum { %s = ", sym->name);
-            gen_expr(decl->const_decl.expr);
-            genf(" };");
-        } else {
-            assert(is_floating_type(decl->sym->type));
-            genlnf("#define %s (", sym->name);
-            gen_expr(decl->const_decl.expr);
-            genf(")");
-        }
+        genlnf("#define %s (", sym->name);
+        gen_expr(decl->const_decl.expr);
+        genf(")");
         break;
     case DECL_VAR:
         if (decl->var.type && !is_incomplete_array_type(decl->var.type)) {

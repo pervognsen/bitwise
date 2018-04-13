@@ -3,6 +3,7 @@ typedef enum TypeKind {
     TYPE_INCOMPLETE,
     TYPE_COMPLETING,
     TYPE_VOID,
+    TYPE_BOOL,
     TYPE_CHAR,
     TYPE_SCHAR,
     TYPE_UCHAR,
@@ -69,6 +70,7 @@ Type *type_alloc(TypeKind kind) {
 }
 
 Type *type_void = &(Type){TYPE_VOID, 0};
+Type *type_bool = &(Type){TYPE_BOOL, 1, 1};
 Type *type_char = &(Type){TYPE_CHAR, 1, 1};
 Type *type_uchar = &(Type){TYPE_UCHAR, 1, 1};
 Type *type_schar = &(Type){TYPE_SCHAR, 1, 1};
@@ -90,7 +92,7 @@ const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
 
 bool is_integer_type(Type *type) {
-    return TYPE_CHAR <= type->kind && type->kind <= TYPE_ULLONG;
+    return TYPE_BOOL <= type->kind && type->kind <= TYPE_ULLONG;
 }
 
 bool is_floating_type(Type *type) {
@@ -98,11 +100,11 @@ bool is_floating_type(Type *type) {
 }
 
 bool is_arithmetic_type(Type *type) {
-    return TYPE_CHAR && type->kind && type->kind <= TYPE_DOUBLE;
+    return TYPE_BOOL && type->kind && type->kind <= TYPE_DOUBLE;
 }
 
 bool is_scalar_type(Type *type) {
-    return TYPE_CHAR <= type->kind && type->kind <= TYPE_FUNC;
+    return TYPE_BOOL <= type->kind && type->kind <= TYPE_FUNC;
 }
 
 bool is_signed_type(Type *type) {
@@ -121,7 +123,8 @@ bool is_signed_type(Type *type) {
 
 const char *type_names[NUM_TYPE_KINDS] = {
     [TYPE_VOID] = "void",
-    [TYPE_CHAR] ="char",
+    [TYPE_BOOL] = "bool",
+    [TYPE_CHAR] = "char",
     [TYPE_SCHAR] = "schar",
     [TYPE_UCHAR] = "uchar",
     [TYPE_SHORT] = "short",
@@ -137,17 +140,18 @@ const char *type_names[NUM_TYPE_KINDS] = {
 };
 
 int type_ranks[NUM_TYPE_KINDS] = {
-    [TYPE_CHAR] = 1,
-    [TYPE_SCHAR] = 1,
-    [TYPE_UCHAR] = 1,
-    [TYPE_SHORT] = 2,
-    [TYPE_USHORT] = 2,
-    [TYPE_INT] = 3,
-    [TYPE_UINT] = 3,
-    [TYPE_LONG] = 4,
-    [TYPE_ULONG] = 4,
-    [TYPE_LLONG] = 5,
-    [TYPE_ULLONG] = 5,
+    [TYPE_BOOL] = 1,
+    [TYPE_CHAR] = 2,
+    [TYPE_SCHAR] = 2,
+    [TYPE_UCHAR] = 2,
+    [TYPE_SHORT] = 3,
+    [TYPE_USHORT] = 3,
+    [TYPE_INT] = 4,
+    [TYPE_UINT] = 4,
+    [TYPE_LONG] = 5,
+    [TYPE_ULONG] = 5,
+    [TYPE_LLONG] = 6,
+    [TYPE_ULLONG] = 6,
 };
 
 int type_rank(Type *type) {
@@ -158,6 +162,8 @@ int type_rank(Type *type) {
 
 Type *unsigned_type(Type *type) {
     switch (type->kind) {
+    case TYPE_BOOL:
+        return type_bool;
     case TYPE_CHAR:
     case TYPE_SCHAR:
     case TYPE_UCHAR:
@@ -329,6 +335,7 @@ typedef enum SymState {
 } SymState;
 
 typedef union Val {
+    bool b;
     char c;
     unsigned char uc;
     signed char sc;
@@ -458,6 +465,14 @@ void sym_global_type(const char *name, Type *type) {
     sym_global_put(sym);
 }
 
+void sym_global_const(const char *name, Type *type, Val val) {
+    Sym *sym = sym_new(SYM_CONST, str_intern(name), NULL);
+    sym->state = SYM_RESOLVED;
+    sym->type = type;
+    sym->val = val;
+    sym_global_put(sym);
+}
+
 void sym_global_func(const char *name, Type *type) {
     assert(type->kind = TYPE_FUNC);
     Sym *sym = sym_new(SYM_FUNC, str_intern(name), NULL);
@@ -499,6 +514,9 @@ Operand operand_const(Type *type, Val val) {
 #define CASE(k, t) \
     case k: \
         switch (type->kind) { \
+        case TYPE_BOOL: \
+            operand->val.b = operand->val.t != 0; \
+            break; \
         case TYPE_CHAR: \
             operand->val.c = (char)operand->val.t; \
             break; \
@@ -564,23 +582,28 @@ bool convert_operand(Operand *operand, Type *type) {
         return false;
     }
     if (operand->is_const) {
-        switch (operand->type->kind) {
-        CASE(TYPE_CHAR, c)
-        CASE(TYPE_UCHAR, uc)
-        CASE(TYPE_SCHAR, sc)
-        CASE(TYPE_SHORT, s)
-        CASE(TYPE_USHORT, us)
-        CASE(TYPE_INT, i)
-        CASE(TYPE_UINT, u)
-        CASE(TYPE_LONG, l)
-        CASE(TYPE_ULONG, ul)
-        CASE(TYPE_LLONG, ll)
-        CASE(TYPE_ULLONG, ull)
-        CASE(TYPE_FLOAT, f)
-        CASE(TYPE_DOUBLE, d)
-        default:
+        if (is_floating_type(operand->type) && is_integer_type(type)) {
             operand->is_const = false;
-            break;
+        } else {
+            switch (operand->type->kind) {
+            CASE(TYPE_BOOL, b)
+            CASE(TYPE_CHAR, c)
+            CASE(TYPE_UCHAR, uc)
+            CASE(TYPE_SCHAR, sc)
+            CASE(TYPE_SHORT, s)
+            CASE(TYPE_USHORT, us)
+            CASE(TYPE_INT, i)
+            CASE(TYPE_UINT, u)
+            CASE(TYPE_LONG, l)
+            CASE(TYPE_ULONG, ul)
+            CASE(TYPE_LLONG, ll)
+            CASE(TYPE_ULLONG, ull)
+            CASE(TYPE_FLOAT, f)
+            CASE(TYPE_DOUBLE, d)
+            default:
+                operand->is_const = false;
+                break;
+            }
         }
     }
     operand->type = type;
@@ -597,6 +620,7 @@ Val convert_val(Type *dest_type, Type *src_type, Val src_val) {
 
 void promote_operand(Operand *operand) {
     switch (operand->type->kind) {
+    case TYPE_BOOL:
     case TYPE_CHAR:
     case TYPE_SCHAR:
     case TYPE_UCHAR:
@@ -1629,6 +1653,7 @@ Operand resolve_const_expr(Expr *expr) {
 
 void init_global_syms(void) {
     sym_global_type("void", type_void);
+    sym_global_type("bool", type_bool);
     sym_global_type("char", type_char);
     sym_global_type("schar", type_schar);
     sym_global_type("uchar", type_uchar);
@@ -1641,6 +1666,9 @@ void init_global_syms(void) {
     sym_global_type("llong", type_llong);
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
+
+    sym_global_const("true", type_bool, (Val){.b = true});
+    sym_global_const("false", type_bool, (Val){.b = false});
 }
 
 void sym_global_decls(DeclSet *declset) {

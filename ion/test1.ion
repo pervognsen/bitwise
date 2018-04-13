@@ -16,7 +16,7 @@ var sc: schar = 1
 
 const N = (:char)42 + 8 != 0
 
-typedef A = int[1 + 2*sizeof(h()) + (:int)PI2]
+typedef A = int[1 + 2*sizeof(h())]
 
 func h(): uchar {
     Vector{x=1, y=2}.x = 42;
@@ -105,12 +105,12 @@ func fact_rec(n: int): int {
     }
 }
 
-const n = 1 + sizeof(p)
+const M = 1 + sizeof(p)
 
 var p: T*
 
 struct T {
-    a: int[n];
+    a: int[M];
 }
 
 func benchmark(n: int) {
@@ -156,7 +156,17 @@ func test_ops() {
     b = p && pi;
 }
 
+const IS_DEBUG = true
+
+func test_bool() {
+    b := false;
+    b = true;
+    i := 0;
+    i = IS_DEBUG;
+}
+
 func main(argc: int, argv: char**): int {
+    test_bool();
     test_ops();
     b := example_test();
     puts("Hello, world!");
