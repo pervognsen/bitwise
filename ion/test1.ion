@@ -16,7 +16,7 @@ var sc: schar = 1
 
 const N = (:char)42 + 8 != 0
 
-typedef A = int[1 + 2*sizeof(h())]
+typedef A = int[1 + 2*sizeof(h()) + (:int)PI2]
 
 func h(): uchar {
     Vector{x=1, y=2}.x = 42;

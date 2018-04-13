@@ -11,6 +11,7 @@ SrcPos gen_pos;
 const char *gen_preamble =
     "// Preamble\n"
     "#include <stdio.h>\n"
+    "#include <math.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
     "typedef signed char schar;\n"
