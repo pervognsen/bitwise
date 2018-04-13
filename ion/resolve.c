@@ -347,8 +347,6 @@ typedef union Val {
     unsigned long ul;
     long long ll;
     unsigned long long ull;
-    float f;
-    double d;
 } Val;
 
 typedef struct Sym {
@@ -551,10 +549,7 @@ Operand operand_const(Type *type, Val val) {
             operand->val.ull = (unsigned long long)operand->val.t; \
             break; \
         case TYPE_FLOAT: \
-            operand->val.f = (float)operand->val.t; \
-            break; \
         case TYPE_DOUBLE: \
-            operand->val.d = (double)operand->val.t; \
             break; \
         default: \
             operand->is_const = false; \
@@ -582,8 +577,8 @@ bool convert_operand(Operand *operand, Type *type) {
         return false;
     }
     if (operand->is_const) {
-        if (is_floating_type(operand->type) && is_integer_type(type)) {
-            operand->is_const = false;
+        if (is_floating_type(operand->type)) {
+            operand->is_const = !is_integer_type(type);
         } else {
             switch (operand->type->kind) {
             CASE(TYPE_BOOL, b)
@@ -598,8 +593,6 @@ bool convert_operand(Operand *operand, Type *type) {
             CASE(TYPE_ULONG, ul)
             CASE(TYPE_LLONG, ll)
             CASE(TYPE_ULLONG, ull)
-            CASE(TYPE_FLOAT, f)
-            CASE(TYPE_DOUBLE, d)
             default:
                 operand->is_const = false;
                 break;
@@ -1045,19 +1038,6 @@ long long eval_unary_op_ll(TokenKind op, long long val) {
     return 0;
 }
 
-double eval_unary_op_d(TokenKind op, double val) {
-    switch (op) {
-    case TOKEN_ADD:
-        return +val;
-    case TOKEN_SUB:
-        return -val;
-    default:
-        assert(0);
-        break;
-    }
-    return 0.0;
-}
-
 unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
     switch (op) {
     case TOKEN_ADD:
@@ -1073,24 +1053,6 @@ unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
         break;
     }
     return 0;
-}
-
-
-double eval_binary_op_d(TokenKind op, double left, double right) {
-    switch (op) {
-    case TOKEN_MUL:
-        return left * right;
-    case TOKEN_DIV:
-        return left / right;
-    case TOKEN_ADD:
-        return left + right;
-    case TOKEN_SUB:
-        return left - right;
-    default:
-        assert(0);
-        break;
-    }
-    return 0.0;
 }
 
 long long eval_binary_op_ll(TokenKind op, long long left, long long right) {
@@ -1184,8 +1146,8 @@ unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, uns
 }
 
 Val eval_unary_op(TokenKind op, Type *type, Val val) {
-    Operand operand = operand_const(type, val);
     if (is_integer_type(type)) {
+        Operand operand = operand_const(type, val);
         if (is_signed_type(type)) {
             convert_operand(&operand, type_llong);
             operand.val.ll = eval_unary_op_ll(op, operand.val.ll);
@@ -1193,19 +1155,18 @@ Val eval_unary_op(TokenKind op, Type *type, Val val) {
             convert_operand(&operand, type_ullong);
             operand.val.ll = eval_unary_op_ull(op, operand.val.ull);
         }
+        convert_operand(&operand, type);
+        return operand.val;
     } else {
-        convert_operand(&operand, type_double);
-        operand.val.d = eval_unary_op_d(op, operand.val.d);
+        return (Val){0};
     }
-    convert_operand(&operand, type);
-    return operand.val;
 }
 
 Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
-    Operand left_operand = operand_const(type, left);
-    Operand right_operand = operand_const(type, right);
-    Operand result_operand;
     if (is_integer_type(type)) {
+        Operand left_operand = operand_const(type, left);
+        Operand right_operand = operand_const(type, right);
+        Operand result_operand;
         if (is_signed_type(type)) {
             convert_operand(&left_operand, type_llong);
             convert_operand(&right_operand, type_llong);
@@ -1215,13 +1176,11 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
             convert_operand(&right_operand, type_ullong);
             result_operand = operand_const(type_ullong, (Val){.ull = eval_binary_op_ull(op, left_operand.val.ull, right_operand.val.ull)});
         }
+        convert_operand(&result_operand, type);
+        return result_operand.val;
     } else {
-        convert_operand(&left_operand, type_double);
-        convert_operand(&right_operand, type_double);
-        result_operand = operand_const(type_double, (Val){.d = eval_binary_op_d(op, left_operand.val.d, right_operand.val.d)});
+        return (Val){0};
     }
-    convert_operand(&result_operand, type);
-    return result_operand.val;
 }
 
 Operand resolve_expr_name(Expr *expr) {
@@ -1583,7 +1542,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_const(type_int, (Val){.i = expr->int_val});
         break;
     case EXPR_FLOAT:
-        result = operand_const(type_float, (Val){.f = expr->float_val});
+        result = operand_const(type_float, (Val){0});
         break;
     case EXPR_STR:
         result = operand_rvalue(type_ptr(type_char));
