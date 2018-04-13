@@ -840,7 +840,7 @@ bool resolve_stmt_block(StmtList block, Type *ret_type) {
     Sym *scope = sym_enter();
     bool returns = false;
     for (size_t i = 0; i < block.num_stmts; i++) {
-        returns = returns || resolve_stmt(block.stmts[i], ret_type);
+        returns = resolve_stmt(block.stmts[i], ret_type) || returns;
     }
     sym_leave(scope);
     return returns;
@@ -883,10 +883,10 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
             ElseIf elseif = stmt->if_stmt.elseifs[i];
             resolve_cond_expr(elseif.cond);
-            returns = returns && resolve_stmt_block(elseif.block, ret_type);
+            returns = resolve_stmt_block(elseif.block, ret_type) && returns;
         }
         if (stmt->if_stmt.else_block.stmts) {
-            returns = returns && resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
+            returns = resolve_stmt_block(stmt->if_stmt.else_block, ret_type) && returns;
         } else {
             returns = false;
         }
@@ -918,7 +918,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
                 if (!convert_operand(&case_operand, expr.type)) {
                     fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
                 }
-                returns = returns && resolve_stmt_block(switch_case.block, ret_type);
+                returns = resolve_stmt_block(switch_case.block, ret_type) && returns;
             }
             if (switch_case.is_default) {
                 if (has_default) {
