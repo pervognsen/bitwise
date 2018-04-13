@@ -827,13 +827,7 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type, decl->func.variadic);
 }
 
-typedef enum StmtCtrl {
-    CTRL_DEFAULT,
-    CTRL_ESCAPES,
-    CTRL_RETURNS,
-} StmtCtrl;
-
-StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type);
+bool resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
@@ -842,17 +836,14 @@ void resolve_cond_expr(Expr *expr) {
     }
 }
 
-StmtCtrl resolve_stmt_block(StmtList block, Type *ret_type) {
+bool resolve_stmt_block(StmtList block, Type *ret_type) {
     Sym *scope = sym_enter();
     bool returns = false;
-    bool escapes = false;
     for (size_t i = 0; i < block.num_stmts; i++) {
-        StmtCtrl ctrl = resolve_stmt(block.stmts[i], ret_type);
-        returns = returns || ctrl == CTRL_RETURNS;
-        escapes = escapes || ctrl == CTRL_ESCAPES;
+        returns = returns || resolve_stmt(block.stmts[i], ret_type);
     }
     sym_leave(scope);
-    return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
+    return returns;
 }
 
 void resolve_stmt_assign(Stmt *stmt) {
@@ -869,7 +860,7 @@ void resolve_stmt_assign(Stmt *stmt) {
     }
 }
 
-StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type) {
+bool resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
@@ -880,51 +871,43 @@ StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type) {
         } else if (ret_type != type_void) {
             fatal_error(stmt->pos, "Empty return expression for function with non-void return type");
         }
-        return CTRL_RETURNS;
+        return true;
     case STMT_BREAK:
     case STMT_CONTINUE:
-        return CTRL_ESCAPES;
+        return false;
     case STMT_BLOCK:
         return resolve_stmt_block(stmt->block, ret_type);
     case STMT_IF: {
         resolve_cond_expr(stmt->if_stmt.cond);
-        StmtCtrl if_ctrl = resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
-        bool escapes = if_ctrl == CTRL_ESCAPES;
-        bool returns = if_ctrl == CTRL_RETURNS;
+        bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
             ElseIf elseif = stmt->if_stmt.elseifs[i];
             resolve_cond_expr(elseif.cond);
-            StmtCtrl elseif_ctrl = resolve_stmt_block(elseif.block, ret_type);
-            escapes = escapes || elseif_ctrl == CTRL_ESCAPES;
-            returns = returns && elseif_ctrl == CTRL_RETURNS;
+            returns = returns && resolve_stmt_block(elseif.block, ret_type);
         }
         if (stmt->if_stmt.else_block.stmts) {
-            StmtCtrl else_ctrl = resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
-            escapes = escapes || else_ctrl == CTRL_ESCAPES;
-            returns = returns && else_ctrl == CTRL_RETURNS;
+            returns = returns && resolve_stmt_block(stmt->if_stmt.else_block, ret_type);
         } else {
             returns = false;
         }
-        return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
+        return returns;
     }
     case STMT_WHILE:
-    case STMT_DO_WHILE: {
+    case STMT_DO_WHILE:
         resolve_cond_expr(stmt->while_stmt.cond);
-        StmtCtrl ctrl = resolve_stmt_block(stmt->while_stmt.block, ret_type);
-        return ctrl == CTRL_RETURNS ? CTRL_RETURNS : CTRL_DEFAULT;
-    }
+        resolve_stmt_block(stmt->while_stmt.block, ret_type);
+        return false;
     case STMT_FOR: {
         Sym *scope = sym_enter();
         resolve_stmt(stmt->for_stmt.init, ret_type);
         resolve_cond_expr(stmt->for_stmt.cond);
         resolve_stmt_block(stmt->for_stmt.block, ret_type);
-        StmtCtrl ctrl = resolve_stmt(stmt->for_stmt.next, ret_type);
+        resolve_stmt(stmt->for_stmt.next, ret_type);
         sym_leave(scope);
-        return ctrl == CTRL_RETURNS ? CTRL_RETURNS : CTRL_DEFAULT;
+        return false;
     }
     case STMT_SWITCH: {
         Operand expr = resolve_expr(stmt->switch_stmt.expr);
-        bool escapes = false;
         bool returns = true;
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
@@ -935,9 +918,7 @@ StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type) {
                 if (!convert_operand(&case_operand, expr.type)) {
                     fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
                 }
-                StmtCtrl ctrl = resolve_stmt_block(switch_case.block, ret_type);
-                escapes = escapes || ctrl == CTRL_ESCAPES;
-                returns = returns && ctrl == CTRL_RETURNS;
+                returns = returns && resolve_stmt_block(switch_case.block, ret_type);
             }
             if (switch_case.is_default) {
                 if (has_default) {
@@ -949,20 +930,20 @@ StmtCtrl resolve_stmt(Stmt *stmt, Type *ret_type) {
         if (!has_default) {
             returns = false;
         }
-        return escapes ? CTRL_ESCAPES : returns ? CTRL_RETURNS : CTRL_DEFAULT;
+        return returns;
     }
     case STMT_ASSIGN:
         resolve_stmt_assign(stmt);
-        return CTRL_DEFAULT;
+        return false;
     case STMT_INIT:
         sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
-        return CTRL_DEFAULT;
+        return false;
     case STMT_EXPR:
         resolve_expr(stmt->expr);
-        return CTRL_DEFAULT;
+        return false;
     default:
         assert(0);
-        return CTRL_DEFAULT;
+        return false;
     }
 }
 
@@ -976,9 +957,9 @@ void resolve_func_body(Sym *sym) {
         sym_push_var(param.name, resolve_typespec(param.type));
     }
     Type *ret_type = resolve_typespec(decl->func.ret_type);
-    StmtCtrl ctrl = resolve_stmt_block(decl->func.block, ret_type);
+    bool returns = resolve_stmt_block(decl->func.block, ret_type);
     sym_leave(scope);
-    if (ret_type != type_void && ctrl != CTRL_RETURNS) {
+    if (ret_type != type_void && !returns) {
         fatal_error(decl->pos, "Not all control paths return values");
     }
 }

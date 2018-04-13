@@ -172,6 +172,7 @@ func test_ctrl(): int {
         }
         return 42;
     }
+    return 0;
 }
 
 func main(argc: int, argv: char**): int {
