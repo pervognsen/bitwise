@@ -450,8 +450,8 @@ void sym_leave(Sym *sym) {
 
 void sym_global_put(Sym *sym) {
     if (map_get(&global_syms_map, (void *)sym->name)) {
-        SrcPos pos = sym->decl ? sym->decl->pos : (SrcPos){0};
-        fatal_error(pos, "Duplicate symbol definition");
+        SrcPos pos = sym->decl ? sym->decl->pos : (SrcPos){.name = "<unknown>"};
+        fatal_error(pos, "Duplicate definition of global symbol");
     }
     map_put(&global_syms_map, (void *)sym->name, sym);
     buf_push(global_syms_buf, sym);
@@ -1499,6 +1499,19 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
 
 Operand resolve_expr_call(Expr *expr) {
     assert(expr->kind == EXPR_CALL);
+    if (expr->call.expr->kind == EXPR_NAME) {
+        Sym *sym = resolve_name(expr->call.expr->name);
+        if (sym->kind == SYM_TYPE) {
+            if (expr->call.num_args != 1) {
+                fatal_error(expr->pos, "Type conversion operator takes 1 argument");
+            }
+            Operand operand = resolve_expr(expr->call.args[0]);
+            if (!convert_operand(&operand, sym->type)) {
+                fatal_error(expr->pos, "Invalid type conversion");
+            }
+            return operand;
+        }
+    }
     Operand func = resolve_expr(expr->call.expr);
     if (func.type->kind != TYPE_FUNC) {
         fatal_error(expr->pos, "Trying to call non-function value");

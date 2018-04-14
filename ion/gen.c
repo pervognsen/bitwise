@@ -258,7 +258,9 @@ void gen_expr(Expr *expr) {
         genf(")");
         break;
     case EXPR_CALL:
+        genf("(");
         gen_expr(expr->call.expr);
+        genf(")");
         genf("(");
         for (size_t i = 0; i < expr->call.num_args; i++) {
             if (i != 0) {
