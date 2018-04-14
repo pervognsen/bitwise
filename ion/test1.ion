@@ -189,6 +189,6 @@ func main(argc: int, argv: char**): int {
     printf("You wrote '%c'\n", c);
     va_test(1);
     va_test(1, 2);
-    argv = 0;
+    argv = null;
     return 0;
 }

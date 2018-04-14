@@ -1718,6 +1718,7 @@ void init_global_syms(void) {
 
     sym_global_const("true", type_bool, (Val){.b = true});
     sym_global_const("false", type_bool, (Val){.b = false});
+    sym_global_const("null", type_ptr(type_void), (Val){.p = 0});
 }
 
 void sym_global_decls(DeclSet *declset) {
