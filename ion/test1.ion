@@ -207,10 +207,15 @@ struct ConstVector {
     x, y: int const;
 }
 
+func f5(p: void const*) {
+}
+
 func test_convert() {
     a: int const* = 0;
     b: int* = 0;
     a = b;
+    p: int* = 0;
+    f5(p);
 }
 
 func test_const() {

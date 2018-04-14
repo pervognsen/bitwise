@@ -267,7 +267,9 @@ bool is_convertible(Operand *operand, Type *dest) {
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
     } else if (is_ptr_type(dest) && is_ptr_type(src)) {
-        return src->base == unqualify_type(dest->base) || dest->base == type_void || src->base == type_void;
+        dest = unqualify_type(dest->base);
+        src = src->base;
+        return dest == src || dest == type_void || src == type_void;
     } else if (is_ptr_type(dest) && is_null_ptr(*operand)) {
         return true;
     } else {
