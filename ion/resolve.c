@@ -88,6 +88,14 @@ Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
 const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
 
+bool is_ptr_type(Type *type) {
+    return type->kind == TYPE_PTR;
+}
+
+bool is_array_type(Type *type) {
+    return type->kind == TYPE_ARRAY;
+}
+
 bool is_integer_type(Type *type) {
     return TYPE_BOOL <= type->kind && type->kind <= TYPE_ULLONG;
 }
@@ -612,7 +620,7 @@ bool is_null_ptr(Operand operand);
             operand->val.ull = (unsigned long long)operand->val.t; \
             break; \
         case TYPE_PTR: \
-            if (operand->type->kind == TYPE_PTR || is_null_ptr(*operand)) { \
+            if (is_ptr_type(operand->type) || is_null_ptr(*operand)) { \
                 operand->val.p = (uintptr_t)operand->val.t; \
             } else { \
                 operand->is_const = false; \
@@ -634,9 +642,9 @@ bool is_convertible(Operand *operand, Type *dest) {
         return true;
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
-    } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
+    } else if (is_ptr_type(dest) && is_ptr_type(src)) {
         return dest->base == type_void || src->base == type_void;
-    } else if (is_null_ptr(*operand) && dest->kind == TYPE_PTR) {
+    } else if (is_ptr_type(dest) && is_null_ptr(*operand)) {
         return true;
     } else {
         return false;
@@ -648,10 +656,10 @@ bool is_castable(Operand *operand, Type *dest) {
     if (is_convertible(operand, dest)) {
         return true;
     } else if (is_arithmetic_type(dest)) {
-        return src->kind == TYPE_PTR;
+        return is_ptr_type(src);
     } else if (is_arithmetic_type(src)) {
-        return dest->kind == TYPE_PTR;
-    } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
+        return is_ptr_type(dest);
+    } else if (is_ptr_type(dest) && is_ptr_type(src)) {
         return true;
     } else {
         return false;
@@ -707,7 +715,7 @@ bool convert_operand(Operand *operand, Type *type) {
 #undef CASE
 
 bool is_null_ptr(Operand operand) {
-    if (operand.is_const && (operand.type->kind == TYPE_PTR || is_arithmetic_type(operand.type))) {
+    if (operand.is_const && (is_ptr_type(operand.type) || is_arithmetic_type(operand.type))) {
         cast_operand(&operand, type_ullong);
         return operand.val.ull == 0;
     } else {
@@ -880,9 +888,6 @@ void complete_type(Type *type) {
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
         AggregateItem item = decl->aggregate.items[i];
         Type *item_type = resolve_typespec(item.type);
-//        if (item_type->kind == TYPE_CONST) {
-//            fatal_error(item.pos, "Field cannot be const qualified");
-//        }
         complete_type(item_type);
         for (size_t j = 0; j < item.num_names; j++) {
             buf_push(fields, (TypeField){item.names[j], item_type});
@@ -917,7 +922,7 @@ Type *resolve_decl_var(Decl *decl) {
     if (decl->var.expr) {
         Operand operand = resolve_expected_expr(decl->var.expr, type);
         if (type) {
-            if (type->kind == TYPE_ARRAY && operand.type->kind == TYPE_ARRAY && type->base == operand.type->base && !type->num_elems) {
+            if (is_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base && type->num_elems == 0) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
                 if (!convert_operand(&operand, type)) {
@@ -958,7 +963,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
-    if (!is_arithmetic_type(cond.type) && cond.type->kind != TYPE_PTR) {
+    if (!is_arithmetic_type(cond.type) && !is_ptr_type(cond.type)) {
         fatal_error(expr->pos, "Conditional expression must have arithmetic or pointer type");
     }
 }
@@ -1147,7 +1152,7 @@ Operand resolve_expr_field(Expr *expr) {
     bool is_const_type = operand.type->kind == TYPE_CONST;
     Type *type = unqualify_type(operand.type);
     complete_type(type);
-    if (type->kind == TYPE_PTR) {
+    if (is_ptr_type(type)) {
         type = type->base;
     }
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
@@ -1370,7 +1375,7 @@ Operand resolve_expr_unary(Expr *expr) {
         Type *type = operand.type;
         switch (expr->unary.op) {
         case TOKEN_MUL:
-            if (type->kind != TYPE_PTR) {
+            if (!is_ptr_type(type)) {
                 fatal_error(expr->pos, "Cannot deref non-ptr type");
             }
             return operand_lvalue(type->base);
@@ -1433,9 +1438,9 @@ Operand resolve_expr_binary(Expr *expr) {
     case TOKEN_ADD:
         if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
             return resolve_binary_arithmetic_op(op, left, right);
-        } else if (left.type->kind == TYPE_PTR && is_integer_type(right.type)) {
+        } else if (is_ptr_type(left.type) && is_integer_type(right.type)) {
             return operand_rvalue(left.type);
-        } else if (right.type->kind == TYPE_PTR && is_integer_type(left.type)) {
+        } else if (is_ptr_type(right.type) && is_integer_type(left.type)) {
             return operand_rvalue(right.type);
         } else {
             fatal_error(expr->pos, "Operands of + must both have arithmetic type, or pointer and integer type");
@@ -1444,9 +1449,9 @@ Operand resolve_expr_binary(Expr *expr) {
     case TOKEN_SUB:
         if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
             return resolve_binary_arithmetic_op(op, left, right);
-        } else if (left.type->kind == TYPE_PTR && is_integer_type(right.type)) {
+        } else if (is_ptr_type(left.type) && is_integer_type(right.type)) {
             return operand_rvalue(left.type);
-        } else if (left.type->kind == TYPE_PTR && right.type->kind == TYPE_PTR) {
+        } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
             if (left.type->base != right.type->base) {
                 fatal_error(expr->pos, "Cannot subtract pointers to different types");
             }
@@ -1486,12 +1491,12 @@ Operand resolve_expr_binary(Expr *expr) {
             Operand result = resolve_binary_arithmetic_op(op, left, right);
             cast_operand(&result, type_int);
             return result;
-        } else if (left.type->kind == TYPE_PTR && right.type->kind == TYPE_PTR) {
+        } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
             if (left.type->base != right.type->base) {
                 fatal_error(expr->pos, "Cannot compare pointers to different types");
             }
             return operand_rvalue(type_int);
-        } else if ((is_null_ptr(left) && right.type->kind == TYPE_PTR) || (is_null_ptr(right) && left.type->kind == TYPE_PTR)) {
+        } else if ((is_null_ptr(left) && is_ptr_type(right.type)) || (is_null_ptr(right) && is_ptr_type(left.type))) {
             return operand_rvalue(type_int);
         } else {
             fatal_error(expr->pos, "Operands of %s must be arithmetic types or compatible pointer types", op_name);
@@ -1508,9 +1513,14 @@ Operand resolve_expr_binary(Expr *expr) {
         break;
     case TOKEN_AND_AND:
     case TOKEN_OR_OR:
-        // TODO: const expr evaluation
         if (is_scalar_type(left.type) && is_scalar_type(right.type)) {
-            return operand_rvalue(type_int);
+            if (left.is_const && right.is_const) {
+                cast_operand(&left, type_bool);
+                cast_operand(&right, type_bool);
+                return operand_const(type_int, (Val){.i = left.val.b && right.val.b});
+            } else {
+                return operand_rvalue(type_int);
+            }
         } else {
             fatal_error(expr->pos, "Operands of %s must have scalar types", op_name);
         }
@@ -1680,7 +1690,7 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
 Operand resolve_expr_index(Expr *expr) {
     assert(expr->kind == EXPR_INDEX);
     Operand operand = resolve_expr_rvalue(expr->index.expr);
-    if (operand.type->kind != TYPE_PTR) {
+    if (!is_ptr_type(operand.type)) {
         fatal_error(expr->pos, "Can only index arrays and pointers");
     }
     Operand index = resolve_expr_rvalue(expr->index.index);
