@@ -563,9 +563,7 @@ Operand operand_const(Type *type, Val val) {
 }
 
 Operand operand_decay(Operand operand) {
-    if (operand.type->kind == TYPE_CONST) {
-        operand.type = operand.type->base;
-    }
+    operand.type = unqual_type(operand.type);
     if (operand.type->kind == TYPE_ARRAY) {
         return operand_rvalue(type_ptr(operand.type->base));
     } else {
@@ -630,17 +628,32 @@ bool is_null_ptr(Operand operand);
         } \
         break;
 
-bool is_castable(Type *dest, Type *src) {
+bool is_convertible(Operand *operand, Type *dest) {
+    dest = unqual_type(dest);
+    Type *src = unqual_type(operand->type);
     if (dest == src) {
         return true;
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
     } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
         return dest->base == type_void || src->base == type_void;
+    } else if (is_null_ptr(*operand) && dest->kind == TYPE_PTR) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool is_castable(Operand *operand, Type *dest) {
+    Type *src = operand->type;
+    if (is_convertible(operand, dest)) {
+        return true;
     } else if (is_arithmetic_type(dest)) {
         return src->kind == TYPE_PTR;
     } else if (is_arithmetic_type(src)) {
         return dest->kind == TYPE_PTR;
+    } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
+        return true;
     } else {
         return false;
     }
@@ -651,10 +664,7 @@ bool cast_operand(Operand *operand, Type *type) {
     type = unqual_type(type);
     operand->type = unqual_type(operand->type);
     if (operand->type != type) {
-        if (!is_castable(type, operand->type)) {
-            return false;
-        }
-        if (type->kind == TYPE_PTR && is_arithmetic_type(operand->type) && !is_null_ptr(*operand)) {
+        if (!is_castable(operand, type)) {
             return false;
         }
         if (operand->is_const) {
@@ -687,8 +697,12 @@ bool cast_operand(Operand *operand, Type *type) {
 }
 
 bool convert_operand(Operand *operand, Type *type) {
-    // ...
-    return cast_operand(operand, type);
+    if (is_convertible(operand, type)) {
+        cast_operand(operand, type);
+        *operand = operand_rvalue(operand->type);
+        return true;
+    }
+    return false;
 }
 
 #undef CASE
@@ -907,7 +921,7 @@ Type *resolve_decl_var(Decl *decl) {
             if (type->kind == TYPE_ARRAY && operand.type->kind == TYPE_ARRAY && type->base == operand.type->base && !type->num_elems) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
-                if (!cast_operand(&operand, type)) {
+                if (!convert_operand(&operand, type)) {
                     fatal_error(decl->pos, "Illegal conversion in variable initializer");
                 }
             }
@@ -971,7 +985,7 @@ void resolve_stmt_assign(Stmt *stmt) {
     }
     if (stmt->assign.right) {
         Operand right = resolve_decayed_expected_expr(stmt->assign.right, left.type);
-        if (!cast_operand(&right, left.type)) {
+        if (!convert_operand(&right, left.type)) {
             fatal_error(stmt->pos, "Illegal conversion in assignment statement");
         }
     }
@@ -982,7 +996,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
     case STMT_RETURN:
         if (stmt->expr) {
             Operand operand = resolve_expected_expr(stmt->expr, ret_type);
-            if (!cast_operand(&operand, ret_type)) {
+            if (!convert_operand(&operand, ret_type)) {
                 fatal_error(stmt->pos, "Illegal conversion in return expression");
             }
         } else if (ret_type != type_void) {
@@ -1032,7 +1046,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
                 Expr *case_expr = switch_case.exprs[j];
                 Operand case_operand = resolve_expr(case_expr);
-                if (!cast_operand(&case_operand, expr.type)) {
+                if (!convert_operand(&case_operand, expr.type)) {
                     fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
                 }
                 returns = resolve_stmt_block(switch_case.block, ret_type) && returns;
@@ -1545,7 +1559,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             }
             Type *field_type = type->aggregate.fields[index].type;
             Operand init = resolve_decayed_expected_expr(field.init, field_type);
-            if (!cast_operand(&init, field_type)) {
+            if (!convert_operand(&init, field_type)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
             index++;
@@ -1573,7 +1587,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                 fatal_error(field.pos, "Field initializer in array compound literal out of range");
             }
             Operand init = resolve_decayed_expected_expr(field.init, type->base);
-            if (!cast_operand(&init, type->base)) {
+            if (!convert_operand(&init, type->base)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
             max_index = MAX(max_index, index);
@@ -1589,7 +1603,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         if (expr->compound.num_fields == 1) {
             CompoundField field = expr->compound.fields[0];
             Operand init = resolve_decayed_expected_expr(field.init, type);
-            if (!cast_operand(&init, type)) {
+            if (!convert_operand(&init, type)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
         }
@@ -1601,6 +1615,9 @@ Operand resolve_expr_call(Expr *expr) {
     assert(expr->kind == EXPR_CALL);
     if (expr->call.expr->kind == EXPR_NAME) {
         Sym *sym = resolve_name(expr->call.expr->name);
+        if (!sym) {
+            fatal_error(expr->pos, "Name in expression does not exist");
+        }
         if (sym->kind == SYM_TYPE) {
             if (expr->call.num_args != 1) {
                 fatal_error(expr->pos, "Type conversion operator takes 1 argument");
@@ -1612,7 +1629,7 @@ Operand resolve_expr_call(Expr *expr) {
             return operand;
         }
     }
-    Operand func = resolve_expr(expr->call.expr);
+    Operand func = resolve_decayed_expr(expr->call.expr);
     if (func.type->kind != TYPE_FUNC) {
         fatal_error(expr->pos, "Trying to call non-function value");
     }
@@ -1626,7 +1643,7 @@ Operand resolve_expr_call(Expr *expr) {
     for (size_t i = 0; i < num_params; i++) {
         Type *param_type = func.type->func.params[i];
         Operand arg = resolve_decayed_expected_expr(expr->call.args[i], param_type);
-        if (!cast_operand(&arg, param_type)) {
+        if (!convert_operand(&arg, param_type)) {
             fatal_error(expr->call.args[i]->pos, "Illegal conversion in call argument expression");
         }
     }

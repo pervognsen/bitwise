@@ -195,7 +195,13 @@ func test_const() {
     // escape_to_char[0] = 0;
     f4(escape_to_char);
     p := (:int const*)0; // (:int*)0
-    p = escape_to_char;
+    p = escape_to_char + 1;
+    q := (:int*)escape_to_char;
+    // q = escape_to_char;
+    p = (:int const*)1;
+    // p = 1;
+    // i = p;
+    i = ullong(p);
 }
 
 func main(argc: int, argv: char const**): int {
