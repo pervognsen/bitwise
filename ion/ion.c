@@ -4,7 +4,7 @@ bool ion_compile_file(const char *path) {
         return false;
     }
     init_stream(path, str);
-    init_global_syms();
+    init_builtins();
     DeclSet *declset = parse_file();
     sym_global_decls(declset);
     finalize_syms();
@@ -23,7 +23,7 @@ bool ion_compile_file(const char *path) {
 
 const char *ion_compile_str(const char *str) {
     init_stream(NULL, str);
-    init_global_syms();
+    init_builtins();
     sym_global_decls(parse_file());
     finalize_syms();
     gen_all();

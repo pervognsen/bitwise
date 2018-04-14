@@ -1691,7 +1691,7 @@ Operand resolve_const_expr(Expr *expr) {
     return result;
 }
 
-void init_global_syms(void) {
+void init_builtins(void) {
     sym_global_type("void", type_void);
     sym_global_type("bool", type_bool);
     sym_global_type("char", type_char);
@@ -1780,7 +1780,7 @@ void resolve_test(void) {
     assert(int_int_func != int_func);
     assert(int_func == type_func(NULL, 0, type_int, false));
 
-    init_global_syms();
+    init_builtins();
 
     const char *code[] = {
         "union IntOrPtr { i: int; p: int*; }",

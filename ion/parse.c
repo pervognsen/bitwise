@@ -4,13 +4,24 @@ Typespec *parse_type(void);
 Stmt *parse_stmt(void);
 Expr *parse_expr(void);
 
+Typespec *parse_type_func_param(void) {
+    Typespec *type = parse_type();
+    if (match_token(TOKEN_COLON)) {
+        if (type->kind != TYPESPEC_NAME) {
+            syntax_error("Colons in parameters of func types must be preceded by names.");
+        }
+        type = parse_type();
+    }
+    return type;
+}
+
 Typespec *parse_type_func(void) {
     SrcPos pos = token.pos;
     Typespec **args = NULL;
     bool variadic = false;
     expect_token(TOKEN_LPAREN);
     if (!is_token(TOKEN_RPAREN)) {
-        buf_push(args, parse_type());
+        buf_push(args, parse_type_func_param());
         while (match_token(TOKEN_COMMA)) {
             if (match_token(TOKEN_ELLIPSIS)) {
                 if (variadic) {
@@ -21,7 +32,7 @@ Typespec *parse_type_func(void) {
                 if (variadic) {
                     syntax_error("Ellipsis must be last parameter in function type");
                 }
-                buf_push(args, parse_type());
+                buf_push(args, parse_type_func_param());
             }
         }
     }

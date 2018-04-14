@@ -126,7 +126,7 @@ func va_test(x: int, ...): int {
     return 0;
 }
 
-typedef F = func(int, ...):int
+typedef F = func(x: int, ...): int
 
 func test_ops() {
     pi := 3.14;
