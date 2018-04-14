@@ -58,5 +58,9 @@ func rot2(a: float, b: vec2): vec2 {
 }
 
 func main(argc: int, argv: char**): int {
+    v := vec2{1, 0};
+    w := vec2{0, 1};
+    v = rot2(3.14/4, v);
+    w = add2(w, {0.1, 0.2});
     return 0;
 }

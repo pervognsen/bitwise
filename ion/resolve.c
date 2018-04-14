@@ -409,17 +409,25 @@ Sym *sym_enum_const(const char *name, Decl *decl) {
     return sym_new(SYM_ENUM_CONST, name, decl);
 }
 
-Sym *sym_get(const char *name) {
+Sym *sym_get_local(const char *name) {
     for (Sym *it = local_syms_end; it != local_syms; it--) {
         Sym *sym = it-1;
         if (sym->name == name) {
             return sym;
         }
     }
-    return map_get(&global_syms_map, (void *)name);
+    return NULL;
 }
 
-void sym_push_var(const char *name, Type *type) {
+Sym *sym_get(const char *name) {
+    Sym *sym = sym_get_local(name);
+    return sym ? sym : map_get(&global_syms_map, (void *)name);
+}
+
+bool sym_push_var(const char *name, Type *type) {
+    if (sym_get_local(name)) {
+        return false;
+    }
     if (local_syms_end == local_syms + MAX_LOCAL_SYMS) {
         fatal("Too many local symbols");
     }
@@ -429,6 +437,7 @@ void sym_push_var(const char *name, Type *type) {
         .state = SYM_RESOLVED,
         .type = type,
     };
+    return true;
 }
 
 Sym *sym_enter(void) {
@@ -440,6 +449,10 @@ void sym_leave(Sym *sym) {
 }
 
 void sym_global_put(Sym *sym) {
+    if (map_get(&global_syms_map, (void *)sym->name)) {
+        SrcPos pos = sym->decl ? sym->decl->pos : (SrcPos){0};
+        fatal_error(pos, "Duplicate symbol definition");
+    }
     map_put(&global_syms_map, (void *)sym->name, sym);
     buf_push(global_syms_buf, sym);
 }
@@ -513,7 +526,7 @@ Operand operand_const(Type *type, Val val) {
     case k: \
         switch (type->kind) { \
         case TYPE_BOOL: \
-            operand->val.b = operand->val.t != 0; \
+            operand->val.b = (bool)operand->val.t; \
             break; \
         case TYPE_CHAR: \
             operand->val.c = (char)operand->val.t; \
@@ -933,7 +946,9 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         resolve_stmt_assign(stmt);
         return false;
     case STMT_INIT:
-        sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type);
+        if (!sym_push_var(stmt->init.name, resolve_expr(stmt->init.expr).type)) {
+            fatal_error(stmt->pos, "Shadowed definition of local symbol");
+        }
         return false;
     case STMT_EXPR:
         resolve_expr(stmt->expr);
