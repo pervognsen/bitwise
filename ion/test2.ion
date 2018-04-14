@@ -1,11 +1,11 @@
 @foreign
-func sqrtf(f: float): float {}
+func sqrtf(f: float): float { return 0; }
 
 @foreign
-func cosf(f: float): float {}
+func cosf(f: float): float { return 0; }
 
 @foreign
-func sinf(f: float): float {}
+func sinf(f: float): float { return 0; }
 
 struct vec2 {
     x, y: float;

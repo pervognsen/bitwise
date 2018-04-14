@@ -472,7 +472,7 @@ void sym_global_const(const char *name, Type *type, Val val) {
 }
 
 void sym_global_func(const char *name, Type *type) {
-    assert(type->kind = TYPE_FUNC);
+    assert(type->kind == TYPE_FUNC);
     Sym *sym = sym_new(SYM_FUNC, str_intern(name), NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
@@ -927,10 +927,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
                 has_default = true;
             }
         }
-        if (!has_default) {
-            returns = false;
-        }
-        return returns;
+        return returns && has_default;
     }
     case STMT_ASSIGN:
         resolve_stmt_assign(stmt);
@@ -1017,8 +1014,11 @@ Operand resolve_expr_field(Expr *expr) {
     Operand left = resolve_expr(expr->field.expr);
     Type *type = left.type;
     complete_type(type);
+    if (type->kind == TYPE_PTR) {
+        type = type->ptr.elem;
+    }
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
-        fatal_error(expr->pos, "Can only access fields on aggregate types");
+        fatal_error(expr->pos, "Can only access fields on aggregates or pointers to aggregates");
         return operand_null;
     }
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {

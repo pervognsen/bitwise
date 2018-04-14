@@ -20,6 +20,8 @@ typedef A = int[1 + 2*sizeof(h())]
 
 func h(): uchar {
     Vector{x=1, y=2}.x = 42;
+    v := &Vector{1, 2};
+    v.x = 42;
     p := &int{0};
     x := uint{1} + long{2};
     y := +c;

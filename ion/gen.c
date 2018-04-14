@@ -276,7 +276,7 @@ void gen_expr(Expr *expr) {
         break;
     case EXPR_FIELD:
         gen_expr(expr->field.expr);
-        genf(".%s", expr->field.name);
+        genf("%s%s", expr->field.expr->type->kind == TYPE_PTR ? "->" : ".", expr->field.name);
         break;
     case EXPR_COMPOUND:
         gen_expr_compound(expr, false);
