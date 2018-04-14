@@ -22,6 +22,15 @@ const char *gen_preamble =
     "typedef long long llong;\n"
     "typedef unsigned long long ullong;\n"
     "\n"
+    "typedef uchar uint8;\n"
+    "typedef schar int8;\n"
+    "typedef ushort uint16;\n"
+    "typedef short int16;\n"
+    "typedef uint uint32;\n"
+    "typedef int int32;\n"
+    "typedef ullong uint64;\n"
+    "typedef llong int64;\n"
+    "\n"
     ;
 
 void genln(void) {

@@ -450,7 +450,7 @@ void sym_leave(Sym *sym) {
 
 void sym_global_put(Sym *sym) {
     if (map_get(&global_syms_map, (void *)sym->name)) {
-        SrcPos pos = sym->decl ? sym->decl->pos : (SrcPos){.name = "<unknown>"};
+        SrcPos pos = sym->decl ? sym->decl->pos : pos_builtin;
         fatal_error(pos, "Duplicate definition of global symbol");
     }
     map_put(&global_syms_map, (void *)sym->name, sym);
@@ -471,6 +471,13 @@ Sym *sym_global_decl(Decl *decl) {
 
 void sym_global_type(const char *name, Type *type) {
     Sym *sym = sym_new(SYM_TYPE, str_intern(name), NULL);
+    sym->state = SYM_RESOLVED;
+    sym->type = type;
+    sym_global_put(sym);
+}
+
+void sym_global_typedef(const char *name, Type *type) {
+    Sym *sym = sym_new(SYM_TYPE, str_intern(name), decl_typedef(pos_builtin, name, typespec_name(pos_builtin, name)));
     sym->state = SYM_RESOLVED;
     sym->type = type;
     sym_global_put(sym);
@@ -1671,6 +1678,15 @@ void init_global_syms(void) {
     sym_global_type("llong", type_llong);
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
+
+    sym_global_typedef("uint8", type_uchar);
+    sym_global_typedef("int8", type_schar);
+    sym_global_typedef("uint16", type_ushort);
+    sym_global_typedef("int16", type_short);
+    sym_global_typedef("uint32", type_uint);
+    sym_global_typedef("int32", type_int);
+    sym_global_typedef("uint64", type_ullong);
+    sym_global_typedef("int64", type_llong);
 
     sym_global_const("true", type_bool, (Val){.b = true});
     sym_global_const("false", type_bool, (Val){.b = false});

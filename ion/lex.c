@@ -210,6 +210,8 @@ typedef struct SrcPos {
     int line;
 } SrcPos;
 
+SrcPos pos_builtin = {.name = "<builtin>"};
+
 typedef struct Token {
     TokenKind kind;
     TokenMod mod;
@@ -229,6 +231,9 @@ const char *stream;
 const char *line_start;
 
 void error(SrcPos pos, const char *fmt, ...) {
+    if (pos.name == NULL) {
+        pos = pos_builtin;
+    }
     va_list args;
     va_start(args, fmt);
     printf("%s(%d): error: ", pos.name, pos.line);
