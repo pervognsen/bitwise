@@ -178,6 +178,9 @@ func test_ctrl(): int {
 }
 
 func main(argc: int, argv: char**): int {
+    if (argv == 0) {
+        printf("argv is null\n");
+    }
     test_bool();
     test_ops();
     b := example_test();
@@ -186,5 +189,6 @@ func main(argc: int, argv: char**): int {
     printf("You wrote '%c'\n", c);
     va_test(1);
     va_test(1, 2);
+    argv = 0;
     return 0;
 }

@@ -347,6 +347,7 @@ typedef union Val {
     unsigned long ul;
     long long ll;
     unsigned long long ull;
+    uintptr_t p;
 } Val;
 
 typedef struct Sym {
@@ -529,6 +530,8 @@ Operand operand_const(Type *type, Val val) {
     };
 }
 
+bool is_null_ptr(Operand operand);
+
 #define CASE(k, t) \
     case k: \
         switch (type->kind) { \
@@ -568,6 +571,13 @@ Operand operand_const(Type *type, Val val) {
         case TYPE_ULLONG: \
             operand->val.ull = (unsigned long long)operand->val.t; \
             break; \
+        case TYPE_PTR: \
+            if (operand->type->kind == TYPE_PTR || is_null_ptr(*operand)) { \
+                operand->val.p = (uintptr_t)operand->val.t; \
+            } else { \
+                operand->is_const = false; \
+            } \
+            break; \
         case TYPE_FLOAT: \
         case TYPE_DOUBLE: \
             break; \
@@ -584,6 +594,10 @@ bool is_convertible(Type *dest, Type *src) {
         return true;
     } else if (dest->kind == TYPE_PTR && src->kind == TYPE_PTR) {
         return dest->ptr.elem == type_void || src->ptr.elem == type_void;
+    } else if (is_arithmetic_type(dest)) {
+        return src->kind == TYPE_PTR;
+    } else if (is_arithmetic_type(src)) {
+        return dest->kind == TYPE_PTR;
     } else {
         return false;
     }
@@ -594,6 +608,9 @@ bool convert_operand(Operand *operand, Type *type) {
         return true;
     }
     if (!is_convertible(operand->type, type)) {
+        return false;
+    }
+    if (type->kind == TYPE_PTR && is_arithmetic_type(operand->type) && !is_null_ptr(*operand)) {
         return false;
     }
     if (operand->is_const) {
@@ -613,6 +630,7 @@ bool convert_operand(Operand *operand, Type *type) {
             CASE(TYPE_ULONG, ul)
             CASE(TYPE_LLONG, ll)
             CASE(TYPE_ULLONG, ull)
+            CASE(TYPE_PTR, p)
             default:
                 operand->is_const = false;
                 break;
@@ -624,6 +642,15 @@ bool convert_operand(Operand *operand, Type *type) {
 }
 
 #undef CASE
+
+bool is_null_ptr(Operand operand) {
+    if (operand.is_const && (operand.type->kind == TYPE_PTR || is_arithmetic_type(operand.type))) {
+        convert_operand(&operand, type_ullong);
+        return operand.val.ull == 0;
+    } else {
+        return false;
+    }
+}
 
 Val convert_val(Type *dest_type, Type *src_type, Val src_val) {
     Operand operand = operand_const(src_type, src_val);
@@ -1383,8 +1410,9 @@ Operand resolve_expr_binary(Expr *expr) {
                 fatal_error(expr->pos, "Cannot compare pointers to different types");
             }
             return operand_rvalue(type_int);
+        } else if ((is_null_ptr(left) && right.type->kind == TYPE_PTR) || (is_null_ptr(right) && left.type->kind == TYPE_PTR)) {
+            return operand_rvalue(type_int);
         } else {
-            // TODO: handle null pointer constants
             fatal_error(expr->pos, "Operands of %s must be arithmetic types or compatible pointer types", op_name);
         }
         break;
