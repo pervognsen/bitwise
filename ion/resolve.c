@@ -227,14 +227,13 @@ Type *type_const(Type *base) {
     return type;
 }
 
-Type *unqual_type(Type *type) {
+Type *unqualify_type(Type *type) {
     if (type->kind == TYPE_CONST) {
         return type->base;
     } else {
         return type;
     }
 }
-
 
 typedef struct CachedArrayType {
     Type *elem;
@@ -320,7 +319,7 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
         it->offset = type->size;
         type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
         type->align = MAX(type->align, type_alignof(it->type));
-        nonmodifiable = type->nonmodifiable || nonmodifiable;
+        nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -338,7 +337,7 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
         it->offset = 0;
         type->size = MAX(type->size, type_sizeof(it->type));
         type->align = MAX(type->align, type_alignof(it->type));
-        nonmodifiable = type->nonmodifiable || nonmodifiable;
+        nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
@@ -543,7 +542,7 @@ Operand operand_null;
 
 Operand operand_rvalue(Type *type) {
     return (Operand){
-        .type = unqual_type(type),
+        .type = unqualify_type(type),
     };
 }
 
@@ -556,14 +555,14 @@ Operand operand_lvalue(Type *type) {
 
 Operand operand_const(Type *type, Val val) {
     return (Operand){
-        .type = unqual_type(type),
+        .type = unqualify_type(type),
         .is_const = true,
         .val = val,
     };
 }
 
 Operand operand_decay(Operand operand) {
-    operand.type = unqual_type(operand.type);
+    operand.type = unqualify_type(operand.type);
     if (operand.type->kind == TYPE_ARRAY) {
         operand.type = type_ptr(operand.type->base);
     }
@@ -629,8 +628,8 @@ bool is_null_ptr(Operand operand);
         break;
 
 bool is_convertible(Operand *operand, Type *dest) {
-    dest = unqual_type(dest);
-    Type *src = unqual_type(operand->type);
+    dest = unqualify_type(dest);
+    Type *src = unqualify_type(operand->type);
     if (dest == src) {
         return true;
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
@@ -661,8 +660,8 @@ bool is_castable(Operand *operand, Type *dest) {
 
 bool cast_operand(Operand *operand, Type *type) {
     Type *qual_type = type;
-    type = unqual_type(type);
-    operand->type = unqual_type(operand->type);
+    type = unqualify_type(type);
+    operand->type = unqualify_type(operand->type);
     if (operand->type != type) {
         if (!is_castable(operand, type)) {
             return false;
@@ -881,9 +880,9 @@ void complete_type(Type *type) {
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
         AggregateItem item = decl->aggregate.items[i];
         Type *item_type = resolve_typespec(item.type);
-        if (item_type->kind == TYPE_CONST) {
-            fatal_error(item.pos, "Field cannot be const qualified");
-        }
+//        if (item_type->kind == TYPE_CONST) {
+//            fatal_error(item.pos, "Field cannot be const qualified");
+//        }
         complete_type(item_type);
         for (size_t j = 0; j < item.num_names; j++) {
             buf_push(fields, (TypeField){item.names[j], item_type});
@@ -1064,7 +1063,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         resolve_stmt_assign(stmt);
         return false;
     case STMT_INIT:
-        if (!sym_push_var(stmt->init.name, unqual_type(resolve_expr(stmt->init.expr).type))) {
+        if (!sym_push_var(stmt->init.name, unqualify_type(resolve_expr(stmt->init.expr).type))) {
             fatal_error(stmt->pos, "Shadowed definition of local symbol");
         }
         return false;
@@ -1146,7 +1145,7 @@ Operand resolve_expr_field(Expr *expr) {
     assert(expr->kind == EXPR_FIELD);
     Operand operand = resolve_expr(expr->field.expr);
     bool is_const_type = operand.type->kind == TYPE_CONST;
-    Type *type = unqual_type(operand.type);
+    Type *type = unqualify_type(operand.type);
     complete_type(type);
     if (type->kind == TYPE_PTR) {
         type = type->base;

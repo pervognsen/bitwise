@@ -53,7 +53,7 @@ union IntOrPtr {
     p: int*;
 }
 
-var escape_to_char: int const[256] = {
+var escape_to_char: char const[256] = {
     ['n'] = '\n',
     ['r'] = '\r',
     ['t'] = '\t',
@@ -181,10 +181,16 @@ var j: int const
 var q: int const*
 var cv: Vector const
 
-func f4(x: int const*) {
+func f4(x: char const*) {
+}
+
+struct ConstVector {
+    x, y: int const;
 }
 
 func test_const() {
+    cv2 := ConstVector{1, 2};
+    // cv2 = {};
     i := 0;
     i = 1;
     // j = 0;
@@ -194,11 +200,12 @@ func test_const() {
     c := escape_to_char[0];
     // escape_to_char[0] = 0;
     f4(escape_to_char);
-    p := (:int const*)0; // (:int*)0
+    p := (:char const*)0; // (:int*)0
     p = escape_to_char + 1;
-    q := (:int*)escape_to_char;
+    q := (:char*)escape_to_char;
+    c = q['n'];
     // q = escape_to_char;
-    p = (:int const*)1;
+    p = (:char const*)1;
     // p = 1;
     // i = p;
     i = int(ullong(p));
@@ -208,6 +215,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_const();
     test_bool();
     test_ops();
     b := example_test();
