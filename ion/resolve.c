@@ -1663,7 +1663,7 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
         fatal_error(expr->pos, "Ternary conditional must have scalar type");
     }
     Operand left = resolve_expected_expr_rvalue(expr->ternary.then_expr, expected_type);
-    Operand right =resolve_expected_expr_rvalue(expr->ternary.else_expr, expected_type);
+    Operand right = resolve_expected_expr_rvalue(expr->ternary.else_expr, expected_type);
     if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
         unify_arithmetic_operands(&left, &right);
         if (cond.is_const && left.is_const && right.is_const) {
@@ -1682,10 +1682,10 @@ Operand resolve_expr_index(Expr *expr) {
     assert(expr->kind == EXPR_INDEX);
     Operand operand = resolve_expr_rvalue(expr->index.expr);
     if (operand.type->kind != TYPE_PTR) {
-        fatal_error(expr->pos, "Can only index arrays or pointers");
+        fatal_error(expr->pos, "Can only index arrays and pointers");
     }
     Operand index = resolve_expr_rvalue(expr->index.index);
-    if (index.type->kind != TYPE_INT) {
+    if (!is_integer_type(index.type)) {
         fatal_error(expr->pos, "Index expression must have type int");
     }
     return operand_lvalue(operand.type->base);

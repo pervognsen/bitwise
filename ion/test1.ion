@@ -25,7 +25,7 @@ func h(): uchar {
     p := &int{0};
     x := uint{1} + long{2};
     y := +c;
-    return x;
+    return uchar(x);
 }
 
 func g(u: U): int {
@@ -141,7 +141,7 @@ func test_ops() {
     n = n + (:uchar)1;
     p := &n;
     p = p + 1;
-    n = (p + 1) - p;
+    n = int((p + 1) - p);
     n = n << 1;
     n = n >> 1;
     b := p + 1 > p;
@@ -201,7 +201,7 @@ func test_const() {
     p = (:int const*)1;
     // p = 1;
     // i = p;
-    i = ullong(p);
+    i = int(ullong(p));
 }
 
 func main(argc: int, argv: char const**): int {
