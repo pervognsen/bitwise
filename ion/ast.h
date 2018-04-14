@@ -273,6 +273,7 @@ struct Stmt {
         } assign;
         struct {
             const char *name;
+            Typespec *type;
             Expr *expr;
         } init;
     };

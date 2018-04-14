@@ -392,8 +392,16 @@ void gen_simple_stmt(Stmt *stmt) {
         gen_expr(stmt->expr);
         break;
     case STMT_INIT:
-        genf("%s = ", type_to_cdecl(unqualify_type(stmt->init.expr->type), stmt->init.name));
-        gen_init_expr(stmt->init.expr);
+        if (stmt->init.type) {
+            genf("%s", typespec_to_cdecl(stmt->init.type, stmt->init.name));
+            if (stmt->init.expr) {
+                genf(" = ");
+                gen_init_expr(stmt->init.expr);
+            }
+        } else {
+            genf("%s = ", type_to_cdecl(unqualify_type(stmt->init.expr->type), stmt->init.name));
+            gen_init_expr(stmt->init.expr);
+        }
         break;
     case STMT_ASSIGN:
         gen_expr(stmt->assign.left);

@@ -619,6 +619,27 @@ void resolve_stmt_assign(Stmt *stmt) {
     }
 }
 
+void resolve_stmt_init(Stmt *stmt) {
+    assert(stmt->kind == STMT_INIT);
+    Type *type = NULL;
+    if (stmt->init.type) {
+        type = resolve_typespec(stmt->init.type);
+        if (stmt->init.expr) {
+            Type *expected_type = unqualify_type(type);
+            Operand operand = resolve_expected_expr(stmt->init.expr, expected_type);
+            if (!convert_operand(&operand, expected_type)) {
+                fatal_error(stmt->pos, "Right-hand side not convertible to left-hand side of init statement");
+            }
+        }
+    } else {
+        assert(stmt->init.expr);
+        type = unqualify_type(resolve_expr(stmt->init.expr).type);
+    }
+    if (!sym_push_var(stmt->init.name, type)) {
+        fatal_error(stmt->pos, "Shadowed definition of local symbol");
+    }
+}
+
 bool resolve_stmt(Stmt *stmt, Type *ret_type) {
     switch (stmt->kind) {
     case STMT_RETURN:
@@ -692,9 +713,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         resolve_stmt_assign(stmt);
         return false;
     case STMT_INIT:
-        if (!sym_push_var(stmt->init.name, unqualify_type(resolve_expr(stmt->init.expr).type))) {
-            fatal_error(stmt->pos, "Shadowed definition of local symbol");
-        }
+        resolve_stmt_init(stmt);
         return false;
     case STMT_EXPR:
         resolve_expr(stmt->expr);

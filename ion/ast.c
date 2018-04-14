@@ -336,9 +336,10 @@ Stmt *stmt_assign(SrcPos pos, TokenKind op, Expr *left, Expr *right) {
     return s;
 }
 
-Stmt *stmt_init(SrcPos pos, const char *name, Expr *expr) {
+Stmt *stmt_init(SrcPos pos, const char *name, Typespec *type, Expr *expr) {
     Stmt *s = stmt_new(STMT_INIT, pos);
     s->init.name = name;
+    s->init.type = type;
     s->init.expr = expr;
     return s;
 }

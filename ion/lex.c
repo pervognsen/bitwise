@@ -265,7 +265,7 @@ void error(SrcPos pos, const char *fmt, ...) {
 
 #define fatal_error(...) (error(__VA_ARGS__), exit(1))
 #define syntax_error(...) (error(token.pos, __VA_ARGS__))
-#define fatal_syntax_error(...) (syntax_error(__VA_ARGS__), exit(1))
+#define fatal_error_here(...) (syntax_error(__VA_ARGS__), exit(1))
 
 const char *token_info(void) {
     if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {
@@ -672,7 +672,7 @@ bool expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        fatal_syntax_error("Expected token %s, got %s", token_kind_name(kind), token_info());
+        fatal_error_here("Expected token %s, got %s", token_kind_name(kind), token_info());
         return false;
     }
 }

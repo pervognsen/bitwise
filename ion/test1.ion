@@ -7,16 +7,16 @@ func puts(str: char const*): int { return 0; }
 @foreign
 func getchar(): int { return 0; }
 
-const PI = 3.14
-const PI2 = PI + PI
+const PI = 3.14;
+const PI2 = PI + PI;
 
-var c: char = 1
-var uc: uchar = 1
-var sc: schar = 1
+var c: char = 1;
+var uc: uchar = 1;
+var sc: schar = 1;
 
-const N = (:char)42 + 8 != 0
+const N = (:char)42 + 8 != 0;
 
-typedef A = int[1 + 2*sizeof(h())]
+typedef A = int[1 + 2*sizeof(h())];
 
 func h(): uchar {
     Vector{x = 1, y = 2}.x = 42;
@@ -42,7 +42,7 @@ func f1() {
     *p = 42;
 }
 
-typedef U = IntOrPtr
+typedef U = IntOrPtr;
 
 func example_test(): int {
     return fact_rec(10) == fact_iter(10);
@@ -61,9 +61,9 @@ var escape_to_char: char const[256] = {
     ['b'] = '\b',
     ['a'] = '\a',
     ['0'] = 0,
-}
+};
 
-var array: int[] = {1, 2, 3, [10]=4}
+var array: int[] = {1, 2, 3, [10]=4};
 
 func is_even(digit: int): int {
     b := 0;
@@ -81,7 +81,7 @@ func is_even(digit: int): int {
 //     u2.p = (:int*)0;
 // }
 
-var i: int
+var i: int;
 
 struct Vector {
     x, y: int;
@@ -107,9 +107,9 @@ func fact_rec(n: int): int {
     }
 }
 
-const M = 1 + sizeof(p)
+const M = 1 + sizeof(p);
 
-var p: T*
+var p: T*;
 
 struct T {
     a: int[M];
@@ -126,7 +126,7 @@ func va_test(x: int, ...): int {
     return 0;
 }
 
-typedef F = func(x: int, ...): int
+typedef F = func(x: int, ...): int;
 
 func test_lits() {
     f := 3.14;
@@ -173,7 +173,7 @@ func test_ops() {
     b = p && pi;
 }
 
-const IS_DEBUG = true
+const IS_DEBUG = true;
 
 func test_bool() {
     b := false;
@@ -192,9 +192,9 @@ func test_ctrl(): int {
     return 0;
 }
 
-var j: int const
-var q: int const*
-var cv: Vector const
+var j: int const;
+var q: int const*;
+var cv: Vector const;
 
 func f4(x: char const*) {
 }
@@ -226,10 +226,17 @@ func test_const() {
     i = int(ullong(p));
 }
 
+func test_init() {
+    x := (:int const)0;
+    y: int;
+    z: int = 42;
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_init();
     test_lits();
     test_const();
     test_bool();
