@@ -92,9 +92,11 @@ const char *cdecl_name(Type *type) {
 char *type_to_cdecl(Type *type, const char *str) {
     switch (type->kind) {
     case TYPE_PTR:
-        return type_to_cdecl(type->ptr.elem, cdecl_paren(strf("*%s", str), *str));
+        return type_to_cdecl(type->base, cdecl_paren(strf("*%s", str), *str));
+    case TYPE_CONST:
+        return type_to_cdecl(type->base, strf("const %s", cdecl_paren(str, *str)));
     case TYPE_ARRAY:
-        return type_to_cdecl(type->array.elem, cdecl_paren(strf("%s[%llu]", str, type->array.size), *str));
+        return type_to_cdecl(type->base, cdecl_paren(strf("%s[%llu]", str, type->num_elems), *str));
     case TYPE_FUNC: {
         char *result = NULL;
         buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
@@ -133,9 +135,11 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
     case TYPESPEC_NAME:
         return strf("%s%s%s", typespec->name, *str ? " " : "", str);
     case TYPESPEC_PTR:
-        return typespec_to_cdecl(typespec->ptr.elem, cdecl_paren(strf("*%s", str), *str));
+        return typespec_to_cdecl(typespec->base, cdecl_paren(strf("*%s", str), *str));
+    case TYPESPEC_CONST:
+        return typespec_to_cdecl(typespec->base, strf("const %s", cdecl_paren(str, *str)));
     case TYPESPEC_ARRAY:
-        return typespec_to_cdecl(typespec->array.elem, cdecl_paren(strf("%s[%s]", str, gen_expr_str(typespec->array.size)), *str));
+        return typespec_to_cdecl(typespec->base, cdecl_paren(strf("%s[%s]", str, gen_expr_str(typespec->num_elems)), *str));
     case TYPESPEC_FUNC: {
         char *result = NULL;
         buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
@@ -352,7 +356,7 @@ void gen_simple_stmt(Stmt *stmt) {
         gen_expr(stmt->expr);
         break;
     case STMT_INIT:
-        genf("%s = ", type_to_cdecl(stmt->init.expr->type, stmt->init.name));
+        genf("%s = ", type_to_cdecl(unqual_type(stmt->init.expr->type), stmt->init.name));
         gen_init_expr(stmt->init.expr);
         break;
     case STMT_ASSIGN:
@@ -475,7 +479,7 @@ void gen_stmt(Stmt *stmt) {
 }
 
 bool is_incomplete_array_type(Typespec *typespec) {
-    return typespec->kind == TYPESPEC_ARRAY && !typespec->array.size;
+    return typespec->kind == TYPESPEC_ARRAY && !typespec->num_elems;
 }
 
 void gen_decl(Sym *sym) {

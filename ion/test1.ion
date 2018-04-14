@@ -1,8 +1,8 @@
 @foreign
-func printf(fmt: char*, ...): int { return 0; }
+func printf(fmt: char const*, ...): int { return 0; }
 
 @foreign
-func puts(str: char*): int { return 0; }
+func puts(str: char const*): int { return 0; }
 
 @foreign
 func getchar(): int { return 0; }
@@ -53,7 +53,7 @@ union IntOrPtr {
     p: int*;
 }
 
-var escape_to_char: int[256] = {
+var escape_to_char: int const[256] = {
     ['n'] = '\n',
     ['r'] = '\r',
     ['t'] = '\t',
@@ -177,7 +177,28 @@ func test_ctrl(): int {
     return 0;
 }
 
-func main(argc: int, argv: char**): int {
+var j: int const
+var q: int const*
+var cv: Vector const
+
+func f4(x: int const*) {
+}
+
+func test_const() {
+    i := 0;
+    i = 1;
+    // j = 0;
+    // *q = 0;
+    x := cv.x;
+    // cv.x = {};
+    c := escape_to_char[0];
+    // escape_to_char[0] = 0;
+    f4(escape_to_char);
+    p := (:int const*)0; // (:int*)0
+    p = escape_to_char;
+}
+
+func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }

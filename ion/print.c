@@ -44,14 +44,14 @@ void print_typespec(Typespec *type) {
         break;
     case TYPESPEC_ARRAY:
         printf("(array ");
-        print_typespec(t->array.elem);
+        print_typespec(t->base);
         printf(" ");
-        print_expr(t->array.size);
+        print_expr(t->num_elems);
         printf(")");
         break;
     case TYPESPEC_PTR:
         printf("(ptr ");
-        print_typespec(t->ptr.elem);
+        print_typespec(t->base);
         printf(")");
         break;
     default:

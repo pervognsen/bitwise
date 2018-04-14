@@ -40,16 +40,22 @@ Typespec *typespec_name(SrcPos pos, const char *name) {
 
 }
 
-Typespec *typespec_ptr(SrcPos pos, Typespec *elem) {
+Typespec *typespec_ptr(SrcPos pos, Typespec *base) {
     Typespec *t = typespec_new(TYPESPEC_PTR, pos);
-    t->ptr.elem = elem;
+    t->base = base;
+    return t;
+}
+
+Typespec *typespec_const(SrcPos pos, Typespec *base) {
+    Typespec *t = typespec_new(TYPESPEC_CONST, pos);
+    t->base = base;
     return t;
 }
 
 Typespec *typespec_array(SrcPos pos, Typespec *elem, Expr *size) {
     Typespec *t = typespec_new(TYPESPEC_ARRAY, pos);
-    t->array.elem = elem;
-    t->array.size = size;
+    t->base = elem;
+    t->num_elems = size;
     return t;
 }
 

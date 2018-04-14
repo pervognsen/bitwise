@@ -65,7 +65,7 @@ Typespec *parse_type_base(void) {
 Typespec *parse_type(void) {
     Typespec *type = parse_type_base();
     SrcPos pos = token.pos;
-    while (is_token(TOKEN_LBRACKET) || is_token(TOKEN_MUL)) {
+    while (is_token(TOKEN_LBRACKET) || is_token(TOKEN_MUL) || is_keyword(const_keyword)) {
         if (match_token(TOKEN_LBRACKET)) {
             Expr *size = NULL;
             if (!is_token(TOKEN_RBRACKET)) {
@@ -73,6 +73,8 @@ Typespec *parse_type(void) {
             }
             expect_token(TOKEN_RBRACKET);
             type = typespec_array(pos, type, size);
+        } else if (match_keyword(const_keyword)) {
+            type = typespec_const(pos, type);
         } else {
             assert(is_token(TOKEN_MUL));
             next_token();

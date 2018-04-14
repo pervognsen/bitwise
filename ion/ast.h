@@ -27,12 +27,14 @@ typedef enum TypespecKind {
     TYPESPEC_FUNC,
     TYPESPEC_ARRAY,
     TYPESPEC_PTR,
+    TYPESPEC_CONST,
 } TypespecKind;
 
 struct Typespec {
     TypespecKind kind;
     SrcPos pos;
     struct Type *type;
+    Typespec *base;
     union {
         const char *name;
         struct {
@@ -41,13 +43,7 @@ struct Typespec {
             Typespec *ret;
             bool variadic;
         } func;
-        struct {
-            Typespec *elem;
-            Expr *size;
-        } array;
-        struct {
-            Typespec *elem;
-        } ptr;
+        Expr *num_elems;
     };
 };
 
