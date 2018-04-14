@@ -230,6 +230,7 @@ func test_init() {
     x := (:int const)0;
     y: int;
     z: int = 42;
+    a: int[] = (:int[]){1, 2, 3};
 }
 
 func main(argc: int, argv: char const**): int {

@@ -627,8 +627,10 @@ void resolve_stmt_init(Stmt *stmt) {
         if (stmt->init.expr) {
             Type *expected_type = unqualify_type(type);
             Operand operand = resolve_expected_expr(stmt->init.expr, expected_type);
-            if (!convert_operand(&operand, expected_type)) {
-                fatal_error(stmt->pos, "Right-hand side not convertible to left-hand side of init statement");
+            if (is_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base && type->num_elems == 0) {
+                // Incomplete array size, so infer the size from the initializer expression's type.
+            } else if (!convert_operand(&operand, type)) {
+                fatal_error(stmt->pos, "Illegal conversion in init statement");
             }
         }
     } else {
