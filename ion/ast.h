@@ -157,12 +157,13 @@ struct Expr {
     struct Type *type;
     union {
         struct {
-            TokenSuffix suffix;
             unsigned long long val;
+            TokenMod mod;
+            TokenSuffix suffix;
         } int_lit;
         struct {
-            TokenSuffix suffix;
             double val;
+            TokenSuffix suffix;
         } float_lit;
         const char *str_val;
         const char *name;

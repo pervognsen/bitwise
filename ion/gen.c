@@ -39,25 +39,45 @@ void genln(void) {
 }
 
 char char_to_escape[256] = {
-    // TODO: Need to expand this and also deal with non-printable chars via \x
+    ['\0'] = '0',
     ['\n'] = 'n',
+    ['\r'] = 'r',
+    ['\t'] = 't',
+    ['\v'] = 'v',
+    ['\b'] = 'b',
+    ['\a'] = 'a',
     ['\\'] = '\\',
     ['"'] = '"',
     ['\''] = '\'',
 };
 
+void gen_char(char c) {
+    if (char_to_escape[(unsigned char)c]) {
+        genf("'\\%c'", char_to_escape[(unsigned char)c]);
+    } else if (isprint(c)) {
+        genf("'%c'", c);
+    } else {
+        genf("'\\x%x'", c);
+    }
+}
+
 void gen_str(const char *str) {
     genf("\"");
     while (*str) {
         const char *start = str;
-        while (*str && !char_to_escape[(unsigned char)*str]) {
+        while (*str && isprint(*str) && !char_to_escape[(unsigned char)*str]) {
             str++;
         }
         if (start != str) {
             genf("%.*s", str - start, start);
         }
-        if (*str && char_to_escape[(unsigned char)*str]) {
-            genf("\\%c", char_to_escape[(unsigned char)*str]);
+        if (*str) {
+            if (char_to_escape[(unsigned char)*str]) {
+                genf("\\%c", char_to_escape[(unsigned char)*str]);
+            } else {
+                assert(!isprint(*str));
+                genf("\\x%x", *str);
+            }
             str++;
         }
     }
@@ -253,9 +273,25 @@ void gen_expr_compound(Expr *expr, bool is_init) {
 
 void gen_expr(Expr *expr) {
     switch (expr->kind) {
-    case EXPR_INT:
-        genf("%llu%s", expr->int_lit.val, token_suffix_names[expr->int_lit.suffix]);
+    case EXPR_INT: {
+        const char *suffix_name = token_suffix_names[expr->int_lit.suffix];
+        switch (expr->int_lit.mod) {
+        case MOD_BIN:
+        case MOD_HEX:
+            genf("0x%llx%s", expr->int_lit.val, suffix_name);
+            break;
+        case MOD_OCT:
+            genf("0%llo%s", expr->int_lit.val, suffix_name);
+            break;
+        case MOD_CHAR:
+            gen_char((char)expr->int_lit.val);
+            break;
+        default:
+            genf("%llu%s", expr->int_lit.val, suffix_name);
+            break;
+        }
         break;
+    }
     case EXPR_FLOAT:
         genf("%f%s", expr->float_lit.val, expr->float_lit.suffix == SUFFIX_D ? "" : "f");
         break;

@@ -124,9 +124,10 @@ Expr *parse_expr_operand(void) {
     SrcPos pos = token.pos;
     if (is_token(TOKEN_INT)) {
         unsigned long long val = token.int_val;
+        TokenSuffix mod = token.mod;
         TokenSuffix suffix = token.suffix;
         next_token();
-        return expr_int(pos, val, suffix);
+        return expr_int(pos, val, mod, suffix);
     } else if (is_token(TOKEN_FLOAT)) {
         double val = token.float_val;
         TokenSuffix suffix = token.suffix;
