@@ -318,7 +318,7 @@ void scan_int(void) {
             break;
         }
         if (digit >= base) {
-            syntax_error("Digit '%c' out of range for base %d" PRIu64, *stream, base);
+            syntax_error("Digit '%c' out of range for base %d", *stream, base);
             digit = 0;
         }
         if (val > (ULLONG_MAX - digit)/base) {
