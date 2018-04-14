@@ -478,7 +478,8 @@ Type *resolve_typespec(Typespec *typespec) {
     case TYPESPEC_FUNC: {
         Type **args = NULL;
         for (size_t i = 0; i < typespec->func.num_args; i++) {
-            buf_push(args, resolve_typespec(typespec->func.args[i]));
+            Type *arg = resolve_typespec(typespec->func.args[i]);
+            buf_push(args, arg);
         }
         Type *ret = type_void;
         if (typespec->func.ret) {
@@ -577,11 +578,20 @@ Type *resolve_decl_func(Decl *decl) {
     assert(decl->kind == DECL_FUNC);
     Type **params = NULL;
     for (size_t i = 0; i < decl->func.num_params; i++) {
-        buf_push(params, resolve_typespec(decl->func.params[i].type));
+        Type *param = resolve_typespec(decl->func.params[i].type);
+        complete_type(param);
+        if (param->size == 0) {
+            fatal_error(decl->pos, "Function parameter type cannot have size 0");
+        }
+        buf_push(params, param);
     }
     Type *ret_type = type_void;
     if (decl->func.ret_type) {
         ret_type = resolve_typespec(decl->func.ret_type);
+        complete_type(ret_type);
+    }
+    if (is_array_type(ret_type)) {
+        fatal_error(decl->pos, "Function return type cannot be array");
     }
     return type_func(params, buf_len(params), ret_type, decl->func.variadic);
 }
@@ -610,6 +620,9 @@ void resolve_stmt_assign(Stmt *stmt) {
     Operand left = resolve_expr(stmt->assign.left);
     if (!left.is_lvalue) {
         fatal_error(stmt->pos, "Cannot assign to non-lvalue");
+    }
+    if (is_array_type(left.type)) {
+        fatal_error(stmt->pos, "Cannot assign to array");
     }
     if (left.type->nonmodifiable) {
         fatal_error(stmt->pos, "Left-hand side of assignment has non-modifiable type");
