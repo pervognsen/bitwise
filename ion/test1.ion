@@ -137,9 +137,8 @@ func test_lits() {
     ul := 1ul;
     ll := 0x100000000ll;
     ull := 0xffffffffffffffffull;
-    // d = 0xffffffff;
-    // u = 0x100000000u;
-    // ll = 0xffffffffffffffffll;
+    a := 0xffffffff;
+    b := 4294967295;
 }
 
 func test_ops() {

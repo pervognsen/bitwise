@@ -1341,51 +1341,132 @@ Operand resolve_expr_cast(Expr *expr) {
     return operand;
 }
 
-Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
-    Operand result;
-    switch (expr->kind) {
-    case EXPR_INT:
+Operand resolve_expr_int(Expr *expr) {
+    assert(expr->kind == EXPR_INT);
+    unsigned long long val = expr->int_lit.val;
+    Operand operand = operand_const(type_ullong, (Val){.ull = val});
+    Type *type = type_ullong;
+    if (expr->int_lit.mod == MOD_NONE) {
+        bool overflow = false;
         switch (expr->int_lit.suffix) {
         case SUFFIX_NONE:
-            if (expr->int_lit.val > INT_MAX) {
-                fatal_error(expr->pos, "Out of range int literal");
+            type = type_int;
+            if (val > INT_MAX) {
+                type = type_long;
+                if (val > LONG_MAX) {
+                    type = type_llong;
+                    overflow = val > LLONG_MAX;
+                }
             }
-            result = operand_const(type_int, (Val){.i = (int)expr->int_lit.val});
             break;
         case SUFFIX_U:
-            if (expr->int_lit.val > UINT_MAX) {
-                fatal_error(expr->pos, "Out of range uint literal");
+            type = type_uint;
+            if (val > UINT_MAX) {
+                type = type_ulong;
+                if (val > ULONG_MAX) {
+                    type = type_ullong;
+                }
             }
-            result = operand_const(type_uint, (Val){.u = (unsigned int)expr->int_lit.val});
+            type = type_uint;
             break;
         case SUFFIX_L:
-            if (expr->int_lit.val > LONG_MAX) {
-                fatal_error(expr->pos, "Out of range long literal");
+            type = type_long;
+            if (val > LONG_MAX) {
+                type = type_llong;
+                overflow = val > LLONG_MAX;
             }
-            result = operand_const(type_long, (Val){.l = (long)expr->int_lit.val});
             break;
         case SUFFIX_UL:
-            if (expr->int_lit.val > ULONG_MAX) {
-                fatal_error(expr->pos, "Out of range ulong literal");
+            type = type_ulong;
+            if (val > ULONG_MAX) {
+                type = type_ullong;
             }
-            result = operand_const(type_ulong, (Val){.ul = (unsigned long)expr->int_lit.val});
             break;
         case SUFFIX_LL:
-            if (expr->int_lit.val > LLONG_MAX) {
-                fatal_error(expr->pos, "Out of range llong literal");
-            }
-            result = operand_const(type_llong, (Val){.ll = (long long)expr->int_lit.val});
+            type = type_llong;
+            overflow = val > LLONG_MAX;
             break;
         case SUFFIX_ULL:
-            if (expr->int_lit.val > ULLONG_MAX) {
-                fatal_error(expr->pos, "Out of range ullong literal");
-            }
-            result = operand_const(type_ullong, (Val){.ull = (unsigned long long)expr->int_lit.val});
+            type = type_ullong;
             break;
         default:
             assert(0);
             break;
         }
+        if (overflow) {
+            fatal_error(expr->pos, "Integer literal overflow");
+        }
+    } else {
+        switch (expr->int_lit.suffix) {
+        case SUFFIX_NONE:
+            type = type_int;
+            if (val > INT_MAX) {
+                type = type_uint;
+                if (val > UINT_MAX) {
+                    type = type_long;
+                    if (val > LONG_MAX) {
+                        type = type_ulong;
+                        if (val > ULONG_MAX) {
+                            type = type_llong;
+                            if (val > LLONG_MAX) {
+                                type = type_ullong;
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        case SUFFIX_U:
+            type = type_uint;
+            if (val > UINT_MAX) {
+                type = type_ulong;
+                if (val > ULONG_MAX) {
+                    type = type_ullong;
+                }
+            }
+            type = type_uint;
+            break;
+        case SUFFIX_L:
+            type = type_long;
+            if (val > LONG_MAX) {
+                type = type_ulong;
+                if (val > ULONG_MAX) {
+                    type = type_llong;
+                    if (val > LLONG_MAX) {
+                        type = type_ullong;
+                    }
+                }
+            }
+            break;
+        case SUFFIX_UL:
+            type = type_ulong;
+            if (val > ULONG_MAX) {
+                type = type_ullong;
+            }
+            break;
+        case SUFFIX_LL:
+            type = type_llong;
+            if (val > LLONG_MAX) {
+                type = type_ullong;
+            }
+            break;
+        case SUFFIX_ULL:
+            type = type_ullong;
+            break;
+        default:
+            assert(0);
+            break;
+        }
+    }
+    cast_operand(&operand, type);
+    return operand;
+}
+
+Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
+    Operand result;
+    switch (expr->kind) {
+    case EXPR_INT:
+        result = resolve_expr_int(expr);
         break;
     case EXPR_FLOAT:
         result = operand_const(expr->float_lit.suffix == SUFFIX_D ? type_double : type_float, (Val){0});
