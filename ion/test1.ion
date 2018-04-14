@@ -42,6 +42,9 @@ func f1() {
     *p = 42;
 }
 
+func f3(a: int[]) {
+}
+
 typedef U = IntOrPtr;
 
 func example_test(): int {
@@ -202,6 +205,12 @@ func f4(x: char const*) {
 
 struct ConstVector {
     x, y: int const;
+}
+
+func test_convert() {
+    a: int const* = 0;
+    b: int* = 0;
+    a = b;
 }
 
 func test_const() {

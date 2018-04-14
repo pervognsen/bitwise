@@ -267,7 +267,11 @@ bool is_convertible(Operand *operand, Type *dest) {
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
     } else if (is_ptr_type(dest) && is_ptr_type(src)) {
-        return dest->base == type_void || src->base == type_void;
+        if (src->base == unqualify_type(dest->base)) {
+            return true;
+        } else {
+            return dest->base == type_void || src->base == type_void;
+        }
     } else if (is_ptr_type(dest) && is_null_ptr(*operand)) {
         return true;
     } else {
@@ -347,12 +351,6 @@ bool is_null_ptr(Operand operand) {
     }
 }
 
-Val convert_val(Type *dest_type, Type *src_type, Val src_val) {
-    Operand operand = operand_const(src_type, src_val);
-    cast_operand(&operand, dest_type);
-    return operand.val;
-}
-
 void promote_operand(Operand *operand) {
     switch (operand->type->kind) {
     case TYPE_BOOL:
@@ -367,12 +365,6 @@ void promote_operand(Operand *operand) {
         // Do nothing
         break;
     }
-}
-
-Type *promote_type(Type *type) {
-    Operand operand = operand_rvalue(type);
-    promote_operand(&operand);
-    return operand.type;
 }
 
 void unify_arithmetic_operands(Operand *left, Operand *right) {
@@ -412,14 +404,6 @@ void unify_arithmetic_operands(Operand *left, Operand *right) {
         }
     }
     assert(left->type == right->type);
-}
-
-Type *unify_arithmetic_types(Type *left_type, Type *right_type) {
-    Operand left = operand_rvalue(left_type);
-    Operand right = operand_rvalue(right_type);
-    unify_arithmetic_operands(&left, &right);
-    assert(left.type == right.type);
-    return left.type;
 }
 
 Sym *resolve_name(const char *name);
@@ -479,11 +463,17 @@ Type *resolve_typespec(Typespec *typespec) {
         Type **args = NULL;
         for (size_t i = 0; i < typespec->func.num_args; i++) {
             Type *arg = resolve_typespec(typespec->func.args[i]);
+            if (arg == type_void) {
+                fatal_error(typespec->pos, "Function parameter type cannot be void");
+            }
             buf_push(args, arg);
         }
         Type *ret = type_void;
         if (typespec->func.ret) {
             ret = resolve_typespec(typespec->func.ret);
+        }
+        if (is_array_type(ret)) {
+            fatal_error(typespec->pos, "Function return type cannot be array");
         }
         result = type_func(args, buf_len(args), ret, false);
         break;
@@ -580,8 +570,8 @@ Type *resolve_decl_func(Decl *decl) {
     for (size_t i = 0; i < decl->func.num_params; i++) {
         Type *param = resolve_typespec(decl->func.params[i].type);
         complete_type(param);
-        if (param->size == 0) {
-            fatal_error(decl->pos, "Function parameter type cannot have size 0");
+        if (param == type_void) {
+            fatal_error(decl->pos, "Function parameter type cannot be void");
         }
         buf_push(params, param);
     }
@@ -752,9 +742,14 @@ void resolve_func_body(Sym *sym) {
     Sym *scope = sym_enter();
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];
-        sym_push_var(param.name, resolve_typespec(param.type));
+        Type *param_type = resolve_typespec(param.type);
+        if (is_array_type(param_type)) {
+            param_type = type_ptr(param_type->base);
+        }
+        sym_push_var(param.name, param_type);
     }
     Type *ret_type = resolve_typespec(decl->func.ret_type);
+    assert(!is_array_type(ret_type));
     bool returns = resolve_stmt_block(decl->func.block, ret_type);
     sym_leave(scope);
     if (ret_type != type_void && !returns) {
@@ -1618,31 +1613,6 @@ void finalize_syms(void) {
 }
 
 void resolve_test(void) {
-    assert(promote_type(type_char) == type_int);
-    assert(promote_type(type_schar) == type_int);
-    assert(promote_type(type_uchar) == type_int);
-    assert(promote_type(type_short) == type_int);
-    assert(promote_type(type_ushort) == type_int);
-    assert(promote_type(type_int) == type_int);
-    assert(promote_type(type_uint) == type_uint);
-    assert(promote_type(type_long) == type_long);
-    assert(promote_type(type_ulong) == type_ulong);
-    assert(promote_type(type_llong) == type_llong);
-    assert(promote_type(type_ullong) == type_ullong);
-
-    assert(unify_arithmetic_types(type_char, type_char) == type_int);
-    assert(unify_arithmetic_types(type_char, type_ushort) == type_int);
-    assert(unify_arithmetic_types(type_int, type_uint) == type_uint);
-    assert(unify_arithmetic_types(type_int, type_long) == type_long);
-    assert(unify_arithmetic_types(type_ulong, type_long) == type_ulong);
-    assert(unify_arithmetic_types(type_long, type_uint) == type_ulong);
-    assert(unify_arithmetic_types(type_llong, type_ulong) == type_llong);
-
-    assert(convert_val(type_int, type_char, (Val){.c = 100}).i == 100);
-    assert(convert_val(type_int, type_char, (Val){.c = -1}).i == -1);
-    assert(convert_val(type_uint, type_int, (Val){.i = -1}).u == UINT_MAX);
-    assert(convert_val(type_uint, type_ullong, (Val){.ull = ULLONG_MAX}).u == UINT_MAX);
-
     Type *int_ptr = type_ptr(type_int);
     assert(type_ptr(type_int) == int_ptr);
     Type *float_ptr = type_ptr(type_float);

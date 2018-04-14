@@ -120,7 +120,11 @@ char *type_to_cdecl(Type *type, const char *str) {
     case TYPE_CONST:
         return type_to_cdecl(type->base, strf("const %s", cdecl_paren(str, *str)));
     case TYPE_ARRAY:
-        return type_to_cdecl(type->base, cdecl_paren(strf("%s[%llu]", str, type->num_elems), *str));
+        if (type->num_elems == 0) {
+            return type_to_cdecl(type->base, cdecl_paren(strf("%s[]", str), *str));
+        } else {
+            return type_to_cdecl(type->base, cdecl_paren(strf("%s[%llu]", str, type->num_elems), *str));
+        }
     case TYPE_FUNC: {
         char *result = NULL;
         buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
@@ -163,7 +167,11 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
     case TYPESPEC_CONST:
         return typespec_to_cdecl(typespec->base, strf("const %s", cdecl_paren(str, *str)));
     case TYPESPEC_ARRAY:
-        return typespec_to_cdecl(typespec->base, cdecl_paren(strf("%s[%s]", str, gen_expr_str(typespec->num_elems)), *str));
+        if (typespec->num_elems == 0) {
+            return typespec_to_cdecl(typespec->base, cdecl_paren(strf("%s[]", str), *str));
+        } else {
+            return typespec_to_cdecl(typespec->base, cdecl_paren(strf("%s[%s]", str, gen_expr_str(typespec->num_elems)), *str));
+        }
     case TYPESPEC_FUNC: {
         char *result = NULL;
         buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
