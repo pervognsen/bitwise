@@ -123,13 +123,15 @@ Expr *parse_expr_unary(void);
 Expr *parse_expr_operand(void) {
     SrcPos pos = token.pos;
     if (is_token(TOKEN_INT)) {
-        int val = token.int_val;
+        unsigned long long val = token.int_val;
+        TokenSuffix suffix = token.suffix;
         next_token();
-        return expr_int(pos, val);
+        return expr_int(pos, val, suffix);
     } else if (is_token(TOKEN_FLOAT)) {
-        float val = token.float_val;
+        double val = token.float_val;
+        TokenSuffix suffix = token.suffix;
         next_token();
-        return expr_float(pos, val);
+        return expr_float(pos, val, suffix);
     } else if (is_token(TOKEN_STR)) {
         const char *val = token.str_val;
         next_token();

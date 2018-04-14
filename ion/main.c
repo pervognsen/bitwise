@@ -14,6 +14,7 @@
 
 #include "common.c"
 #include "lex.c"
+#include "type.c"
 #include "ast.h"
 #include "ast.c"    
 #include "print.c"

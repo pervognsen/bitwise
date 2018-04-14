@@ -156,8 +156,14 @@ struct Expr {
     SrcPos pos;
     struct Type *type;
     union {
-        int int_val;
-        float float_val;
+        struct {
+            TokenSuffix suffix;
+            unsigned long long val;
+        } int_lit;
+        struct {
+            TokenSuffix suffix;
+            double val;
+        } float_lit;
         const char *str_val;
         const char *name;
         Expr *sizeof_expr;

@@ -167,15 +167,17 @@ Expr *expr_sizeof_type(SrcPos pos, Typespec *type) {
     return e;
 }
 
-Expr *expr_int(SrcPos pos, int int_val) {
+Expr *expr_int(SrcPos pos, unsigned long long val, TokenSuffix suffix) {
     Expr *e = expr_new(EXPR_INT, pos);
-    e->int_val = int_val;
+    e->int_lit.val = val;
+    e->int_lit.suffix = suffix;
     return e;
 }
 
-Expr *expr_float(SrcPos pos, float float_val) {
+Expr *expr_float(SrcPos pos, double val, TokenSuffix suffix) {
     Expr *e = expr_new(EXPR_FLOAT, pos);
-    e->float_val = float_val;
+    e->float_lit.val = val;
+    e->float_lit.suffix = suffix;
     return e;
 }
 

@@ -254,10 +254,10 @@ void gen_expr_compound(Expr *expr, bool is_init) {
 void gen_expr(Expr *expr) {
     switch (expr->kind) {
     case EXPR_INT:
-        genf("%lld", expr->int_val);
+        genf("%llu%s", expr->int_lit.val, token_suffix_names[expr->int_lit.suffix]);
         break;
     case EXPR_FLOAT:
-        genf("%ff", expr->float_val);
+        genf("%f%s", expr->float_lit.val, expr->float_lit.suffix == SUFFIX_D ? "" : "f");
         break;
     case EXPR_STR:
         gen_str(expr->str_val);
