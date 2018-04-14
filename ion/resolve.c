@@ -1517,7 +1517,14 @@ Operand resolve_expr_binary(Expr *expr) {
             if (left.is_const && right.is_const) {
                 cast_operand(&left, type_bool);
                 cast_operand(&right, type_bool);
-                return operand_const(type_int, (Val){.i = left.val.b && right.val.b});
+                int i;
+                if (op == TOKEN_AND_AND) {
+                    i = left.val.b && right.val.b;
+                } else {
+                    assert(op == TOKEN_OR_OR);
+                    i = left.val.b || right.val.b;
+                }
+                return operand_const(type_int, (Val){.i = i});
             } else {
                 return operand_rvalue(type_int);
             }
