@@ -132,11 +132,14 @@ func test_lits() {
     f := 3.14;
     d := 3.14d;
     i := 1;
-    u := 1u;
+    u := 0xffffffffu;
     l := 1l;
     ul := 1ul;
-    ll := 1ll;
-    ull := 1ull;
+    ll := 0x100000000ll;
+    ull := 0xffffffffffffffffull;
+    // d = 0xffffffff;
+    // u = 0x100000000u;
+    // ll = 0xffffffffffffffffll;
 }
 
 func test_ops() {

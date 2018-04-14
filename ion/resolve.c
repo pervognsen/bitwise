@@ -1347,21 +1347,39 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     case EXPR_INT:
         switch (expr->int_lit.suffix) {
         case SUFFIX_NONE:
+            if (expr->int_lit.val > INT_MAX) {
+                fatal_error(expr->pos, "Out of range int literal");
+            }
             result = operand_const(type_int, (Val){.i = (int)expr->int_lit.val});
             break;
         case SUFFIX_U:
+            if (expr->int_lit.val > UINT_MAX) {
+                fatal_error(expr->pos, "Out of range uint literal");
+            }
             result = operand_const(type_uint, (Val){.u = (unsigned int)expr->int_lit.val});
             break;
         case SUFFIX_L:
+            if (expr->int_lit.val > LONG_MAX) {
+                fatal_error(expr->pos, "Out of range long literal");
+            }
             result = operand_const(type_long, (Val){.l = (long)expr->int_lit.val});
             break;
         case SUFFIX_UL:
+            if (expr->int_lit.val > ULONG_MAX) {
+                fatal_error(expr->pos, "Out of range ulong literal");
+            }
             result = operand_const(type_ulong, (Val){.ul = (unsigned long)expr->int_lit.val});
             break;
         case SUFFIX_LL:
+            if (expr->int_lit.val > LLONG_MAX) {
+                fatal_error(expr->pos, "Out of range llong literal");
+            }
             result = operand_const(type_llong, (Val){.ll = (long long)expr->int_lit.val});
             break;
         case SUFFIX_ULL:
+            if (expr->int_lit.val > ULLONG_MAX) {
+                fatal_error(expr->pos, "Out of range ullong literal");
+            }
             result = operand_const(type_ullong, (Val){.ull = (unsigned long long)expr->int_lit.val});
             break;
         default:
