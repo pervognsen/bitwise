@@ -96,6 +96,10 @@ bool is_array_type(Type *type) {
     return type->kind == TYPE_ARRAY;
 }
 
+bool is_incomplete_array_type(Type *type) {
+    return is_array_type(type) && type->num_elems == 0;
+}
+
 bool is_integer_type(Type *type) {
     return TYPE_BOOL <= type->kind && type->kind <= TYPE_ULLONG;
 }

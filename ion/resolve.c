@@ -546,7 +546,7 @@ Type *resolve_decl_var(Decl *decl) {
     if (decl->var.expr) {
         Operand operand = resolve_expected_expr(decl->var.expr, type);
         if (type) {
-            if (is_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base && type->num_elems == 0) {
+            if (is_incomplete_array_type(type) && is_array_type(operand.type)) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
                 if (!convert_operand(&operand, type)) {
@@ -557,6 +557,9 @@ Type *resolve_decl_var(Decl *decl) {
         type = operand.type;
     }
     complete_type(type);
+    if (type->size == 0) {
+        fatal_error(decl->pos, "Cannot declare variable of size 0");
+    }
     return type;
 }
 
@@ -621,21 +624,24 @@ void resolve_stmt_assign(Stmt *stmt) {
 
 void resolve_stmt_init(Stmt *stmt) {
     assert(stmt->kind == STMT_INIT);
-    Type *type = NULL;
+    Type *type;
     if (stmt->init.type) {
         type = resolve_typespec(stmt->init.type);
         if (stmt->init.expr) {
             Type *expected_type = unqualify_type(type);
             Operand operand = resolve_expected_expr(stmt->init.expr, expected_type);
-            if (is_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base && type->num_elems == 0) {
-                // Incomplete array size, so infer the size from the initializer expression's type.
-            } else if (!convert_operand(&operand, type)) {
+            if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
+                type = operand.type;
+            } else if (!convert_operand(&operand, expected_type)) {
                 fatal_error(stmt->pos, "Illegal conversion in init statement");
             }
         }
     } else {
         assert(stmt->init.expr);
         type = unqualify_type(resolve_expr(stmt->init.expr).type);
+    }
+    if (type->size == 0) {
+        fatal_error(stmt->pos, "Cannot declare variable of size 0");
     }
     if (!sym_push_var(stmt->init.name, type)) {
         fatal_error(stmt->pos, "Shadowed definition of local symbol");

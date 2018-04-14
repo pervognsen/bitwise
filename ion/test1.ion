@@ -63,7 +63,8 @@ var escape_to_char: char const[256] = {
     ['0'] = 0,
 };
 
-var array: int[] = {1, 2, 3, [10]=4};
+var a2: int[] = {1, 2, 3, [10]=4};
+// var a3: int[];
 
 func is_even(digit: int): int {
     b := 0;
@@ -230,7 +231,9 @@ func test_init() {
     x := (:int const)0;
     y: int;
     z: int = 42;
-    a: int[] = (:int[]){1, 2, 3};
+    a: int[] = {1, 2, 3};
+    // a2: int[];
+    // v: void;
 }
 
 func main(argc: int, argv: char const**): int {

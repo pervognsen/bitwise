@@ -38,7 +38,7 @@ void genln(void) {
     gen_pos.line++;
 }
 
-bool is_incomplete_array_type(Typespec *typespec) {
+bool is_incomplete_array_typespec(Typespec *typespec) {
     return typespec->kind == TYPESPEC_ARRAY && !typespec->num_elems;
 }
 
@@ -397,7 +397,7 @@ void gen_simple_stmt(Stmt *stmt) {
         break;
     case STMT_INIT:
         if (stmt->init.type) {
-            if (is_incomplete_array_type(stmt->init.type)) {
+            if (is_incomplete_array_typespec(stmt->init.type)) {
                 genf("%s", type_to_cdecl(stmt->init.expr->type, stmt->init.name));
             } else {
                 genf("%s", typespec_to_cdecl(stmt->init.type, stmt->init.name));
@@ -543,7 +543,7 @@ void gen_decl(Sym *sym) {
         genf(")");
         break;
     case DECL_VAR:
-        if (decl->var.type && !is_incomplete_array_type(decl->var.type)) {
+        if (decl->var.type && !is_incomplete_array_typespec(decl->var.type)) {
             genlnf("%s", typespec_to_cdecl(decl->var.type, sym->name));
         } else {
             genlnf("%s", type_to_cdecl(sym->type, sym->name));
