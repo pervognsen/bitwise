@@ -565,10 +565,10 @@ Operand operand_const(Type *type, Val val) {
 Operand operand_decay(Operand operand) {
     operand.type = unqual_type(operand.type);
     if (operand.type->kind == TYPE_ARRAY) {
-        return operand_rvalue(type_ptr(operand.type->base));
-    } else {
-        return operand;
+        operand.type = type_ptr(operand.type->base);
     }
+    operand.is_lvalue = false;
+    return operand;
 }
 
 bool is_null_ptr(Operand operand);
@@ -799,11 +799,11 @@ Operand resolve_expr(Expr *expr) {
     return resolve_expected_expr(expr, NULL);
 }
 
-Operand resolve_decayed_expr(Expr *expr) {
+Operand resolve_expr_rvalue(Expr *expr) {
     return operand_decay(resolve_expr(expr));
 }
 
-Operand resolve_decayed_expected_expr(Expr *expr, Type *expected_type) {
+Operand resolve_expected_expr_rvalue(Expr *expr, Type *expected_type) {
     return operand_decay(resolve_expected_expr(expr, expected_type));
 }
 
@@ -984,7 +984,7 @@ void resolve_stmt_assign(Stmt *stmt) {
         fatal_error(stmt->pos, "Left-hand side of assignment has non-modifiable type");
     }
     if (stmt->assign.right) {
-        Operand right = resolve_decayed_expected_expr(stmt->assign.right, left.type);
+        Operand right = resolve_expected_expr_rvalue(stmt->assign.right, left.type);
         if (!convert_operand(&right, left.type)) {
             fatal_error(stmt->pos, "Illegal conversion in assignment statement");
         }
@@ -1360,35 +1360,38 @@ Operand resolve_unary_op(TokenKind op, Operand operand) {
 
 Operand resolve_expr_unary(Expr *expr) {
     assert(expr->kind == EXPR_UNARY);
-    Operand operand = resolve_decayed_expr(expr->unary.expr);
-    Type *type = operand.type;
-    switch (expr->unary.op) {
-    case TOKEN_MUL:
-        if (type->kind != TYPE_PTR) {
-            fatal_error(expr->pos, "Cannot deref non-ptr type");
-        }
-        return operand_lvalue(type->base);
-    case TOKEN_AND:
+    if (expr->unary.op == TOKEN_AND) {
+        Operand operand = resolve_expr(expr->unary.expr);
         if (!operand.is_lvalue) {
             fatal_error(expr->pos, "Cannot take address of non-lvalue");
         }
-        return operand_rvalue(type_ptr(type));
-    case TOKEN_ADD:
-    case TOKEN_SUB:
-        if (!is_arithmetic_type(type)) {
-            fatal_error(expr->pos, "Can only use unary %s with arithmetic types", token_kind_name(expr->unary.op));
+        return operand_rvalue(type_ptr(operand.type));
+    } else {
+        Operand operand = resolve_expr_rvalue(expr->unary.expr);
+        Type *type = operand.type;
+        switch (expr->unary.op) {
+        case TOKEN_MUL:
+            if (type->kind != TYPE_PTR) {
+                fatal_error(expr->pos, "Cannot deref non-ptr type");
+            }
+            return operand_lvalue(type->base);
+        case TOKEN_ADD:
+        case TOKEN_SUB:
+            if (!is_arithmetic_type(type)) {
+                fatal_error(expr->pos, "Can only use unary %s with arithmetic types", token_kind_name(expr->unary.op));
+            }
+            return resolve_unary_op(expr->unary.op, operand);
+        case TOKEN_NEG:
+            if (!is_integer_type(type)) {
+                fatal_error(expr->pos, "Can only use ~ with integer types", token_kind_name(expr->unary.op));
+            }
+            return resolve_unary_op(expr->unary.op, operand);
+        default:
+            assert(0);
+            break;
         }
-        return resolve_unary_op(expr->unary.op, operand);
-    case TOKEN_NEG:
-        if (!is_integer_type(type)) {
-            fatal_error(expr->pos, "Can only use ~ with integer types", token_kind_name(expr->unary.op));
-        }
-        return resolve_unary_op(expr->unary.op, operand);
-    default:
-        assert(0);
-        break;
+        return (Operand){0};
     }
-    return (Operand){0};
 }
 
 Operand resolve_binary_op(TokenKind op, Operand left, Operand right) {
@@ -1406,8 +1409,8 @@ Operand resolve_binary_arithmetic_op(TokenKind op, Operand left, Operand right) 
 
 Operand resolve_expr_binary(Expr *expr) {
     assert(expr->kind == EXPR_BINARY);
-    Operand left = resolve_decayed_expr(expr->binary.left);
-    Operand right = resolve_decayed_expr(expr->binary.right);
+    Operand left = resolve_expr_rvalue(expr->binary.left);
+    Operand right = resolve_expr_rvalue(expr->binary.right);
     TokenKind op = expr->binary.op;
     const char *op_name = token_kind_name(op);
     switch (op) {
@@ -1558,7 +1561,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                 fatal_error(field.pos, "Field initializer in struct/union compound literal out of range");
             }
             Type *field_type = type->aggregate.fields[index].type;
-            Operand init = resolve_decayed_expected_expr(field.init, field_type);
+            Operand init = resolve_expected_expr_rvalue(field.init, field_type);
             if (!convert_operand(&init, field_type)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
@@ -1586,7 +1589,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (type->num_elems && index >= type->num_elems) {
                 fatal_error(field.pos, "Field initializer in array compound literal out of range");
             }
-            Operand init = resolve_decayed_expected_expr(field.init, type->base);
+            Operand init = resolve_expected_expr_rvalue(field.init, type->base);
             if (!convert_operand(&init, type->base)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
@@ -1602,7 +1605,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         }
         if (expr->compound.num_fields == 1) {
             CompoundField field = expr->compound.fields[0];
-            Operand init = resolve_decayed_expected_expr(field.init, type);
+            Operand init = resolve_expected_expr_rvalue(field.init, type);
             if (!convert_operand(&init, type)) {
                 fatal_error(field.pos, "Illegal conversion in compound literal initializer");
             }
@@ -1622,14 +1625,14 @@ Operand resolve_expr_call(Expr *expr) {
             if (expr->call.num_args != 1) {
                 fatal_error(expr->pos, "Type conversion operator takes 1 argument");
             }
-            Operand operand = resolve_decayed_expr(expr->call.args[0]);
+            Operand operand = resolve_expr_rvalue(expr->call.args[0]);
             if (!cast_operand(&operand, sym->type)) {
                 fatal_error(expr->pos, "Invalid type conversion");
             }
             return operand;
         }
     }
-    Operand func = resolve_decayed_expr(expr->call.expr);
+    Operand func = resolve_expr_rvalue(expr->call.expr);
     if (func.type->kind != TYPE_FUNC) {
         fatal_error(expr->pos, "Trying to call non-function value");
     }
@@ -1642,25 +1645,25 @@ Operand resolve_expr_call(Expr *expr) {
     }
     for (size_t i = 0; i < num_params; i++) {
         Type *param_type = func.type->func.params[i];
-        Operand arg = resolve_decayed_expected_expr(expr->call.args[i], param_type);
+        Operand arg = resolve_expected_expr_rvalue(expr->call.args[i], param_type);
         if (!convert_operand(&arg, param_type)) {
             fatal_error(expr->call.args[i]->pos, "Illegal conversion in call argument expression");
         }
     }
     for (size_t i = num_params; i < expr->call.num_args; i++) {
-        resolve_decayed_expr(expr->call.args[i]);
+        resolve_expr_rvalue(expr->call.args[i]);
     }
     return operand_rvalue(func.type->func.ret);
 }
 
 Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_TERNARY);
-    Operand cond = resolve_decayed_expr(expr->ternary.cond);
+    Operand cond = resolve_expr_rvalue(expr->ternary.cond);
     if (!is_scalar_type(cond.type)) {
         fatal_error(expr->pos, "Ternary conditional must have scalar type");
     }
-    Operand left = resolve_decayed_expected_expr(expr->ternary.then_expr, expected_type);
-    Operand right =resolve_decayed_expected_expr(expr->ternary.else_expr, expected_type);
+    Operand left = resolve_expected_expr_rvalue(expr->ternary.then_expr, expected_type);
+    Operand right =resolve_expected_expr_rvalue(expr->ternary.else_expr, expected_type);
     if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
         unify_arithmetic_operands(&left, &right);
         if (cond.is_const && left.is_const && right.is_const) {
@@ -1677,11 +1680,11 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
 
 Operand resolve_expr_index(Expr *expr) {
     assert(expr->kind == EXPR_INDEX);
-    Operand operand = resolve_decayed_expr(expr->index.expr);
+    Operand operand = resolve_expr_rvalue(expr->index.expr);
     if (operand.type->kind != TYPE_PTR) {
         fatal_error(expr->pos, "Can only index arrays or pointers");
     }
-    Operand index = resolve_expr(expr->index.index);
+    Operand index = resolve_expr_rvalue(expr->index.index);
     if (index.type->kind != TYPE_INT) {
         fatal_error(expr->pos, "Index expression must have type int");
     }
@@ -1691,7 +1694,7 @@ Operand resolve_expr_index(Expr *expr) {
 Operand resolve_expr_cast(Expr *expr) {
     assert(expr->kind == EXPR_CAST);
     Type *type = resolve_typespec(expr->cast.type);
-    Operand operand = resolve_decayed_expr(expr->cast.expr);
+    Operand operand = resolve_expr_rvalue(expr->cast.expr);
     if (!cast_operand(&operand, type)) {
         fatal_error(expr->pos, "Illegal conversion in cast");
     }
