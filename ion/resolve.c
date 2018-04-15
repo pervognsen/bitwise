@@ -290,9 +290,9 @@ bool is_castable(Operand *operand, Type *dest) {
     Type *src = operand->type;
     if (is_convertible(operand, dest)) {
         return true;
-    } else if (is_arithmetic_type(dest)) {
+    } else if (is_integer_type(dest)) {
         return is_ptr_type(src);
-    } else if (is_arithmetic_type(src)) {
+    } else if (is_integer_type(src)) {
         return is_ptr_type(dest);
     } else if (is_ptr_type(dest) && is_ptr_type(src)) {
         return true;
@@ -1319,10 +1319,10 @@ Operand resolve_expr_call(Expr *expr) {
     }
     for (size_t i = 0; i < num_params; i++) {
         Type *param_type = func.type->func.params[i];
+        Operand arg = resolve_expected_expr_rvalue(expr->call.args[i], param_type);
         if (is_array_type(param_type)) {
             param_type = type_ptr(param_type->base);
         }
-        Operand arg = resolve_expected_expr_rvalue(expr->call.args[i], param_type);
         if (!convert_operand(&arg, param_type)) {
             fatal_error(expr->call.args[i]->pos, "Invalid type in function call argument");
         }
@@ -1612,113 +1612,5 @@ void finalize_syms(void) {
         if (sym->decl) {
             finalize_sym(sym);
         }
-    }
-}
-
-void resolve_test(void) {
-    Type *int_ptr = type_ptr(type_int);
-    assert(type_ptr(type_int) == int_ptr);
-    Type *float_ptr = type_ptr(type_float);
-    assert(type_ptr(type_float) == float_ptr);
-    assert(int_ptr != float_ptr);
-    Type *int_ptr_ptr = type_ptr(type_ptr(type_int));
-    assert(type_ptr(type_ptr(type_int)) == int_ptr_ptr);
-    Type *float4_array = type_array(type_float, 4);
-    assert(type_array(type_float, 4) == float4_array);
-    Type *float3_array = type_array(type_float, 3);
-    assert(type_array(type_float, 3) == float3_array);
-    assert(float4_array != float3_array);
-    Type *int_int_func = type_func(&type_int, 1, type_int, false);
-    assert(type_func(&type_int, 1, type_int, false) == int_int_func);
-    Type *int_func = type_func(NULL, 0, type_int, false);
-    assert(int_int_func != int_func);
-    assert(int_func == type_func(NULL, 0, type_int, false));
-
-    init_builtins();
-
-    const char *code[] = {
-        "union IntOrPtr { i: int; p: int*; }",
-        "var u1 = IntOrPtr{i = 42}",
-        "var u2 = IntOrPtr{p = (:int*)42}",
-        "var i: int",
-        "struct Vector { x, y: int; }",
-        "func f1() { v := Vector{1, 2}; j := i; i++; j++; v.x = 2*j; }",
-        "func f2(n: int): int { return 2*n; }",
-        "func f3(x: int): int { if (x) { return -x; } else if (x % 2 == 0) { return 42; } else { return -1; } }",
-        "func f4(n: int): int { for (i := 0; i < n; i++) { if (i % 3 == 0) { return n; } } return 0; }",
-        "func f5(x: int): int { switch(x) { case 0, 1: return 42; case 3: default: return -1; } }",
-        "func f6(n: int): int { p := 1; while (n) { p *= 2; n--; } return p; }",
-        "func f7(n: int): int { p := 1; do { p *= 2; n--; } while (n); return p; }",
-        /*
-        "var i: int",
-        "func add(v: Vector, w: Vector): Vector { return {v.x + w.x, v.y + w.y}; }",
-        "var a: int[256] = {1, 2, ['a'] = 42, [255] = 123}",
-        "var v: Vector = 0 ? {1,2} : {3,4}",
-        "var vs: Vector[2][2] = {{{1,2},{3,4}}, {{5,6},{7,8}}}",
-        "struct A { c: char; }",
-        "struct B { i: int; }",
-        "struct C { c: char; a: A; }",
-        "struct D { c: char; b: B; }",
-        "func print(v: Vector) { printf(\"{%d, %d}\", v.x, v.y); }",
-        "var x = add({1,2}, {3,4})",
-        "var v: Vector = {1,2}",
-        "var w = Vector{3,4}",
-        "var p: void*",
-        "var i = (:int)p + 1",
-        "var fp: func(Vector)",
-        "struct Dup { x: int; x: int; }",
-        "var a: int[3] = {1,2,3}",
-        "var b: int[4]",
-        "var p = &a[1]",
-        "var i = p[1]",
-        "var j = *p",
-        "const n = sizeof(a)",
-        "const m = sizeof(&a[0])",
-        "const l = sizeof(1 ? a : b)",
-        "var pi = 3.14",
-        "var name = \"Per\"",
-        "var v = Vector{1,2}",
-        "var j = (:int)p",
-        "var q = (:int*)j",
-        "const i = 42",
-        "const j = +i",
-        "const k = -i",
-        "const a = 1000/((2*3-5) << 1)",
-        "const b = !0",
-        "const c = ~100 + 1 == -100",
-        "const k = 1 ? 2 : 3",
-        "union IntOrPtr { i: int; p: int*; }",
-        "var i = 42",
-        "var u = IntOrPtr{i, &i}",
-        "const n = 1+sizeof(p)",
-        "var p: T*",
-        "var u = *p",
-        "struct T { a: int[n]; }",
-        "var r = &t.a",
-        "var t: T",
-        "typedef S = int[n+m]",
-        "const m = sizeof(t.a)",
-        "var i = n+m",
-        "var q = &i",
-        "const n = sizeof(x)",
-        "var x: T",
-        "struct T { s: S*; }",
-        "struct S { t: T[n]; }",
-*/
-    };
-    for (size_t i = 0; i < sizeof(code)/sizeof(*code); i++) {
-        init_stream(NULL, code[i]);
-        Decl *decl = parse_decl();
-        sym_global_decl(decl);
-    }
-    finalize_syms();
-    for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
-        Sym *sym = *it;
-        if (sym->decl) {
-            print_decl(sym->decl);
-        } else {
-            printf("%s", sym->name);
-        }
-        printf("\n");
     }
 }

@@ -385,29 +385,4 @@ typedef union Val {
     uintptr_t p;
 } Val;
 
-void intern_test(void) {
-    char a[] = "hello";
-    assert(strcmp(a, str_intern(a)) == 0);
-    assert(str_intern(a) == str_intern(a));
-    assert(str_intern(str_intern(a)) == str_intern(a));
-    char b[] = "hello";
-    assert(a != b);
-    assert(str_intern(a) == str_intern(b));
-    char c[] = "hello!";
-    assert(str_intern(a) != str_intern(c));
-    char d[] = "hell";
-    assert(str_intern(a) != str_intern(d));
-}
 
-void common_test(void) {
-    buf_test();
-    intern_test();
-    map_test();
-
-    char *str1 = strf("%d %d", 1, 2);
-    assert(strcmp(str1, "1 2") == 0);
-    char *str2 = strf("%s %s", str1, str1);
-    assert(strcmp(str2, "1 2 1 2") == 0);
-    char *str3 = strf("%s asdf %s", str2, str2);
-    assert(strcmp(str3, "1 2 1 2 asdf 1 2 1 2") == 0);
-}

@@ -586,21 +586,6 @@ void gen_sorted_decls(void) {
     }
 }
 
-void cdecl_test(void) {
-    #if 0
-    char *cdecl1 = type_to_cdecl(type_int, "x");
-    char *cdecl2 = type_to_cdecl(type_ptr(type_int), "x");
-    char *cdecl3 = type_to_cdecl(type_array(type_int, 10), "x");
-    char *cdecl4 = type_to_cdecl(type_func((Type*[]){type_int}, 1, type_int), "x");
-    char *cdecl5 = type_to_cdecl(type_array(type_func((Type*[]){type_int}, 1, type_int), 10), "x");
-    char *cdecl6 = type_to_cdecl(type_func((Type*[]){type_ptr(type_int)}, 1, type_int), "x");
-    Type *type1 = type_func((Type*[]){type_array(type_int, 10)}, 1, type_int);
-    char *cdecl7 = type_to_cdecl(type1, "x");
-    char *cdecl8 = type_to_cdecl(type_func(NULL, 0, type1), "x");
-    char *cdecl9 = type_to_cdecl(type_func(NULL, 0, type_array(type_func(NULL, 0, type_int), 10)), "x");
-    #endif
-}
-
 void gen_func_defs(void) {
     for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
         Sym *sym = *it;

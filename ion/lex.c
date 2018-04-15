@@ -140,6 +140,7 @@ typedef enum TokenMod {
     MOD_BIN,
     MOD_OCT,
     MOD_CHAR,
+    MOD_MULTILINE,
 } TokenMod;
 
 typedef enum TokenSuffix {
@@ -264,8 +265,8 @@ void error(SrcPos pos, const char *fmt, ...) {
 }
 
 #define fatal_error(...) (error(__VA_ARGS__), exit(1))
-#define syntax_error(...) (error(token.pos, __VA_ARGS__))
-#define fatal_error_here(...) (syntax_error(__VA_ARGS__), exit(1))
+#define error_here(...) (error(token.pos, __VA_ARGS__))
+#define fatal_error_here(...) (error_here(__VA_ARGS__), exit(1))
 
 const char *token_info(void) {
     if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {
@@ -318,11 +319,11 @@ void scan_int(void) {
             break;
         }
         if (digit >= base) {
-            syntax_error("Digit '%c' out of range for base %d", *stream, base);
+            error_here("Digit '%c' out of range for base %d", *stream, base);
             digit = 0;
         }
         if (val > (ULLONG_MAX - digit)/base) {
-            syntax_error("Integer literal overflow");
+            error_here("Integer literal overflow");
             while (isdigit(*stream)) {
                 stream++;
             }
@@ -372,7 +373,7 @@ void scan_float(void) {
             stream++;
         }
         if (!isdigit(*stream)) {
-            syntax_error("Expected digit after float literal exponent, found '%c'.", *stream);
+            error_here("Expected digit after float literal exponent, found '%c'.", *stream);
         }
         while (isdigit(*stream)) {
             stream++;
@@ -380,7 +381,7 @@ void scan_float(void) {
     }
     double val = strtod(start, NULL);
     if (val == HUGE_VAL) {
-        syntax_error("Float literal overflow");
+        error_here("Float literal overflow");
     }
     token.kind = TOKEN_FLOAT;
     token.float_val = val;
@@ -405,15 +406,15 @@ void scan_char(void) {
     stream++;
     char val = 0;
     if (*stream == '\'') {
-        syntax_error("Char literal cannot be empty");
+        error_here("Char literal cannot be empty");
         stream++;
     } else if (*stream == '\n') {
-        syntax_error("Char literal cannot contain newline");
+        error_here("Char literal cannot contain newline");
     } else if (*stream == '\\') {
         stream++;
         val = escape_to_char[(unsigned char)*stream];
         if (val == 0 && *stream != '0') {
-            syntax_error("Invalid char literal escape '\\%c'", *stream);
+            error_here("Invalid char literal escape '\\%c'", *stream);
         }
         stream++;
     } else {
@@ -421,7 +422,7 @@ void scan_char(void) {
         stream++;
     }
     if (*stream != '\'') {
-        syntax_error("Expected closing char quote, got '%c'", *stream);
+        error_here("Expected closing char quote, got '%c'", *stream);
     } else {
         stream++;
     }
@@ -434,26 +435,45 @@ void scan_str(void) {
     assert(*stream == '"');
     stream++;
     char *str = NULL;
-    while (*stream && *stream != '"') {
-        char val = *stream;
-        if (val == '\n') {
-            syntax_error("String literal cannot contain newline");
-            break;
-        } else if (val == '\\') {
-            stream++;
-            val = escape_to_char[(unsigned char)*stream];
-            if (val == 0 && *stream != '0') {
-                syntax_error("Invalid string literal escape '\\%c'", *stream);
+    if (stream[0] == '"' && stream[1] == '"') {
+        stream += 2;
+        while (*stream) {
+            if (stream[0] == '"' && stream[1] == '"' && stream[2] == '"') {
+                stream += 3;
+                break;
             }
+            if (*stream != '\r') {
+                // TODO: Should probably just read files in text mode instead.
+                buf_push(str, *stream);
+            }
+            stream++;
         }
-        buf_push(str, val);
-        stream++;
-    }
-    if (*stream) {
-        assert(*stream == '"');
-        stream++;
+        if (!*stream) {
+            error_here("Unexpected end of file within multi-line string literal");
+        }
+        token.mod = MOD_MULTILINE;
     } else {
-        syntax_error("Unexpected end of file within string literal");
+        while (*stream && *stream != '"') {
+            char val = *stream;
+            if (val == '\n') {
+                error_here("String literal cannot contain newline");
+                break;
+            } else if (val == '\\') {
+                stream++;
+                val = escape_to_char[(unsigned char)*stream];
+                if (val == 0 && *stream != '0') {
+                    error_here("Invalid string literal escape '\\%c'", *stream);
+                }
+            }
+            buf_push(str, val);
+            stream++;
+        }
+        if (*stream) {
+            assert(*stream == '"');
+            stream++;
+        } else {
+            error_here("Unexpected end of file within string literal");
+        }
     }
     buf_push(str, 0);
     token.kind = TOKEN_STR;
@@ -613,7 +633,7 @@ repeat:
     CASE3('&', TOKEN_AND, '=', TOKEN_AND_ASSIGN, '&', TOKEN_AND_AND)
     CASE3('|', TOKEN_OR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR_OR)
     default:
-        syntax_error("Invalid '%c' token, skipping", *stream);
+        error_here("Invalid '%c' token, skipping", *stream);
         stream++;
         goto repeat;
     }
@@ -676,91 +696,3 @@ bool expect_token(TokenKind kind) {
         return false;
     }
 }
-
-void keyword_test(void) {
-    init_keywords();
-    assert(is_keyword_name(first_keyword));
-    assert(is_keyword_name(last_keyword));
-    for (const char **it = keywords; it != buf_end(keywords); it++) {
-        assert(is_keyword_name(*it));
-    }
-    assert(!is_keyword_name(str_intern("foo")));
-}
-
-#define assert_token(x) assert(match_token(x))
-#define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
-#define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
-#define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
-#define assert_token_str(x) assert(strcmp(token.str_val, (x)) == 0 && match_token(TOKEN_STR))
-#define assert_token_eof() assert(is_token(0))
-
-void lex_test(void) {
-    keyword_test();
-    assert(str_intern("func") == func_keyword);
-
-    // Integer literal tests
-    init_stream(NULL, "0 2147483647 0x7fffffff 042 0b1111");
-    assert_token_int(0);
-    assert_token_int(2147483647);
-    assert(token.mod == MOD_HEX);
-    assert_token_int(0x7fffffff);
-    assert(token.mod == MOD_OCT);
-    assert_token_int(042);
-    assert(token.mod == MOD_BIN);
-    assert_token_int(0xF);
-    assert_token_eof();
-
-    // Float literal tests
-    init_stream(NULL, "3.14 .123 42. 3e10");
-    assert_token_float(3.14);
-    assert_token_float(.123);
-    assert_token_float(42.);
-    assert_token_float(3e10);
-    assert_token_eof();
-
-    // Char literal tests
-    init_stream(NULL, "'a' '\\n'");
-    assert_token_int('a');
-    assert_token_int('\n');
-    assert_token_eof();
-
-    // String literal tests
-    init_stream(NULL, "\"foo\" \"a\\nb\"");
-    assert_token_str("foo");
-    assert_token_str("a\nb");
-    assert_token_eof();
-
-    // Operator tests
-    init_stream(NULL, ": := + += ++ < <= << <<=");
-    assert_token(TOKEN_COLON);
-    assert_token(TOKEN_COLON_ASSIGN);
-    assert_token(TOKEN_ADD);
-    assert_token(TOKEN_ADD_ASSIGN);
-    assert_token(TOKEN_INC);
-    assert_token(TOKEN_LT);
-    assert_token(TOKEN_LTEQ);
-    assert_token(TOKEN_LSHIFT);
-    assert_token(TOKEN_LSHIFT_ASSIGN);
-    assert_token_eof();
-
-    // Misc tests
-    init_stream(NULL, "XY+(XY)_HELLO1,234+994");
-    assert_token_name("XY");
-    assert_token(TOKEN_ADD);
-    assert_token(TOKEN_LPAREN);
-    assert_token_name("XY");
-    assert_token(TOKEN_RPAREN);
-    assert_token_name("_HELLO1");
-    assert_token(TOKEN_COMMA);
-    assert_token_int(234);
-    assert_token(TOKEN_ADD);
-    assert_token_int(994);
-    assert_token_eof();
-}
-
-#undef assert_token
-#undef assert_token_name
-#undef assert_token_int
-#undef assert_token_float
-#undef assert_token_str
-#undef assert_token_eof

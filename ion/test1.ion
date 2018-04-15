@@ -18,6 +18,15 @@ const N = (:char)42 + 8 != 0;
 
 typedef A = int[1 + 2*sizeof(h())];
 
+var code = """
+#include <stdio.h>
+
+int main(int argc, char **argv) {
+    printf("Hello, world!\n");
+    return 0;
+}
+""";
+
 struct S1 {
     a: int;
     b: int const;
@@ -27,7 +36,7 @@ struct S2 {
     s1: S1;
 }
 
-func f10(a: int[]) {
+func f10(a: int[3]) {
     a[1] = 42;
 }
 
