@@ -266,16 +266,21 @@ bool is_convertible(Operand *operand, Type *dest) {
         return true;
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
-    } else if (is_ptr_type(dest) && is_ptr_type(src)) {
-        src = src->base;
-        dest = unqualify_type(dest->base);
-        if (dest == type_void) {
-            return src->kind != TYPE_CONST;
-        } else {
-            return dest == src || src == type_void;
-        }
     } else if (is_ptr_type(dest) && is_null_ptr(*operand)) {
         return true;
+    } else if (is_ptr_type(dest) && is_ptr_type(src)) {
+        if (is_const_type(dest->base) && is_const_type(src->base)) {
+            return dest->base->base == src->base->base || dest->base->base == type_void || src->base->base == type_void;
+        } else {
+            Type *unqual_dest_base = unqualify_type(dest->base);
+            if (unqual_dest_base == src->base) {
+                return true;
+            } else if (unqual_dest_base == type_void) {
+                return is_const_type(dest->base) || !is_const_type(src->base);
+            } else {
+                return src->base == type_void;
+            }
+        }
     } else {
         return false;
     }
@@ -345,7 +350,7 @@ bool convert_operand(Operand *operand, Type *type) {
 #undef CASE
 
 bool is_null_ptr(Operand operand) {
-    if (operand.is_const && (is_ptr_type(operand.type) || is_arithmetic_type(operand.type))) {
+    if (operand.is_const && (is_ptr_type(operand.type) || is_integer_type(operand.type))) {
         cast_operand(&operand, type_ullong);
         return operand.val.ull == 0;
     } else {
@@ -543,7 +548,7 @@ Type *resolve_decl_var(Decl *decl) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
                 if (!convert_operand(&operand, type)) {
-                    fatal_error(decl->pos, "Illegal conversion in variable initializer");
+                    fatal_error(decl->pos, "Invalid type in variable initializer");
                 }
             }
         }
@@ -560,7 +565,7 @@ Type *resolve_decl_const(Decl *decl, Val *val) {
     assert(decl->kind == DECL_CONST);
     Operand result = resolve_const_expr(decl->const_decl.expr);
     if (!is_arithmetic_type(result.type)) {
-        fatal_error(decl->pos, "Const must have arithmetic type");
+        fatal_error(decl->pos, "Const declarations must have arithmetic type");
     }
     *val = result.val;
     return result.type;
@@ -585,7 +590,7 @@ Type *resolve_decl_func(Decl *decl) {
     if (is_array_type(ret_type)) {
         fatal_error(decl->pos, "Function return type cannot be array");
     }
-    return type_func(params, buf_len(params), ret_type, decl->func.variadic);
+    return type_func(params, buf_len(params), ret_type, decl->func.has_varargs);
 }
 
 bool resolve_stmt(Stmt *stmt, Type *ret_type);
@@ -622,7 +627,7 @@ void resolve_stmt_assign(Stmt *stmt) {
     if (stmt->assign.right) {
         Operand right = resolve_expected_expr_rvalue(stmt->assign.right, left.type);
         if (!convert_operand(&right, left.type)) {
-            fatal_error(stmt->pos, "Illegal conversion in assignment statement");
+            fatal_error(stmt->pos, "Invalid type in assignment");
         }
     }
 }
@@ -638,7 +643,7 @@ void resolve_stmt_init(Stmt *stmt) {
             if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
                 type = operand.type;
             } else if (!convert_operand(&operand, expected_type)) {
-                fatal_error(stmt->pos, "Illegal conversion in init statement");
+                fatal_error(stmt->pos, "Invalid type in initialization statement");
             }
         }
     } else {
@@ -659,7 +664,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         if (stmt->expr) {
             Operand operand = resolve_expected_expr(stmt->expr, ret_type);
             if (!convert_operand(&operand, ret_type)) {
-                fatal_error(stmt->pos, "Illegal conversion in return expression");
+                fatal_error(stmt->pos, "Invalid type in return expression");
             }
         } else if (ret_type != type_void) {
             fatal_error(stmt->pos, "Empty return expression for function with non-void return type");
@@ -709,7 +714,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
                 Expr *case_expr = switch_case.exprs[j];
                 Operand case_operand = resolve_expr(case_expr);
                 if (!convert_operand(&case_operand, expr.type)) {
-                    fatal_error(case_expr->pos, "Illegal conversion in switch case expression");
+                    fatal_error(case_expr->pos, "Invalid type in switch case expression");
                 }
                 returns = resolve_stmt_block(switch_case.block, ret_type) && returns;
             }
@@ -758,7 +763,7 @@ void resolve_func_body(Sym *sym) {
         fatal_error(decl->pos, "Not all control paths return values");
     }
 }
-    
+
 void resolve_sym(Sym *sym) {
     if (sym->state == SYM_RESOLVED) {
         return;
@@ -856,7 +861,7 @@ unsigned long long eval_unary_op_ull(TokenKind op, unsigned long long val) {
     case TOKEN_ADD:
         return +val;
     case TOKEN_SUB:
-        return 0ull - val; // Shut up MSVC's unary minus warning
+        return 0ull - val;
     case TOKEN_NEG:
         return ~val;
     case TOKEN_NOT:
@@ -902,10 +907,6 @@ long long eval_binary_op_ll(TokenKind op, long long left, long long right) {
         return left > right;
     case TOKEN_GTEQ:
         return left >= right;
-    case TOKEN_AND_AND:
-        return left && right;
-    case TOKEN_OR_OR:
-        return left || right;
     default:
         assert(0);
         break;
@@ -947,10 +948,6 @@ unsigned long long eval_binary_op_ull(TokenKind op, unsigned long long left, uns
         return left > right;
     case TOKEN_GTEQ:
         return left >= right;
-    case TOKEN_AND_AND:
-        return left && right;
-    case TOKEN_OR_OR:
-        return left || right;
     default:
         assert(0);
         break;
@@ -1000,7 +997,7 @@ Operand resolve_expr_name(Expr *expr) {
     assert(expr->kind == EXPR_NAME);
     Sym *sym = resolve_name(expr->name);
     if (!sym) {
-        fatal_error(expr->pos, "Name in expression does not exist");
+        fatal_error(expr->pos, "Unresolved name");
     }
     if (sym->kind == SYM_VAR) {
         return operand_lvalue(sym->type);
@@ -1013,7 +1010,7 @@ Operand resolve_expr_name(Expr *expr) {
         return operand_null;
     }
 }
- 
+
 Operand resolve_unary_op(TokenKind op, Operand operand) {
     promote_operand(&operand);
     if (operand.is_const) {
@@ -1240,7 +1237,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             Type *field_type = type->aggregate.fields[index].type;
             Operand init = resolve_expected_expr_rvalue(field.init, field_type);
             if (!convert_operand(&init, field_type)) {
-                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+                fatal_error(field.pos, "Invalid type in compound literal initializer");
             }
             index++;
         }
@@ -1256,7 +1253,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                     fatal_error(field.pos, "Field initializer index expression must have type int");
                 }
                 if (!cast_operand(&operand, type_int)) {
-                    fatal_error(field.pos, "Illegal conversion in field initializer index");
+                    fatal_error(field.pos, "Invalid type in field initializer index");
                 }
                 if (operand.val.i < 0) {
                     fatal_error(field.pos, "Field initializer index cannot be negative");
@@ -1268,7 +1265,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             }
             Operand init = resolve_expected_expr_rvalue(field.init, type->base);
             if (!convert_operand(&init, type->base)) {
-                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+                fatal_error(field.pos, "Invalid type in compound literal initializer");
             }
             max_index = MAX(max_index, index);
             index++;
@@ -1284,7 +1281,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             CompoundField field = expr->compound.fields[0];
             Operand init = resolve_expected_expr_rvalue(field.init, type);
             if (!convert_operand(&init, type)) {
-                fatal_error(field.pos, "Illegal conversion in compound literal initializer");
+                fatal_error(field.pos, "Invalid type in compound literal initializer");
             }
         }
     }
@@ -1296,7 +1293,7 @@ Operand resolve_expr_call(Expr *expr) {
     if (expr->call.expr->kind == EXPR_NAME) {
         Sym *sym = resolve_name(expr->call.expr->name);
         if (!sym) {
-            fatal_error(expr->pos, "Name in expression does not exist");
+            fatal_error(expr->pos, "Unresolved name");
         }
         if (sym->kind == SYM_TYPE) {
             if (expr->call.num_args != 1) {
@@ -1304,27 +1301,30 @@ Operand resolve_expr_call(Expr *expr) {
             }
             Operand operand = resolve_expr_rvalue(expr->call.args[0]);
             if (!cast_operand(&operand, sym->type)) {
-                fatal_error(expr->pos, "Invalid type conversion");
+                fatal_error(expr->pos, "Invalid type cast");
             }
             return operand;
         }
     }
     Operand func = resolve_expr_rvalue(expr->call.expr);
     if (func.type->kind != TYPE_FUNC) {
-        fatal_error(expr->pos, "Trying to call non-function value");
+        fatal_error(expr->pos, "Cannot call non-function value");
     }
     size_t num_params = func.type->func.num_params;
     if (expr->call.num_args < num_params) {
-        fatal_error(expr->pos, "Tried to call function with too few arguments");
+        fatal_error(expr->pos, "Function call with too few arguments");
     }
-    if (expr->call.num_args > num_params && !func.type->func.variadic) {
-        fatal_error(expr->pos, "Tried to call function with too many arguments");
+    if (expr->call.num_args > num_params && !func.type->func.has_varargs) {
+        fatal_error(expr->pos, "Function call with too many arguments");
     }
     for (size_t i = 0; i < num_params; i++) {
         Type *param_type = func.type->func.params[i];
+        if (is_array_type(param_type)) {
+            param_type = type_ptr(param_type->base);
+        }
         Operand arg = resolve_expected_expr_rvalue(expr->call.args[i], param_type);
         if (!convert_operand(&arg, param_type)) {
-            fatal_error(expr->call.args[i]->pos, "Illegal conversion in call argument expression");
+            fatal_error(expr->call.args[i]->pos, "Invalid type in function call argument");
         }
     }
     for (size_t i = num_params; i < expr->call.num_args; i++) {
@@ -1363,7 +1363,7 @@ Operand resolve_expr_index(Expr *expr) {
     }
     Operand index = resolve_expr_rvalue(expr->index.index);
     if (!is_integer_type(index.type)) {
-        fatal_error(expr->pos, "Index expression must have type int");
+        fatal_error(expr->pos, "Index must have integer type");
     }
     return operand_lvalue(operand.type->base);
 }
@@ -1373,7 +1373,7 @@ Operand resolve_expr_cast(Expr *expr) {
     Type *type = resolve_typespec(expr->cast.type);
     Operand operand = resolve_expr_rvalue(expr->cast.expr);
     if (!cast_operand(&operand, type)) {
-        fatal_error(expr->pos, "Illegal conversion in cast");
+        fatal_error(expr->pos, "Invalid type cast");
     }
     return operand;
 }
@@ -1384,10 +1384,11 @@ Operand resolve_expr_int(Expr *expr) {
     Operand operand = operand_const(type_ullong, (Val){.ull = val});
     Type *type = type_ullong;
     if (expr->int_lit.mod == MOD_NONE) {
-        bool overflow = false;
+        bool overflow = false;  
         switch (expr->int_lit.suffix) {
         case SUFFIX_NONE:
             type = type_int;
+            // TODO: MAX constants should be sourced from the backend target table, not from the host compiler's header files.
             if (val > INT_MAX) {
                 type = type_long;
                 if (val > LONG_MAX) {
@@ -1503,12 +1504,12 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     switch (expr->kind) {
     case EXPR_INT:
         result = resolve_expr_int(expr);
-        break;
+        break;  
     case EXPR_FLOAT:
         result = operand_const(expr->float_lit.suffix == SUFFIX_D ? type_double : type_float, (Val){0});
         break;
     case EXPR_STR:
-        result = operand_rvalue(type_ptr(type_const(type_char)));
+        result = operand_rvalue(type_ptr(type_char));
         break;
     case EXPR_NAME:
         result = resolve_expr_name(expr);

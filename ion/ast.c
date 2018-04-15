@@ -59,12 +59,12 @@ Typespec *typespec_array(SrcPos pos, Typespec *elem, Expr *size) {
     return t;
 }
 
-Typespec *typespec_func(SrcPos pos, Typespec **args, size_t num_args, Typespec *ret, bool variadic) {
+Typespec *typespec_func(SrcPos pos, Typespec **args, size_t num_args, Typespec *ret, bool has_varargs) {
     Typespec *t = typespec_new(TYPESPEC_FUNC, pos);
     t->func.args = AST_DUP(args);
     t->func.num_args = num_args;
     t->func.ret = ret;
-    t->func.variadic = variadic;
+    t->func.has_varargs = has_varargs;
     return t;
 }
 
@@ -126,12 +126,12 @@ Decl *decl_var(SrcPos pos, const char *name, Typespec *type, Expr *expr) {
     return d;
 }
 
-Decl *decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool variadic, StmtList block) {
+Decl *decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool has_varargs, StmtList block) {
     Decl *d = decl_new(DECL_FUNC, pos, name);
     d->func.params = AST_DUP(params);
     d->func.num_params = num_params;
     d->func.ret_type = ret_type;
-    d->func.variadic = variadic;
+    d->func.has_varargs = has_varargs;
     d->func.block = block;
     return d;
 }

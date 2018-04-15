@@ -18,6 +18,36 @@ const N = (:char)42 + 8 != 0;
 
 typedef A = int[1 + 2*sizeof(h())];
 
+struct S1 {
+    a: int;
+    b: int const;
+}
+
+struct S2 {
+    s1: S1;
+}
+
+func f10(a: int[]) {
+    a[1] = 42;
+}
+
+func test_arrays() {
+    a: int[] = {1, 2, 3};
+    f10(a);
+}
+
+func test_nonmodifiable() {
+    s1: S1;
+    s1.a = 0;
+    // s1.b = 0;
+    // s1 = {};
+    s2: S2;
+    s2.s1.a = 0;
+    // s2.s1.b = 0;
+    // s2.s1 = {};
+    // s2 = {};
+}
+
 func h(): uchar {
     Vector{x = 1, y = 2}.x = 42;
     v := &Vector{1, 2};
@@ -130,7 +160,7 @@ func va_test(x: int, ...): int {
     return 0;
 }
 
-typedef F = func(x: int, ...): int;
+typedef F = func(int, ...): int;
 
 func test_lits() {
     f := 3.14;
@@ -207,14 +237,14 @@ struct ConstVector {
     x, y: int const;
 }
 
-func f5(p: void const*) {
+func f5(p: int const*) {
 }
 
 func test_convert() {
     a: int const* = 0;
     b: int* = 0;
     a = b;
-    p: int* = 0;
+    p: void* = 0;
     f5(p);
 }
 
@@ -244,16 +274,31 @@ func test_const() {
 func test_init() {
     x := (:int const)0;
     y: int;
+    y = 0;
     z: int = 42;
     a: int[] = {1, 2, 3};
     // a2: int[];
     // v: void;
+    for (i: ullong = 0; i < 10; i++) {
+        printf("%llu\n", i);
+    }
+}
+
+func test_cast() {
+    p: int* = 0;
+    a: uint64 = 0;
+    // a = p;
+    a = uint64(p);
+    // p = a;
+    p = (:int*)a;
 }
 
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_arrays();
+    test_cast();
     test_init();
     test_lits();
     test_const();

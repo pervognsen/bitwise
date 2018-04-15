@@ -57,15 +57,10 @@ func rot2(a: float, b: vec2): vec2 {
     return {c*b.x - s*b.y, s*b.x + c*b.y};
 }
 
-const N = ullong(1);
-
-var u8: uint8 = 123;
-
 func main(argc: int, argv: char**): int {
     v := vec2{1, 0};
     w := vec2{0, 1};
     v = rot2(3.14/4, v);
     w = add2(w, {0.1, 0.2});
-    i := int(3.14);
     return 0;
 }

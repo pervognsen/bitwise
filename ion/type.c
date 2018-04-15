@@ -36,6 +36,11 @@ typedef struct TypeField {
     size_t offset;
 } TypeField;
 
+typedef struct EnumField {
+    const char *name;
+    Val val;
+} EnumField;
+
 struct Type {
     TypeKind kind;
     size_t size;
@@ -46,13 +51,17 @@ struct Type {
     union {
         size_t num_elems;
         struct {
+            EnumField *fields;
+            size_t num_fields;
+        } enum_type;
+        struct {
             TypeField *fields;
             size_t num_fields;
         } aggregate;
         struct {
             Type **params;
             size_t num_params;
-            bool variadic;
+            bool has_varargs;
             Type *ret;
         } func;
     };
@@ -90,6 +99,10 @@ const size_t PTR_ALIGN = 8;
 
 bool is_ptr_type(Type *type) {
     return type->kind == TYPE_PTR;
+}
+
+bool is_const_type(Type *type) {
+    return type->kind == TYPE_CONST;
 }
 
 bool is_array_type(Type *type) {
@@ -275,16 +288,16 @@ Type *type_array(Type *elem, size_t num_elems) {
 typedef struct CachedFuncType {
     Type **params;
     size_t num_params;
-    bool variadic;
+    bool has_varargs;
     Type *ret;
     Type *func;
 } CachedFuncType;
 
 CachedFuncType *cached_func_types;
 
-Type *type_func(Type **params, size_t num_params, Type *ret, bool variadic) {
+Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
     for (CachedFuncType *it = cached_func_types; it != buf_end(cached_func_types); it++) {
-        if (it->num_params == num_params && it->ret == ret && it->variadic == variadic) {
+        if (it->num_params == num_params && it->ret == ret && it->has_varargs == has_varargs) {
             bool match = true;
             for (size_t i = 0; i < num_params; i++) {
                 if (it->params[i] != params[i]) {
@@ -302,7 +315,7 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool variadic) {
     type->align = PTR_ALIGN;
     type->func.params = memdup(params, num_params * sizeof(*params));
     type->func.num_params = num_params;
-    type->func.variadic = variadic;
+    type->func.has_varargs = has_varargs;
     type->func.ret = ret;
     buf_push(cached_func_types, (CachedFuncType){params, num_params, ret, type});
     return type;
@@ -358,5 +371,12 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
 Type *type_incomplete(Sym *sym) {
     Type *type = type_alloc(TYPE_INCOMPLETE);
     type->sym = sym;
+    return type;
+}
+
+Type *type_enum(EnumField *fields, size_t num_fields) {
+    Type *type = type_alloc(TYPE_ENUM);
+    type->enum_type.fields = memdup(fields, num_fields * sizeof(*fields));
+    type->enum_type.num_fields = num_fields;
     return type;
 }

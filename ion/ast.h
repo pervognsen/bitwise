@@ -41,7 +41,7 @@ struct Typespec {
             Typespec **args;
             size_t num_args;
             Typespec *ret;
-            bool variadic;
+            bool has_varargs;
         } func;
         Expr *num_elems;
     };
@@ -96,7 +96,7 @@ struct Decl {
             FuncParam *params;
             size_t num_params;
             Typespec *ret_type;
-            bool variadic;
+            bool has_varargs;
             StmtList block;
         } func;
         struct {
