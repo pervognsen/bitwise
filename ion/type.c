@@ -15,6 +15,7 @@ typedef enum TypeKind {
     TYPE_ULONG,
     TYPE_LLONG,
     TYPE_ULLONG,
+    TYPE_ENUM,
     TYPE_FLOAT,
     TYPE_DOUBLE,
     TYPE_PTR,
@@ -22,7 +23,6 @@ typedef enum TypeKind {
     TYPE_ARRAY,
     TYPE_STRUCT,
     TYPE_UNION,
-    TYPE_ENUM,
     TYPE_CONST,
     NUM_TYPE_KINDS,
 } TypeKind;
@@ -105,7 +105,7 @@ bool is_incomplete_array_type(Type *type) {
 }
 
 bool is_integer_type(Type *type) {
-    return TYPE_BOOL <= type->kind && type->kind <= TYPE_ULLONG;
+    return TYPE_BOOL <= type->kind && type->kind <= TYPE_ENUM;
 }
 
 bool is_floating_type(Type *type) {
@@ -365,7 +365,10 @@ Type *type_incomplete(Sym *sym) {
     return type;
 }
 
-Type *type_enum(void) {
+Type *type_enum(Sym *sym) {
     Type *type = type_alloc(TYPE_ENUM);
+    type->sym = sym;
+    type->size = type_int->size;
+    type->align = type_int->align;
     return type;
 }

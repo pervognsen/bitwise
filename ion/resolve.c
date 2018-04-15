@@ -153,14 +153,14 @@ Sym *sym_global_decl(Decl *decl) {
     decl->sym = sym;
     if (decl->kind == DECL_ENUM) {
         sym->state = SYM_RESOLVED;
-        sym->type = type_int;
+        sym->type = type_enum(sym);
         buf_push(sorted_syms, sym);
         for (int i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
             if (item.init) {
                 fatal_error(item.pos, "Explicit enum constant initializers are not currently supported");
             }
-            sym_global_const(item.name, type_int, (Val){.i = i});
+            sym_global_const(item.name, sym->type, (Val){.i = i});
         }
     }
     return sym;
@@ -229,6 +229,7 @@ bool is_null_ptr(Operand operand);
             operand->val.us = (unsigned short)operand->val.t; \
             break; \
         case TYPE_INT: \
+        case TYPE_ENUM: \
             operand->val.i = (int)operand->val.t; \
             break; \
         case TYPE_UINT: \
@@ -324,7 +325,7 @@ bool cast_operand(Operand *operand, Type *type) {
                 CASE(TYPE_SHORT, s)
                 CASE(TYPE_USHORT, us)
                 CASE(TYPE_INT, i)
-                CASE(TYPE_UINT, u)
+                CASE(TYPE_ENUM, i)
                 CASE(TYPE_LONG, l)
                 CASE(TYPE_ULONG, ul)
                 CASE(TYPE_LLONG, ll)
@@ -369,6 +370,7 @@ void promote_operand(Operand *operand) {
     case TYPE_UCHAR:
     case TYPE_SHORT:
     case TYPE_USHORT:
+    case TYPE_ENUM:
         cast_operand(operand, type_int);
         break;
     default:

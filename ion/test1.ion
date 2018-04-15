@@ -166,7 +166,11 @@ enum Color {
 }
 
 func test_enum() {
-    c: Color = COLOR_RED;
+    a: Color = COLOR_RED;
+    b := COLOR_RED;
+    c := a + b;
+    i: int = a;
+    a = i;
     printf("%d %d %d %d\n", COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE);
 }
 
