@@ -326,6 +326,7 @@ bool cast_operand(Operand *operand, Type *type) {
                 CASE(TYPE_USHORT, us)
                 CASE(TYPE_INT, i)
                 CASE(TYPE_ENUM, i)
+                CASE(TYPE_UINT, u)
                 CASE(TYPE_LONG, l)
                 CASE(TYPE_ULONG, ul)
                 CASE(TYPE_LLONG, ll)
