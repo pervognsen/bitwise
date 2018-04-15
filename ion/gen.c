@@ -65,7 +65,11 @@ void gen_char(char c) {
     }
 }
 
-void gen_str(const char *str) {
+void gen_str(const char *str, bool multiline) {
+    if (multiline) {
+        gen_indent++;
+        genln();
+    }
     genf("\"");
     while (*str) {
         const char *start = str;
@@ -78,6 +82,10 @@ void gen_str(const char *str) {
         if (*str) {
             if (char_to_escape[(unsigned char)*str]) {
                 genf("\\%c", char_to_escape[(unsigned char)*str]);
+                if (str[0] == '\n' && str[1]) {
+                    genf("\"");
+                    genlnf("\"");
+                }
             } else {
                 assert(!isprint(*str));
                 genf("\\x%x", *str);
@@ -86,6 +94,9 @@ void gen_str(const char *str) {
         }
     }
     genf("\"");
+    if (multiline) {
+        gen_indent--;
+    }
 }
 
 void gen_sync_pos(SrcPos pos) {
@@ -93,7 +104,7 @@ void gen_sync_pos(SrcPos pos) {
         genlnf("#line %d", pos.line);
         if (gen_pos.name != pos.name) {
             genf(" ");
-            gen_str(pos.name);
+            gen_str(pos.name, false);
         }
         gen_pos = pos;
     }
@@ -308,7 +319,7 @@ void gen_expr(Expr *expr) {
         genf("%f%s", expr->float_lit.val, expr->float_lit.suffix == SUFFIX_D ? "" : "f");
         break;
     case EXPR_STR:
-        gen_str(expr->str_val);
+        gen_str(expr->str_lit.val, expr->str_lit.mod == MOD_MULTILINE);
         break;
     case EXPR_NAME:
         genf("%s", expr->name);

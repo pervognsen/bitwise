@@ -182,9 +182,10 @@ Expr *expr_float(SrcPos pos, double val, TokenSuffix suffix) {
     return e;
 }
 
-Expr *expr_str(SrcPos pos, const char *str_val) {
+Expr *expr_str(SrcPos pos, const char *val, TokenMod mod) {
     Expr *e = expr_new(EXPR_STR, pos);
-    e->str_val = str_val;
+    e->str_lit.val = val;
+    e->str_lit.mod = mod;
     return e;
 }
 

@@ -70,7 +70,7 @@ void print_expr(Expr *expr) {
         printf("%f", e->float_lit.val);
         break;
     case EXPR_STR:
-        printf("\"%s\"", e->str_val);
+        printf("\"%s\"", e->str_lit.val);
         break;
     case EXPR_NAME:
         printf("%s", e->name);

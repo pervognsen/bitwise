@@ -135,8 +135,9 @@ Expr *parse_expr_operand(void) {
         return expr_float(pos, val, suffix);
     } else if (is_token(TOKEN_STR)) {
         const char *val = token.str_val;
+        TokenMod mod = token.mod;
         next_token();
-        return expr_str(pos, val);
+        return expr_str(pos, val, mod);
     } else if (is_token(TOKEN_NAME)) {
         const char *name = token.name;
         next_token();
