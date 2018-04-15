@@ -36,11 +36,6 @@ typedef struct TypeField {
     size_t offset;
 } TypeField;
 
-typedef struct EnumField {
-    const char *name;
-    Val val;
-} EnumField;
-
 struct Type {
     TypeKind kind;
     size_t size;
@@ -50,10 +45,6 @@ struct Type {
     bool nonmodifiable;
     union {
         size_t num_elems;
-        struct {
-            EnumField *fields;
-            size_t num_fields;
-        } enum_type;
         struct {
             TypeField *fields;
             size_t num_fields;
@@ -374,9 +365,7 @@ Type *type_incomplete(Sym *sym) {
     return type;
 }
 
-Type *type_enum(EnumField *fields, size_t num_fields) {
+Type *type_enum(void) {
     Type *type = type_alloc(TYPE_ENUM);
-    type->enum_type.fields = memdup(fields, num_fields * sizeof(*fields));
-    type->enum_type.num_fields = num_fields;
     return type;
 }

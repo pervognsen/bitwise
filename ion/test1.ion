@@ -158,6 +158,18 @@ struct T {
     a: int[M];
 }
 
+enum Color {
+    COLOR_NONE,
+    COLOR_RED,
+    COLOR_GREEN,
+    COLOR_BLUE,
+}
+
+func test_enum() {
+    c: Color = COLOR_RED;
+    printf("%d %d %d %d\n", COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE);
+}
+
 func benchmark(n: int) {
     r := 1;
     for (i := 1; i <= n; i++) {
@@ -306,6 +318,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_enum();
     test_arrays();
     test_cast();
     test_init();

@@ -4,7 +4,6 @@ typedef enum SymKind {
     SYM_CONST,
     SYM_FUNC,
     SYM_TYPE,
-    SYM_ENUM_CONST,
 } SymKind;
 
 typedef enum SymState {
@@ -26,6 +25,7 @@ enum {
     MAX_LOCAL_SYMS = 1024
 };
 
+Sym **sorted_syms;
 Map global_syms_map;
 Sym **global_syms_buf;
 Sym local_syms[MAX_LOCAL_SYMS];
@@ -67,10 +67,6 @@ Sym *sym_decl(Decl *decl) {
         sym->type = type_incomplete(sym);
     }
     return sym;
-}
-
-Sym *sym_enum_const(const char *name, Decl *decl) {
-    return sym_new(SYM_ENUM_CONST, name, decl);
 }
 
 Sym *sym_get_local(const char *name) {
@@ -121,18 +117,6 @@ void sym_global_put(Sym *sym) {
     buf_push(global_syms_buf, sym);
 }
 
-Sym *sym_global_decl(Decl *decl) {
-    Sym *sym = sym_decl(decl);
-    sym_global_put(sym);
-    decl->sym = sym;
-    if (decl->kind == DECL_ENUM) {
-        for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
-            sym_global_put(sym_enum_const(decl->enum_decl.items[i].name, decl));
-        }
-    }
-    return sym;
-}
-
 void sym_global_type(const char *name, Type *type) {
     Sym *sym = sym_new(SYM_TYPE, str_intern(name), NULL);
     sym->state = SYM_RESOLVED;
@@ -161,6 +145,25 @@ void sym_global_func(const char *name, Type *type) {
     sym->state = SYM_RESOLVED;
     sym->type = type;
     sym_global_put(sym);
+}
+
+Sym *sym_global_decl(Decl *decl) {
+    Sym *sym = sym_decl(decl);
+    sym_global_put(sym);
+    decl->sym = sym;
+    if (decl->kind == DECL_ENUM) {
+        sym->state = SYM_RESOLVED;
+        sym->type = type_int;
+        buf_push(sorted_syms, sym);
+        for (int i = 0; i < decl->enum_decl.num_items; i++) {
+            EnumItem item = decl->enum_decl.items[i];
+            if (item.init) {
+                fatal_error(item.pos, "Explicit enum constant initializers are not currently supported");
+            }
+            sym_global_const(item.name, type_int, (Val){.i = i});
+        }
+    }
+    return sym;
 }
 
 typedef struct Operand {
@@ -493,8 +496,6 @@ Type *resolve_typespec(Typespec *typespec) {
     typespec->type = result;
     return result;
 }
-
-Sym **sorted_syms;
 
 void complete_type(Type *type) {
     if (type->kind == TYPE_COMPLETING) {

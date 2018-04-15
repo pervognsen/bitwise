@@ -446,6 +446,9 @@ void scan_str(void) {
                 // TODO: Should probably just read files in text mode instead.
                 buf_push(str, *stream);
             }
+            if (*stream == '\n') {
+                token.pos.line++;
+            }
             stream++;
         }
         if (!*stream) {
