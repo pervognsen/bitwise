@@ -1571,6 +1571,14 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = resolve_expr_ternary(expr, expected_type);
         break;
     case EXPR_SIZEOF_EXPR: {
+        if (expr->sizeof_expr->kind == EXPR_NAME) {
+            Sym *sym = resolve_name(expr->sizeof_expr->name);
+            if (sym && sym->kind == SYM_TYPE) {
+                complete_type(sym->type);
+                result = operand_const(type_usize, (Val){.ull = type_sizeof(sym->type)});
+                break;
+            }
+        }
         Type *type = resolve_expr(expr->sizeof_expr).type;
         complete_type(type);
         result = operand_const(type_usize, (Val){.ull = type_sizeof(type)});

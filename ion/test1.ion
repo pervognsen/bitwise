@@ -61,10 +61,10 @@ struct UartCtrl {
     tx_enable, rx_enable: bool;
 }
 
-const UART_CTRL = (:uint32*)0x12345678;
+const UART_CTRL_REG = (:uint32*)0x12345678;
 
 func pack(ctrl: UartCtrl): uint32 {
-    return (ctrl.tx_enable & 1) | ((ctrl.rx_enable & 1) << 1);
+    return (ctrl.tx_enable & 1u) | ((ctrl.rx_enable & 1u) << 1);
 }
 
 func unpack(word: uint32): UartCtrl {
@@ -72,11 +72,11 @@ func unpack(word: uint32): UartCtrl {
 }
 
 func test_uart() {
-    tx_enable := unpack(*UART_CTRL).tx_enable;
-    *UART_CTRL = pack({tx_enable = !tx_enable, rx_enable = false});
-    ctrl := unpack(*UART_CTRL);
+    tx_enable := unpack(*UART_CTRL_REG).tx_enable;
+    *UART_CTRL_REG = pack({tx_enable = !tx_enable, rx_enable = false});
+    ctrl := unpack(*UART_CTRL_REG);
     ctrl.rx_enable = true;
-    *UART_CTRL = pack(ctrl);
+    *UART_CTRL_REG = pack(ctrl);
 }
 
 func h(): uchar {
@@ -362,6 +362,14 @@ func test_init() {
     }
 }
 
+func test_sizeof() {
+    i := 0;
+    n := sizeof(i);
+    n = sizeof(int);
+    n = sizeof(:int);
+    n = sizeof(:int*);
+}
+
 func test_cast() {
     p: int* = 0;
     a: uint64 = 0;
@@ -375,6 +383,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_sizeof();
     test_assign();
     test_enum();
     test_arrays();
