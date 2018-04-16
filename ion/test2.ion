@@ -1,13 +1,13 @@
-#foreign_include("<math.h>")
+#foreign(include = "<math.h>")
 
 @foreign
-func sqrtf(f: float): float { return 0; }
+func sqrtf(f: float): float;
 
 @foreign
-func cosf(f: float): float { return 0; }
+func cosf(f: float): float;
 
 @foreign
-func sinf(f: float): float { return 0; }
+func sinf(f: float): float;
 
 struct vec2 {
     x, y: float;

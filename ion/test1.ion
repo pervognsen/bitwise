@@ -1,16 +1,18 @@
-#foreign_include("<stdio.h>")
+#foreign(include = "<stdio.h>")
 
 @foreign
-func printf(fmt: char const*, ...): int { return 0; }
+func printf(fmt: char const*, ...): int;
 
 @foreign
-func puts(str: char const*): int { return 0; }
+func puts(str: char const*): int;
 
 @foreign
-func getchar(): int { return 0; }
+func getchar(): int;
 
 const PI = 3.14;
 const PI2 = PI + PI;
+
+const U8: uint8 = 42;
 
 var c: char = 1;
 var uc: uchar = 1;

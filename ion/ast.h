@@ -107,6 +107,7 @@ struct Decl {
             size_t num_params;
             Typespec *ret_type;
             bool has_varargs;
+            bool is_incomplete;
             StmtList block;
         } func;
         struct {
@@ -117,6 +118,7 @@ struct Decl {
             Expr *expr;
         } var;
         struct {
+            Typespec *type;
             Expr *expr;
         } const_decl;
     };

@@ -572,7 +572,13 @@ void gen_decl(Sym *sym) {
     switch (decl->kind) {
     case DECL_CONST:
         genlnf("#define %s (", sym->name);
+        if (decl->const_decl.type) {
+            genf("(%s)(", typespec_to_cdecl(decl->const_decl.type, ""));
+        }
         gen_expr(decl->const_decl.expr);
+        if (decl->const_decl.type) {
+            genf(")");
+        }
         genf(")");
         break;
     case DECL_VAR:
@@ -619,6 +625,9 @@ void gen_func_defs(void) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
         if (decl && decl->kind == DECL_FUNC && !is_decl_foreign(decl)) {
+            if (decl->func.is_incomplete) {
+                fatal_error(decl->pos, "Incomplete function definition: %s\n", decl->name);
+            }
             gen_func_decl(decl);
             genf(" ");
             gen_stmt_block(decl->func.block);
@@ -628,32 +637,33 @@ void gen_func_defs(void) {
 }
 
 void gen_headers(void) {
-    const char *foreign_include_name = str_intern("foreign_include");
+    const char *include_name = str_intern("include");
     for (size_t i = 0; i < global_decls->num_decls; i++) {
         Decl *decl = global_decls->decls[i];
         if (decl->kind != DECL_NOTE) {
             continue;
         }
         Note note = decl->note;
-        if (note.name == foreign_include_name) {
-            if (note.num_args != 1) {
-                fatal_error(decl->pos, "#foreign_include takes 1 argument");
-                continue;
-            }
-            Expr *expr = note.args[0].expr;
-            if (expr->kind != EXPR_STR) {
-                fatal_error(decl->pos, "#foreign_include's argument must be a quoted string");
-            }
-            const char *header_name = expr->name;
-            bool found = false;
-            for (const char **it = gen_headers_buf; it != buf_end(gen_headers_buf); it++) {
-                if (*it == header_name) {
-                    found = true;
+        if (note.name == foreign_name) {
+            for (size_t i = 0; i < note.num_args; i++) {
+                if (note.args[i].name != include_name) {
+                    continue;
                 }
-            }
-            if (!found) {
-                buf_push(gen_headers_buf, header_name);
-                genlnf("#include %s", header_name);
+                Expr *expr = note.args[i].expr;
+                if (expr->kind != EXPR_STR) {
+                    fatal_error(decl->pos, "#foreign_include's argument must be a quoted string");
+                }
+                const char *header_name = expr->name;
+                bool found = false;
+                for (const char **it = gen_headers_buf; it != buf_end(gen_headers_buf); it++) {
+                    if (*it == header_name) {
+                        found = true;
+                    }
+                }
+                if (!found) {
+                    buf_push(gen_headers_buf, header_name);
+                    genlnf("#include %s", header_name);
+                }
             }
         }
     }

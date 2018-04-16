@@ -568,6 +568,12 @@ Type *resolve_decl_const(Decl *decl, Val *val) {
     if (!is_scalar_type(result.type)) {
         fatal_error(decl->pos, "Const declarations must have scalar type");
     }
+    if (decl->const_decl.type) {
+        Type *type = resolve_typespec(decl->const_decl.type);
+        if (!convert_operand(&result, type)) {
+            fatal_error(decl->pos, "Invalid type in constant declaration");
+        }
+    }
     *val = result.val;
     return result.type;
 }
@@ -770,6 +776,9 @@ void resolve_func_body(Sym *sym) {
     Decl *decl = sym->decl;
     assert(decl->kind == DECL_FUNC);
     assert(sym->state == SYM_RESOLVED);
+    if (decl->func.is_incomplete) {
+        return;
+    }
     Sym *scope = sym_enter();
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];

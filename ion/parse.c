@@ -571,10 +571,14 @@ Decl *parse_decl_var(SrcPos pos) {
 
 Decl *parse_decl_const(SrcPos pos) {
     const char *name = parse_name();
+    Typespec *type = NULL;
+    if (match_token(TOKEN_COLON)) {
+        type = parse_type();
+    }
     expect_token(TOKEN_ASSIGN);
     Expr *expr = parse_expr();
     expect_token(TOKEN_SEMICOLON);
-    return new_decl_const(pos, name, expr);
+    return new_decl_const(pos, name, type, expr);
 }
 
 Decl *parse_decl_typedef(SrcPos pos) {
@@ -619,8 +623,15 @@ Decl *parse_decl_func(SrcPos pos) {
     if (match_token(TOKEN_COLON)) {
         ret_type = parse_type();
     }
-    StmtList block = parse_stmt_block();
-    return new_decl_func(pos, name, params, buf_len(params), ret_type, has_varargs, block);
+    StmtList block = {0};
+    bool is_incomplete = false;
+    if (is_token(TOKEN_LBRACE)) {
+        block = parse_stmt_block();
+    } else {
+        expect_token(TOKEN_SEMICOLON);
+        is_incomplete = true;
+    }
+    return new_decl_func(pos, name, params, buf_len(params), ret_type, is_incomplete, has_varargs, block);
 }
 
 NoteArg parse_note_arg(void) {
