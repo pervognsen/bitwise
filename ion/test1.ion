@@ -57,6 +57,28 @@ func test_nonmodifiable() {
     // s2 = {};
 }
 
+struct UartCtrl {
+    tx_enable, rx_enable: bool;
+}
+
+const UART_CTRL = (:uint32*)0x12345678;
+
+func pack(ctrl: UartCtrl): uint32 {
+    return (ctrl.tx_enable & 1) | ((ctrl.rx_enable & 1) << 1);
+}
+
+func unpack(word: uint32): UartCtrl {
+    return {tx_enable = word & 0b01, rx_enable = (word & 0b10) >> 1};
+}
+
+func test_uart() {
+    tx_enable := unpack(*UART_CTRL).tx_enable;
+    *UART_CTRL = pack({tx_enable = !tx_enable, rx_enable = false});
+    ctrl := unpack(*UART_CTRL);
+    ctrl.rx_enable = true;
+    *UART_CTRL = pack(ctrl);
+}
+
 func h(): uchar {
     Vector{x = 1, y = 2}.x = 42;
     v := &Vector{1, 2};

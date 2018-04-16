@@ -248,11 +248,7 @@ bool is_null_ptr(Operand operand);
             operand->val.ull = (unsigned long long)operand->val.t; \
             break; \
         case TYPE_PTR: \
-            if (is_ptr_type(operand->type) || is_null_ptr(*operand)) { \
-                operand->val.p = (uintptr_t)operand->val.t; \
-            } else { \
-                operand->is_const = false; \
-            } \
+            operand->val.p = (uintptr_t)operand->val.t; \
             break; \
         case TYPE_FLOAT: \
         case TYPE_DOUBLE: \
@@ -568,8 +564,8 @@ Type *resolve_decl_var(Decl *decl) {
 Type *resolve_decl_const(Decl *decl, Val *val) {
     assert(decl->kind == DECL_CONST);
     Operand result = resolve_const_expr(decl->const_decl.expr);
-    if (!is_arithmetic_type(result.type)) {
-        fatal_error(decl->pos, "Const declarations must have arithmetic type");
+    if (!is_scalar_type(result.type)) {
+        fatal_error(decl->pos, "Const declarations must have scalar type");
     }
     *val = result.val;
     return result.type;
@@ -1072,7 +1068,12 @@ Operand resolve_expr_unary(Expr *expr) {
             return resolve_unary_op(expr->unary.op, operand);
         case TOKEN_NEG:
             if (!is_integer_type(type)) {
-                fatal_error(expr->pos, "Can only use ~ with integer types", token_kind_name(expr->unary.op));
+                fatal_error(expr->pos, "Can only use ~ with integer types");
+            }
+            return resolve_unary_op(expr->unary.op, operand);
+        case TOKEN_NOT:
+            if (!is_scalar_type(type)) {
+                fatal_error(expr->pos," Can only use ! with scalar types");
             }
             return resolve_unary_op(expr->unary.op, operand);
         default:
