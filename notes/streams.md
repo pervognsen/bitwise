@@ -6,7 +6,7 @@
 
 Homework: Choose-Your-Own-Adventure Compiler Hacking
 
-Pick from the following examples and implement support in the Ion compiler (either the official Ion compiler or your own version) for one of them or all of them. Make sure to reuse the existing functionality as much as possible. Each feature should take no more than ~50 lines of code to implement.
+Implement as many of the following features as you like in the Ion compiler (either the official Ion compiler or your own version). Make sure to reuse the existing functionality as much as possible. Each feature should take no more than ~50 lines of code to implement. If you run out of stuff to do, you can play around with adding other lightweight language extensions with a similar level of implementation complexity. 
 
     if (file := fopen("foo.txt", "r")) {
         // ...
