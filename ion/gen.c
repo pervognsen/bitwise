@@ -237,15 +237,15 @@ void gen_forward_decls(void) {
         if (!decl) {
             continue;
         }
+        if (is_decl_foreign(decl)) {
+            continue;
+        }
         switch (decl->kind) {
         case DECL_STRUCT:
             genlnf("typedef struct %s %s;", sym->name, sym->name);
             break;
         case DECL_UNION:
             genlnf("typedef union %s %s;", sym->name, sym->name);
-            break;
-        case DECL_ENUM:
-            genlnf("typedef enum %s %s;", sym->name, sym->name);
             break;
         default:
             // Do nothing.
@@ -535,7 +535,7 @@ void gen_stmt(Stmt *stmt) {
             genf("{");
             gen_indent++;
             StmtList block = switch_case.block;
-            for (size_t j = 0; i < block.num_stmts; i++) {
+            for (size_t j = 0; j < block.num_stmts; j++) {
                 gen_stmt(block.stmts[j]);
             }
             genlnf("break;");
@@ -554,13 +554,13 @@ void gen_stmt(Stmt *stmt) {
 
 void gen_enum(Decl *decl) {
     assert(decl->kind == DECL_ENUM);
-    genlnf("enum %s {", decl->name);
+    genlnf("typedef enum %s {", decl->name);
     gen_indent++;
     for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
         genlnf("%s,", decl->enum_decl.items[i].name);
     }
     gen_indent--;
-    genlnf("};");
+    genlnf("} %s;", decl->name);
 }
 
 void gen_decl(Sym *sym) {

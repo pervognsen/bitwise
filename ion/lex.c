@@ -132,6 +132,7 @@ typedef enum TokenKind {
     TOKEN_INC,
     TOKEN_DEC,
     TOKEN_COLON_ASSIGN,
+    NUM_TOKEN_KINDS,
 } TokenKind;
 
 typedef enum TokenMod {
@@ -225,6 +226,19 @@ const char *token_kind_name(TokenKind kind) {
         return "<unknown>";
     }
 }
+
+TokenKind assign_token_to_binary_token[NUM_TOKEN_KINDS] = {
+    [TOKEN_ADD_ASSIGN] = TOKEN_ADD,
+    [TOKEN_SUB_ASSIGN] = TOKEN_SUB,
+    [TOKEN_OR_ASSIGN] = TOKEN_OR,
+    [TOKEN_AND_ASSIGN] = TOKEN_AND,
+    [TOKEN_XOR_ASSIGN] = TOKEN_XOR,
+    [TOKEN_LSHIFT_ASSIGN] = TOKEN_LSHIFT,
+    [TOKEN_RSHIFT_ASSIGN] = TOKEN_RSHIFT,
+    [TOKEN_MUL_ASSIGN] = TOKEN_MUL,
+    [TOKEN_DIV_ASSIGN] = TOKEN_DIV,
+    [TOKEN_MOD_ASSIGN] = TOKEN_MOD,
+};
 
 typedef struct SrcPos {
     const char *name;

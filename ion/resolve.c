@@ -616,6 +616,8 @@ bool resolve_stmt_block(StmtList block, Type *ret_type) {
     return returns;
 }
 
+Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Operand left, Operand right);
+
 void resolve_stmt_assign(Stmt *stmt) {
     assert(stmt->kind == STMT_ASSIGN);
     Operand left = resolve_expr(stmt->assign.left);
@@ -629,9 +631,30 @@ void resolve_stmt_assign(Stmt *stmt) {
         fatal_error(stmt->pos, "Left-hand side of assignment has non-modifiable type");
     }
     if (stmt->assign.right) {
+        const char *assign_op_name = token_kind_name(stmt->assign.op);
+        TokenKind binary_op = assign_token_to_binary_token[stmt->assign.op];
         Operand right = resolve_expected_expr_rvalue(stmt->assign.right, left.type);
-        if (!convert_operand(&right, left.type)) {
+        Operand result;
+        if (stmt->assign.op == TOKEN_ASSIGN) {
+            result = right;
+        } else if (stmt->assign.op == TOKEN_ADD_ASSIGN || stmt->assign.op == TOKEN_SUB_ASSIGN) {
+            if (left.type->kind == TYPE_PTR && is_integer_type(right.type)) {
+                result = operand_rvalue(left.type);
+            } else if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
+                result = resolve_expr_binary_op(binary_op, assign_op_name, stmt->pos, left, right);
+            } else {
+                fatal_error(stmt->pos, "Invalid operand types for %s", assign_op_name);
+            }
+        } else {
+            result = resolve_expr_binary_op(binary_op, assign_op_name, stmt->pos, left, right);
+        }
+        if (!convert_operand(&result, left.type)) {
             fatal_error(stmt->pos, "Invalid type in assignment");
+        }
+    } else {
+        assert(stmt->assign.op == TOKEN_INC || stmt->assign.op == TOKEN_DEC);
+        if (!(is_integer_type(left.type) || left.type->kind == TYPE_PTR)) {
+            fatal_error(stmt->pos, "%s only valid for integer and pointer types", token_kind_name(stmt->assign.op));
         }
     }
 }
@@ -1073,28 +1096,23 @@ Operand resolve_binary_arithmetic_op(TokenKind op, Operand left, Operand right) 
     return resolve_binary_op(op, left, right);
 }
 
-Operand resolve_expr_binary(Expr *expr) {
-    assert(expr->kind == EXPR_BINARY);
-    Operand left = resolve_expr_rvalue(expr->binary.left);
-    Operand right = resolve_expr_rvalue(expr->binary.right);
-    TokenKind op = expr->binary.op;
-    const char *op_name = token_kind_name(op);
+Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Operand left, Operand right) {
     switch (op) {
     case TOKEN_MUL:
     case TOKEN_DIV:
         if (!is_arithmetic_type(left.type)) {
-            fatal_error(expr->binary.left->pos, "Left operand of %s must have arithmetic type", op_name);
+            fatal_error(pos, "Left operand of %s must have arithmetic type", op_name);
         }
         if (!is_arithmetic_type(right.type)) {
-            fatal_error(expr->binary.right->pos, "Right operand of %s must have arithmetic type", op_name);
+            fatal_error(pos, "Right operand of %s must have arithmetic type", op_name);
         }
         return resolve_binary_arithmetic_op(op, left, right);
     case TOKEN_MOD:
         if (!is_integer_type(left.type)) {
-            fatal_error(expr->binary.left->pos, "Left operand of %% must have integer type");
+            fatal_error(pos, "Left operand of %% must have integer type");
         }
         if (!is_integer_type(right.type)) {
-            fatal_error(expr->binary.right->pos, "Right operand of %% must have integer type");
+            fatal_error(pos, "Right operand of %% must have integer type");
         }
         return resolve_binary_arithmetic_op(op, left, right);
     case TOKEN_ADD:
@@ -1105,7 +1123,7 @@ Operand resolve_expr_binary(Expr *expr) {
         } else if (is_ptr_type(right.type) && is_integer_type(left.type)) {
             return operand_rvalue(right.type);
         } else {
-            fatal_error(expr->pos, "Operands of + must both have arithmetic type, or pointer and integer type");
+            fatal_error(pos, "Operands of + must both have arithmetic type, or pointer and integer type");
         }
         break;
     case TOKEN_SUB:
@@ -1115,11 +1133,11 @@ Operand resolve_expr_binary(Expr *expr) {
             return operand_rvalue(left.type);
         } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
             if (left.type->base != right.type->base) {
-                fatal_error(expr->pos, "Cannot subtract pointers to different types");
+                fatal_error(pos, "Cannot subtract pointers to different types");
             }
             return operand_rvalue(type_ssize);
         } else {
-            fatal_error(expr->pos, "Operands of - must both have arithmetic type, pointer and integer type, or compatible pointer types");
+            fatal_error(pos, "Operands of - must both have arithmetic type, pointer and integer type, or compatible pointer types");
         }
         break;
     case TOKEN_LSHIFT:
@@ -1140,7 +1158,7 @@ Operand resolve_expr_binary(Expr *expr) {
             cast_operand(&result, result_type);
             return result;
         } else {
-            fatal_error(expr->pos, "Operands of %s must both have integer type", op_name);
+            fatal_error(pos, "Operands of %s must both have integer type", op_name);
         }
         break;
     case TOKEN_LT:
@@ -1155,13 +1173,13 @@ Operand resolve_expr_binary(Expr *expr) {
             return result;
         } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
             if (left.type->base != right.type->base) {
-                fatal_error(expr->pos, "Cannot compare pointers to different types");
+                fatal_error(pos, "Cannot compare pointers to different types");
             }
             return operand_rvalue(type_int);
         } else if ((is_null_ptr(left) && is_ptr_type(right.type)) || (is_null_ptr(right) && is_ptr_type(left.type))) {
             return operand_rvalue(type_int);
         } else {
-            fatal_error(expr->pos, "Operands of %s must be arithmetic types or compatible pointer types", op_name);
+            fatal_error(pos, "Operands of %s must be arithmetic types or compatible pointer types", op_name);
         }
         break;
     case TOKEN_AND:
@@ -1170,7 +1188,7 @@ Operand resolve_expr_binary(Expr *expr) {
         if (is_integer_type(left.type) && is_integer_type(right.type)) {
             return resolve_binary_arithmetic_op(op, left, right);
         } else {
-            fatal_error(expr->pos, "Operands of %s must have arithmetic types", op_name);
+            fatal_error(pos, "Operands of %s must have arithmetic types", op_name);
         }
         break;
     case TOKEN_AND_AND:
@@ -1191,7 +1209,7 @@ Operand resolve_expr_binary(Expr *expr) {
                 return operand_rvalue(type_int);
             }
         } else {
-            fatal_error(expr->pos, "Operands of %s must have scalar types", op_name);
+            fatal_error(pos, "Operands of %s must have scalar types", op_name);
         }
         break;
     default:
@@ -1199,6 +1217,15 @@ Operand resolve_expr_binary(Expr *expr) {
         break;
     }
     return (Operand){0};
+}
+
+Operand resolve_expr_binary(Expr *expr) {
+    assert(expr->kind == EXPR_BINARY);
+    Operand left = resolve_expr_rvalue(expr->binary.left);
+    Operand right = resolve_expr_rvalue(expr->binary.right);
+    TokenKind op = expr->binary.op;
+    const char *op_name = token_kind_name(op);
+    return resolve_expr_binary_op(op, op_name, expr->pos, left, right);
 }
 
 int aggregate_field_index(Type *type, const char *name) {
