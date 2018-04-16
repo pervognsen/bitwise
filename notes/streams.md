@@ -6,6 +6,8 @@
 
 Homework: Choose-Your-Own-Adventure Compiler Hacking
 
+Pick from the following examples and implement support in the Ion compiler (either the official Ion compiler or your own version) for one of them or all of them. Make sure to reuse the existing functionality as much as possible. Each feature should take no more than ~50 lines of code to implement.
+
     if (file := fopen("foo.txt", "r")) {
         // ...
     }
@@ -41,15 +43,28 @@ Homework: Choose-Your-Own-Adventure Compiler Hacking
 
 Extra credit:
 
+Here is a more complicated feature you can try to implement if you want more of a challenge.
+
 Defer:
 - Defer statements have stack-order deferred execution.
 - Type checked/resolved at definition site.
-- Disallow returns, breaks, continues in defer bodies, inits must be in blocks.
+- Disallow returns, breaks, continues, defers in defer bodies, inits must be in blocks.
+
+The easiest implementation of the code generation is to have a Stmt* stack of deferred statements.
+You need to maintain pointers into the stack to track the top of the stack, the innermost enclosing
+block and the innermost enclosing loop so you can determine what range of deferred statements to
+generate when exiting scopes either normally or via return, break and continue.
+
+For the sanity checking of defer bodies, you can add a bool deferred parameter to the resolve_stmt
+family of functions so the different cases can check whether they're legal in the context of
+a defer body. So STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_DEFER would be illegal if deferred
+is set to true. Most statements just propagate the deferred flag down to the recursive calls,
+except STMT_DEFER, which will pass true.
 
 Example:
 
     window := create_window();
-    defer destroy_window();
+    defer destroy_window(window);
     while (...) {
         file := fopen("foo.txt", "r");
         defer fclose(file);
@@ -92,7 +107,7 @@ Example:
         }
         fclose(file);
     }
-    destroy_window();
+    destroy_window(window);
     return 0;
 
 # Bitwise, Day 16: Weekend Edition
