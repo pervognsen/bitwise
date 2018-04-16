@@ -1,3 +1,106 @@
+# Bitwise, Day 17: Ion Version 0
+- Plan for this week
+- Review
+- Homework
+- Start work on Ion library/application
+
+Homework: Choose-Your-Own-Adventure Compiler Hacking
+
+    if (file := fopen("foo.txt", "r")) {
+        // ...
+    }
+    =>
+    {
+        FILE *file = fopen("foo.txt", "r");
+        if (file) {
+            // ...
+        }
+    }
+
+    if (n := fread(...); n != size) {
+        // ...
+    }
+    =>
+    {
+        size_t n = fread(...);
+        if (n != size) {
+            // ...
+        }        
+    }
+
+    while (x := init(); !done(x)) {
+        // ...
+    }
+    =>
+    {
+        X x = init();
+        while (!done(x)) {
+            // ...
+        }
+    }
+
+Extra credit:
+
+Type checked/resolved at definition site.
+Defer statements have stack-order deferred execution.
+Disallow returns, breaks, continues in defer statements.
+
+    window := create_window();
+    defer destroy_window();
+    while (...) {
+        file := fopen("foo.txt", "r");
+        defer fclose(file);
+        if (...) {
+            return 0;
+        }
+        if (...) {
+            continue;
+        }
+        if (...) {
+            mem := malloc(get_file_size(file));
+            defer free(mem);
+            if (...) {
+                break;
+            }
+        }
+    }
+    return 0;
+    =>
+    Window *window = create_window();
+    while (...) {
+        FILE *file = fopen("foo.txt", "r");
+        if (...) {
+            fclose(file);
+            destroy_window(window);
+            return 0;
+        }
+        if (...) {
+            fclose(file);
+            continue;
+        }
+        if (...) {
+            void *mem = malloc(get_file_size(file));
+            if (...) {
+                free(mem);
+                fclose(file);
+                break;
+            }
+            free(mem);
+        }
+        fclose(file);
+    }
+    destroy_window();
+    return 0;
+
+# Bitwise, Day 16: Weekend Edition
+- Video: https://www.youtube.com/watch?v=jNbar0lj93g
+- Review
+- Random stuff
+
+# Bitwise, Day 15: More Compiler Hacking
+- Review diffs
+- Continue coding
+
 # Day 14: Types Revisited
 - Video: https://www.youtube.com/watch?v=Dq2gKTdL1uI
 - Extra: https://www.youtube.com/watch?v=amSiLEFcjq4
