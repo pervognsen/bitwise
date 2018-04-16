@@ -5,8 +5,8 @@ bool ion_compile_file(const char *path) {
     }
     init_stream(path, str);
     init_builtins();
-    DeclSet *declset = parse_file();
-    sym_global_decls(declset);
+    global_decls = parse_file();
+    sym_global_decls();
     finalize_syms();
     gen_all();
     const char *c_code = gen_buf;

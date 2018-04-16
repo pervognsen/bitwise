@@ -1,3 +1,5 @@
+#foreign_include("<math.h>")
+
 @foreign
 func sqrtf(f: float): float { return 0; }
 

@@ -1,3 +1,5 @@
+#foreign_include("<stdio.h>")
+
 @foreign
 func printf(fmt: char const*, ...): int { return 0; }
 

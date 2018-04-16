@@ -78,6 +78,7 @@ typedef enum TokenKind {
     TOKEN_COMMA,
     TOKEN_DOT,
     TOKEN_AT,
+    TOKEN_POUND,
     TOKEN_ELLIPSIS,
     TOKEN_QUESTION,
     TOKEN_SEMICOLON,
@@ -176,6 +177,7 @@ const char *token_kind_names[] = {
     [TOKEN_COMMA] = ",",
     [TOKEN_DOT] = ".",
     [TOKEN_AT] = "@",
+    [TOKEN_POUND] = "#",
     [TOKEN_ELLIPSIS] = "...",
     [TOKEN_QUESTION] = "?",
     [TOKEN_SEMICOLON] = ";",
@@ -637,6 +639,7 @@ repeat:
     CASE1(']', TOKEN_RBRACKET)
     CASE1(',', TOKEN_COMMA)
     CASE1('@', TOKEN_AT)
+    CASE1('#', TOKEN_POUND)
     CASE1('?', TOKEN_QUESTION)
     CASE1(';', TOKEN_SEMICOLON)
     CASE1('~', TOKEN_NEG)

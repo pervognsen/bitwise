@@ -3,9 +3,17 @@ typedef struct Stmt Stmt;
 typedef struct Decl Decl;
 typedef struct Typespec Typespec;
 
+typedef struct NoteArg {
+    SrcPos pos;
+    const char *name;
+    Expr *expr;
+} NoteArg;
+
 typedef struct Note {
     SrcPos pos;
     const char *name;
+    NoteArg *args;
+    size_t num_args;
 } Note;
 
 typedef struct NoteList {
@@ -75,6 +83,7 @@ typedef enum DeclKind {
     DECL_CONST,
     DECL_TYPEDEF,
     DECL_FUNC,
+    DECL_NOTE,
 } DeclKind;
 
 struct Decl {
@@ -84,6 +93,7 @@ struct Decl {
     struct Sym *sym;
     NoteList notes;
     union {
+        Note note;
         struct {
             EnumItem *items;
             size_t num_items;
@@ -112,10 +122,10 @@ struct Decl {
     };
 };
 
-typedef struct DeclSet {
+typedef struct Decls {
     Decl **decls;
     size_t num_decls;
-} DeclSet;
+} Decls;
 
 typedef enum ExprKind {
     EXPR_NONE,

@@ -8,11 +8,11 @@ char *gen_buf = NULL;
 int gen_indent;
 SrcPos gen_pos;
 
+const char **gen_headers_buf;
+
 const char *gen_preamble =
     "// Preamble\n"
-    "#include <stdio.h>\n"
     "#include <stdbool.h>\n"
-    "#include <math.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
     "typedef signed char schar;\n"
@@ -627,9 +627,44 @@ void gen_func_defs(void) {
     }
 }
 
+void gen_headers(void) {
+    const char *foreign_include_name = str_intern("foreign_include");
+    for (size_t i = 0; i < global_decls->num_decls; i++) {
+        Decl *decl = global_decls->decls[i];
+        if (decl->kind != DECL_NOTE) {
+            continue;
+        }
+        Note note = decl->note;
+        if (note.name == foreign_include_name) {
+            if (note.num_args != 1) {
+                fatal_error(decl->pos, "#foreign_include takes 1 argument");
+                continue;
+            }
+            Expr *expr = note.args[0].expr;
+            if (expr->kind != EXPR_STR) {
+                fatal_error(decl->pos, "#foreign_include's argument must be a quoted string");
+            }
+            const char *header_name = expr->name;
+            bool found = false;
+            for (const char **it = gen_headers_buf; it != buf_end(gen_headers_buf); it++) {
+                if (*it == header_name) {
+                    found = true;
+                }
+            }
+            if (!found) {
+                buf_push(gen_headers_buf, header_name);
+                genlnf("#include %s", header_name);
+            }
+        }
+    }
+}
+
 void gen_all(void) {
     gen_buf = NULL;
-    genf("%s", gen_preamble);
+    genf("// Foreign includes");
+    gen_headers();
+    genln();
+    genlnf("%s", gen_preamble);
     genf("// Forward declarations");
     gen_forward_decls();
     genln();
