@@ -1,4 +1,6 @@
 # Bitwise, Day 17: Ion Version 0
+- Video: https://www.youtube.com/watch?v=Oeqeqw4OHPE
+- Extra: https://www.youtube.com/watch?v=DoPG4OCnh7A
 - Plan for this week
 - Review
 - Homework
