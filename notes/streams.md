@@ -46,6 +46,8 @@ Defer:
 - Type checked/resolved at definition site.
 - Disallow returns, breaks, continues in defer bodies.
 
+Example:
+
     window := create_window();
     defer destroy_window();
     while (...) {
