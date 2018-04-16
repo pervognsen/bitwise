@@ -41,9 +41,10 @@ Homework: Choose-Your-Own-Adventure Compiler Hacking
 
 Extra credit:
 
-Type checked/resolved at definition site.
-Defer statements have stack-order deferred execution.
-Disallow returns, breaks, continues in defer statements.
+Defer:
+- Defer statements have stack-order deferred execution.
+- Type checked/resolved at definition site.
+- Disallow returns, breaks, continues in defer bodies.
 
     window := create_window();
     defer destroy_window();
