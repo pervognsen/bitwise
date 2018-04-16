@@ -44,7 +44,7 @@ Extra credit:
 Defer:
 - Defer statements have stack-order deferred execution.
 - Type checked/resolved at definition site.
-- Disallow returns, breaks, continues in defer bodies.
+- Disallow returns, breaks, continues in defer bodies, inits must be in blocks.
 
 Example:
 
@@ -101,6 +101,7 @@ Example:
 - Random stuff
 
 # Bitwise, Day 15: More Compiler Hacking
+- Video: https://www.youtube.com/watch?v=s5_RV3y4L18
 - Review diffs
 - Continue coding
 
