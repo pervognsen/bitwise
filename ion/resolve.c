@@ -727,10 +727,16 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         return false;
     case STMT_FOR: {
         Sym *scope = sym_enter();
-        resolve_stmt(stmt->for_stmt.init, ret_type);
-        resolve_cond_expr(stmt->for_stmt.cond);
+        if (stmt->for_stmt.init) {
+            resolve_stmt(stmt->for_stmt.init, ret_type);
+        }
+        if (stmt->for_stmt.cond) {
+            resolve_cond_expr(stmt->for_stmt.cond);
+        }
         resolve_stmt_block(stmt->for_stmt.block, ret_type);
-        resolve_stmt(stmt->for_stmt.next, ret_type);
+        if (stmt->for_stmt.next) {
+            resolve_stmt(stmt->for_stmt.next, ret_type);
+        }
         sym_leave(scope);
         return false;
     }
