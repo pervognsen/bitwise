@@ -328,16 +328,19 @@ uint8_t char_to_digit[256] = {
 
 void scan_int(void) {
     int base = 10;
+    const char *start_digits = stream;
     if (*stream == '0') {
         stream++;
         if (tolower(*stream) == 'x') {
             stream++;
             token.mod = MOD_HEX;
             base = 16;
+            start_digits = stream;
         } else if (tolower(*stream) == 'b') {
             stream++;
             token.mod = MOD_BIN;
             base = 2;
+            start_digits = stream;
         } else if (isdigit(*stream)) {
             token.mod = MOD_OCT;
             base = 8;
@@ -363,6 +366,9 @@ void scan_int(void) {
         }
         val = val*base + digit;
         stream++;
+    }
+    if (stream == start_digits) {
+        error_here("Expected base %d digit, got '%c'", base, *stream);
     }
     token.kind = TOKEN_INT;
     token.int_val = val;

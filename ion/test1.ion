@@ -307,6 +307,8 @@ func test_lits() {
     x2 := 4294967295;
     x3 := 0xffffffffffffffff;
     x4 := 0b10101010 + 0b01010101;
+    // u = 0b0;
+    // u = 0x0;
 }
 
 func test_ops() {
