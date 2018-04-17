@@ -516,6 +516,9 @@ void complete_type(Type *type) {
         return;
     }
     Decl *decl = type->sym->decl;
+    if (decl->is_incomplete) {
+        fatal_error(decl->pos, "Trying to use incomplete type as complete type");
+    }
     type->kind = TYPE_COMPLETING;
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
     TypeField *fields = NULL;
@@ -819,7 +822,7 @@ void resolve_func_body(Sym *sym) {
     Decl *decl = sym->decl;
     assert(decl->kind == DECL_FUNC);
     assert(sym->state == SYM_RESOLVED);
-    if (decl->func.is_incomplete) {
+    if (decl->is_incomplete) {
         return;
     }
     Sym *scope = sym_enter();
@@ -873,6 +876,9 @@ void resolve_sym(Sym *sym) {
 void finalize_sym(Sym *sym) {
     resolve_sym(sym);
     if (sym->kind == SYM_TYPE) {
+        if (sym->decl && sym->decl->is_incomplete) {
+            return;
+        }
         complete_type(sym->type);
     } else if (sym->kind == SYM_FUNC) {
         resolve_func_body(sym);

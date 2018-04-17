@@ -130,12 +130,11 @@ Decl *new_decl_var(SrcPos pos, const char *name, Typespec *type, Expr *expr) {
     return d;
 }
 
-Decl *new_decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool is_incomplete, bool has_varargs, StmtList block) {
+Decl *new_decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool has_varargs, StmtList block) {
     Decl *d = new_decl(DECL_FUNC, pos, name);
     d->func.params = AST_DUP(params);
     d->func.num_params = num_params;
     d->func.ret_type = ret_type;
-    d->func.is_incomplete = is_incomplete;
     d->func.has_varargs = has_varargs;
     d->func.block = block;
     return d;

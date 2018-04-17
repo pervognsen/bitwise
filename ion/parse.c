@@ -540,13 +540,19 @@ AggregateItem parse_decl_aggregate_item(void) {
 Decl *parse_decl_aggregate(SrcPos pos, DeclKind kind) {
     assert(kind == DECL_STRUCT || kind == DECL_UNION);
     const char *name = parse_name();
-    expect_token(TOKEN_LBRACE);
-    AggregateItem *items = NULL;
-    while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
-        buf_push(items, parse_decl_aggregate_item());
+    if (match_token(TOKEN_SEMICOLON)) {
+        Decl *decl = new_decl_aggregate(pos, kind, name, NULL, 0);
+        decl->is_incomplete = true;
+        return decl;
+    } else {
+        expect_token(TOKEN_LBRACE);
+        AggregateItem *items = NULL;
+        while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
+            buf_push(items, parse_decl_aggregate_item());
+        }
+        expect_token(TOKEN_RBRACE);
+        return new_decl_aggregate(pos, kind, name, items, buf_len(items));
     }
-    expect_token(TOKEN_RBRACE);
-    return new_decl_aggregate(pos, kind, name, items, buf_len(items));
 }
 
 Decl *parse_decl_var(SrcPos pos) {
@@ -624,14 +630,16 @@ Decl *parse_decl_func(SrcPos pos) {
         ret_type = parse_type();
     }
     StmtList block = {0};
-    bool is_incomplete = false;
-    if (is_token(TOKEN_LBRACE)) {
-        block = parse_stmt_block();
-    } else {
-        expect_token(TOKEN_SEMICOLON);
+    bool is_incomplete;
+    if (match_token(TOKEN_SEMICOLON)) {
         is_incomplete = true;
+    } else {
+        block = parse_stmt_block();
+        is_incomplete = false;
     }
-    return new_decl_func(pos, name, params, buf_len(params), ret_type, is_incomplete, has_varargs, block);
+    Decl *decl = new_decl_func(pos, name, params, buf_len(params), ret_type, has_varargs, block);
+    decl->is_incomplete = is_incomplete;
+    return decl;
 }
 
 NoteArg parse_note_arg(void) {

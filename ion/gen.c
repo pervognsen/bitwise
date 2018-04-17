@@ -625,7 +625,7 @@ void gen_func_defs(void) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
         if (decl && decl->kind == DECL_FUNC && !is_decl_foreign(decl)) {
-            if (decl->func.is_incomplete) {
+            if (decl->is_incomplete) {
                 fatal_error(decl->pos, "Incomplete function definition: %s\n", decl->name);
             }
             gen_func_decl(decl);
