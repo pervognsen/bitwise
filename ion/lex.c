@@ -328,14 +328,17 @@ uint8_t char_to_digit[256] = {
 
 void scan_int(void) {
     int base = 10;
+    const char* digits_start = stream;
     if (*stream == '0') {
         stream++;
         if (tolower(*stream) == 'x') {
             stream++;
+            digits_start = stream;
             token.mod = MOD_HEX;
             base = 16;
         } else if (tolower(*stream) == 'b') {
             stream++;
+            digits_start = stream;
             token.mod = MOD_BIN;
             base = 2;
         } else if (isdigit(*stream)) {
@@ -347,7 +350,11 @@ void scan_int(void) {
     for (;;) {
         int digit = char_to_digit[(unsigned char)*stream];
         if (digit == 0 && *stream != '0') {
-            break;
+            if (stream == digits_start) {
+                error_here("Expected digits, got '%c'", *stream);
+            } else {
+                break;
+            }
         }
         if (digit >= base) {
             error_here("Digit '%c' out of range for base %d", *stream, base);
