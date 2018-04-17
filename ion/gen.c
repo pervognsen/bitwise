@@ -209,7 +209,7 @@ void gen_func_decl(Decl *decl) {
     assert(decl->kind == DECL_FUNC);
     gen_sync_pos(decl->pos);
     if (decl->func.ret_type) {
-        genlnf("%s(", typespec_to_cdecl(decl->func.ret_type, decl->name));
+        genlnf("%s %s(", typespec_to_cdecl(decl->func.ret_type, ""), decl->name);
     } else {
         genlnf("void %s(", decl->name);
     }
@@ -670,7 +670,12 @@ void gen_headers(void) {
                 }
                 if (!found) {
                     buf_push(gen_headers_buf, header_name);
-                    genlnf("#include %s", header_name);
+                    genlnf("#include ");
+                    if (*header_name == '<') {
+                        genf("%s", header_name);
+                    } else {
+                        gen_str(header_name, false);
+                    }
                 }
             }
         }
