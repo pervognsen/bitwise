@@ -707,12 +707,10 @@ Decl *parse_decl(void) {
     return decl;
 }
 
-Decls *parse_file(void) {
+Decls *parse_decls(void) {
     Decl **decls = NULL;
     while (!is_token(TOKEN_EOF)) {
-        Decl *decl = parse_decl();
-        assert(decl);
-        buf_push(decls, decl);
+        buf_push(decls, parse_decl());
     }
     return new_decls(decls, buf_len(decls));
 }

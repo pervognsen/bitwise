@@ -604,8 +604,8 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
-    if (!is_arithmetic_type(cond.type) && !is_ptr_type(cond.type)) {
-        fatal_error(expr->pos, "Conditional expression must have arithmetic or pointer type");
+    if (!is_scalar_type(cond.type)) {
+        fatal_error(expr->pos, "Conditional expression must have operand type");
     }
 }
 
@@ -741,7 +741,10 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         return false;
     }
     case STMT_SWITCH: {
-        Operand expr = resolve_expr(stmt->switch_stmt.expr);
+        Operand operand = resolve_expr(stmt->switch_stmt.expr);
+        if (!is_integer_type(operand.type)) {
+            fatal_error(stmt->pos, "Switch expression must have integer type");
+        }
         bool returns = true;
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
@@ -749,7 +752,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
                 Expr *case_expr = switch_case.exprs[j];
                 Operand case_operand = resolve_expr(case_expr);
-                if (!convert_operand(&case_operand, expr.type)) {
+                if (!convert_operand(&case_operand, operand.type)) {
                     fatal_error(case_expr->pos, "Invalid type in switch case expression");
                 }
                 returns = resolve_stmt_block(switch_case.block, ret_type) && returns;
@@ -1656,7 +1659,7 @@ void init_builtins(void) {
     sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});
 }
 
-void sym_global_decls() {
+void sym_global_decls(void) {
     for (size_t i = 0; i < global_decls->num_decls; i++) {
         Decl *decl = global_decls->decls[i];
         if (decl->kind != DECL_NOTE) {

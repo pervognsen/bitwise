@@ -5,7 +5,7 @@ bool ion_compile_file(const char *path) {
     }
     init_stream(path, str);
     init_builtins();
-    global_decls = parse_file();
+    global_decls = parse_decls();
     sym_global_decls();
     finalize_syms();
     gen_all();
@@ -24,13 +24,15 @@ bool ion_compile_file(const char *path) {
 const char *ion_compile_str(const char *str) {
     init_stream(NULL, str);
     init_builtins();
-    sym_global_decls(parse_file());
+    global_decls = parse_decls();
+    sym_global_decls();
     finalize_syms();
     gen_all();
     const char *result = gen_buf;
     gen_buf = NULL;
     return result;
 }
+
 int ion_main(int argc, char **argv) {
     if (argc < 2) {
         printf("Usage: %s <ion-source-file>\n", argv[0]);
