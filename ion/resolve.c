@@ -612,7 +612,8 @@ Type *resolve_decl_func(Decl *decl) {
 }
 
 typedef struct StmtCtx {
-    bool is_loop;
+    bool is_break_legal;
+    bool is_continue_legal;
 } StmtCtx;
 
 bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
@@ -716,13 +717,13 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         }
         return true;
     case STMT_BREAK:
-        if (!ctx.is_loop) {
-            fatal_error(stmt->pos, "Break statement outside loop");
+        if (!ctx.is_break_legal) {
+            fatal_error(stmt->pos, "Illegal break");
         }
         return false;
     case STMT_CONTINUE:
-        if (!ctx.is_loop) {
-            fatal_error(stmt->pos, "Continue statement outside loop");
+        if (!ctx.is_continue_legal) {
+            fatal_error(stmt->pos, "Illegal continue");
         }
         return false;
     case STMT_BLOCK:
@@ -745,7 +746,8 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
     case STMT_WHILE:
     case STMT_DO_WHILE:
         resolve_cond_expr(stmt->while_stmt.cond);
-        ctx.is_loop = true;
+        ctx.is_break_legal = true;
+        ctx.is_continue_legal = true;
         resolve_stmt_block(stmt->while_stmt.block, ret_type, ctx);
         return false;
     case STMT_FOR: {
@@ -756,11 +758,12 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         if (stmt->for_stmt.cond) {
             resolve_cond_expr(stmt->for_stmt.cond);
         }
-        ctx.is_loop = true;
-        resolve_stmt_block(stmt->for_stmt.block, ret_type, ctx);
         if (stmt->for_stmt.next) {
             resolve_stmt(stmt->for_stmt.next, ret_type, ctx);
         }
+        ctx.is_break_legal = true;
+        ctx.is_continue_legal = true;
+        resolve_stmt_block(stmt->for_stmt.block, ret_type, ctx);
         sym_leave(scope);
         return false;
     }
@@ -769,6 +772,8 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         if (!is_integer_type(operand.type)) {
             fatal_error(stmt->pos, "Switch expression must have integer type");
         }
+        ctx.is_break_legal = true;
+        ctx.is_continue_legal = false;
         bool returns = true;
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
@@ -779,7 +784,6 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
                 if (!convert_operand(&case_operand, operand.type)) {
                     fatal_error(case_expr->pos, "Invalid type in switch case expression");
                 }
-                returns = resolve_stmt_block(switch_case.block, ret_type, ctx) && returns;
             }
             if (switch_case.is_default) {
                 if (has_default) {
@@ -787,6 +791,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
                 }
                 has_default = true;
             }
+            returns = resolve_stmt_block(switch_case.block, ret_type, ctx) && returns;
         }
         return returns && has_default;
     }

@@ -63,6 +63,11 @@ func test_arrays() {
 func test_loops() {
     // break;
     // continue;
+    switch (0) {
+    default:
+        // continue;
+        break;
+    }
     while (0) {
     }
     for (i := 0; i < 10; i++) {
