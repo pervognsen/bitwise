@@ -352,6 +352,12 @@ void scan_int(void) {
         if (digit == 0 && *stream != '0') {
             if (stream == digits_start) {
                 error_here("Expected digits, got '%c'", *stream);
+            } else if (*stream == '_') {
+                stream++;
+                if (*stream == '_') {
+                    error_here("Unexpected repeated grouping character '_'");
+                    break;
+                }
             } else {
                 break;
             }
