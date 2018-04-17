@@ -269,6 +269,19 @@ Token token;
 const char *stream;
 const char *line_start;
 
+
+void warning(SrcPos pos, const char *fmt, ...) {
+    if (pos.name == NULL) {
+        pos = pos_builtin;
+    }
+    va_list args;
+    va_start(args, fmt);
+    printf("%s(%d): warning: ", pos.name, pos.line);
+    vprintf(fmt, args);
+    printf("\n");
+    va_end(args);
+}
+
 void error(SrcPos pos, const char *fmt, ...) {
     if (pos.name == NULL) {
         pos = pos_builtin;
@@ -283,6 +296,7 @@ void error(SrcPos pos, const char *fmt, ...) {
 
 #define fatal_error(...) (error(__VA_ARGS__), exit(1))
 #define error_here(...) (error(token.pos, __VA_ARGS__))
+#define warning_here(...) (error(token.pos, __VA_ARGS__))
 #define fatal_error_here(...) (error_here(__VA_ARGS__), exit(1))
 
 const char *token_info(void) {

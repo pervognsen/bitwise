@@ -773,7 +773,6 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
             fatal_error(stmt->pos, "Switch expression must have integer type");
         }
         ctx.is_break_legal = true;
-        ctx.is_continue_legal = false;
         bool returns = true;
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
@@ -790,6 +789,12 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
                     fatal_error(stmt->pos, "Switch statement has multiple default clauses");
                 }
                 has_default = true;
+            }
+            if (switch_case.block.num_stmts > 0) {
+                Stmt *last_stmt = switch_case.block.stmts[switch_case.block.num_stmts - 1];
+                if (last_stmt->kind == STMT_BREAK) {
+                    warning(last_stmt->pos, "Case blocks already end with an implicit break");
+                }
             }
             returns = resolve_stmt_block(switch_case.block, ret_type, ctx) && returns;
         }

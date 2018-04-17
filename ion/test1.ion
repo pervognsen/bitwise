@@ -65,8 +65,14 @@ func test_loops() {
     // continue;
     switch (0) {
     default:
+        if (1) {
+            break;
+        }
+        for (;;) {
+            continue;
+        }
         // continue;
-        break;
+        // break;
     }
     while (0) {
     }
