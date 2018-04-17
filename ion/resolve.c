@@ -611,7 +611,11 @@ Type *resolve_decl_func(Decl *decl) {
     return type_func(params, buf_len(params), ret_type, decl->func.has_varargs);
 }
 
-bool resolve_stmt(Stmt *stmt, Type *ret_type);
+typedef struct StmtCtx {
+    bool is_loop;
+} StmtCtx;
+
+bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
 
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr(expr);
@@ -620,11 +624,11 @@ void resolve_cond_expr(Expr *expr) {
     }
 }
 
-bool resolve_stmt_block(StmtList block, Type *ret_type) {
+bool resolve_stmt_block(StmtList block, Type *ret_type, StmtCtx ctx) {
     Sym *scope = sym_enter();
     bool returns = false;
     for (size_t i = 0; i < block.num_stmts; i++) {
-        returns = resolve_stmt(block.stmts[i], ret_type) || returns;
+        returns = resolve_stmt(block.stmts[i], ret_type, ctx) || returns;
     }
     sym_leave(scope);
     return returns;
@@ -699,7 +703,7 @@ void resolve_stmt_init(Stmt *stmt) {
     }
 }
 
-bool resolve_stmt(Stmt *stmt, Type *ret_type) {
+bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
@@ -712,20 +716,27 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
         }
         return true;
     case STMT_BREAK:
+        if (!ctx.is_loop) {
+            fatal_error(stmt->pos, "Break statement outside loop");
+        }
+        return false;
     case STMT_CONTINUE:
+        if (!ctx.is_loop) {
+            fatal_error(stmt->pos, "Continue statement outside loop");
+        }
         return false;
     case STMT_BLOCK:
-        return resolve_stmt_block(stmt->block, ret_type);
+        return resolve_stmt_block(stmt->block, ret_type, ctx);
     case STMT_IF: {
         resolve_cond_expr(stmt->if_stmt.cond);
-        bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type);
+        bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type, ctx);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
             ElseIf elseif = stmt->if_stmt.elseifs[i];
             resolve_cond_expr(elseif.cond);
-            returns = resolve_stmt_block(elseif.block, ret_type) && returns;
+            returns = resolve_stmt_block(elseif.block, ret_type, ctx) && returns;
         }
         if (stmt->if_stmt.else_block.stmts) {
-            returns = resolve_stmt_block(stmt->if_stmt.else_block, ret_type) && returns;
+            returns = resolve_stmt_block(stmt->if_stmt.else_block, ret_type, ctx) && returns;
         } else {
             returns = false;
         }
@@ -734,19 +745,21 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
     case STMT_WHILE:
     case STMT_DO_WHILE:
         resolve_cond_expr(stmt->while_stmt.cond);
-        resolve_stmt_block(stmt->while_stmt.block, ret_type);
+        ctx.is_loop = true;
+        resolve_stmt_block(stmt->while_stmt.block, ret_type, ctx);
         return false;
     case STMT_FOR: {
         Sym *scope = sym_enter();
         if (stmt->for_stmt.init) {
-            resolve_stmt(stmt->for_stmt.init, ret_type);
+            resolve_stmt(stmt->for_stmt.init, ret_type, ctx);
         }
         if (stmt->for_stmt.cond) {
             resolve_cond_expr(stmt->for_stmt.cond);
         }
-        resolve_stmt_block(stmt->for_stmt.block, ret_type);
+        ctx.is_loop = true;
+        resolve_stmt_block(stmt->for_stmt.block, ret_type, ctx);
         if (stmt->for_stmt.next) {
-            resolve_stmt(stmt->for_stmt.next, ret_type);
+            resolve_stmt(stmt->for_stmt.next, ret_type, ctx);
         }
         sym_leave(scope);
         return false;
@@ -766,7 +779,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type) {
                 if (!convert_operand(&case_operand, operand.type)) {
                     fatal_error(case_expr->pos, "Invalid type in switch case expression");
                 }
-                returns = resolve_stmt_block(switch_case.block, ret_type) && returns;
+                returns = resolve_stmt_block(switch_case.block, ret_type, ctx) && returns;
             }
             if (switch_case.is_default) {
                 if (has_default) {
@@ -810,7 +823,7 @@ void resolve_func_body(Sym *sym) {
     }
     Type *ret_type = resolve_typespec(decl->func.ret_type);
     assert(!is_array_type(ret_type));
-    bool returns = resolve_stmt_block(decl->func.block, ret_type);
+    bool returns = resolve_stmt_block(decl->func.block, ret_type, (StmtCtx){0});
     sym_leave(scope);
     if (ret_type != type_void && !returns) {
         fatal_error(decl->pos, "Not all control paths return values");
