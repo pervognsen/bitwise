@@ -22,8 +22,8 @@ Note new_note(SrcPos pos, const char *name, NoteArg *args, size_t num_args) {
     return (Note){.pos = pos, .name = name, .args = AST_DUP(args), .num_args = num_args};
 }
 
-NoteList new_note_list(Note *notes, size_t num_notes) {
-    return (NoteList){AST_DUP(notes), num_notes};
+Notes new_note_list(Note *notes, size_t num_notes) {
+    return (Notes){AST_DUP(notes), num_notes};
 }
 
 StmtList new_stmt_list(SrcPos pos, Stmt **stmts, size_t num_stmts) {

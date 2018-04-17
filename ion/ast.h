@@ -16,12 +16,10 @@ typedef struct Note {
     size_t num_args;
 } Note;
 
-typedef struct NoteList {
+typedef struct Notes {
     Note *notes;
     size_t num_notes;
-} NoteList;
-
-struct Type;
+} Notes;
 
 typedef struct StmtList {
     SrcPos pos;
@@ -41,7 +39,6 @@ typedef enum TypespecKind {
 struct Typespec {
     TypespecKind kind;
     SrcPos pos;
-    struct Type *type;
     Typespec *base;
     union {
         const char *name;
@@ -90,8 +87,7 @@ struct Decl {
     DeclKind kind;
     SrcPos pos;
     const char *name;
-    struct Sym *sym;
-    NoteList notes;
+    Notes notes;
     union {
         Note note;
         struct {
@@ -166,7 +162,6 @@ typedef struct CompoundField {
 struct Expr {
     ExprKind kind;
     SrcPos pos;
-    struct Type *type;
     union {
         struct {
             unsigned long long val;

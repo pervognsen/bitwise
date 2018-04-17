@@ -151,7 +151,6 @@ void sym_global_func(const char *name, Type *type) {
 Sym *sym_global_decl(Decl *decl) {
     Sym *sym = sym_decl(decl);
     sym_global_put(sym);
-    decl->sym = sym;
     if (decl->kind == DECL_ENUM) {
         sym->state = SYM_RESOLVED;
         sym->type = type_enum(sym);
@@ -416,6 +415,16 @@ void unify_arithmetic_operands(Operand *left, Operand *right) {
     assert(left->type == right->type);
 }
 
+Map resolved_type_map;
+
+Type *get_resolved_type(void *ptr) {
+    return map_get(&resolved_type_map, ptr);
+}
+
+void set_resolved_type(void *ptr, Type *type) {
+    map_put(&resolved_type_map, ptr, type);
+}
+
 Sym *resolve_name(const char *name);
 Operand resolve_const_expr(Expr *expr);
 Operand resolve_expected_expr(Expr *expr, Type *expected_type);
@@ -492,8 +501,7 @@ Type *resolve_typespec(Typespec *typespec) {
         assert(0);
         return NULL;
     }
-    assert(!typespec->type || typespec->type == result);
-    typespec->type = result;
+    set_resolved_type(typespec, result);
     return result;
 }
 
@@ -1615,8 +1623,8 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         break;
     }
     if (result.type) {
-        assert(!expr->type || expr->type == result.type);
-        expr->type = result.type;
+        // assert(!expr->type || expr->type == result.type);
+        set_resolved_type(expr, result.type);
     }
     return result;
 }
