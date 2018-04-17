@@ -15,7 +15,7 @@ union IntOrPtr(?) {
 //    u2.p = (:int*)0;
 // }
 
-var i(?): int
+var i(?): int;
 
 struct Vector(?) {
     x, y: int;
@@ -37,9 +37,9 @@ func fact_rec(?)(n: int): int {
     }
 }
 
-const n(?) = 1 + sizeof(p(?))
+const n(?) = 1 + sizeof(p(?));
 
-var p(?): T(?)*
+var p(?): T(?)*;
 
 struct T(?) {
     a: int[n(?)];
@@ -48,5 +48,5 @@ struct T(?) {
 
 print("func main(argc: int, argv: char**): int { return 0; }")
 
-for i in range(32 * 1024):
+for i in range(128 * 1024):
     print(template.replace("(?)", str(i)))

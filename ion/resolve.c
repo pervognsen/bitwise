@@ -1622,10 +1622,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_null;
         break;
     }
-    if (result.type) {
-        // assert(!expr->type || expr->type == result.type);
-        set_resolved_type(expr, result.type);
-    }
+    set_resolved_type(expr, result.type);
     return result;
 }
 

@@ -252,63 +252,67 @@ Type *unqualify_type(Type *type) {
 }
 
 typedef struct CachedArrayType {
-    Type *elem;
-    size_t num_elems;
-    Type *array;
+    Type *type;
+    struct CachedArrayType *next;
 } CachedArrayType;
 
-CachedArrayType *cached_array_types;
+Map cached_array_types;
 
-Type *type_array(Type *elem, size_t num_elems) {
-    for (CachedArrayType *it = cached_array_types; it != buf_end(cached_array_types); it++) {
-        if (it->elem == elem && it->num_elems == num_elems) {
-            return it->array;
+Type *type_array(Type *base, size_t num_elems) {
+    uint64_t hash = hash_mix(hash_ptr(base), hash_uint64(num_elems));
+    void *key = (void *)(hash ? hash : 1);
+    CachedArrayType *cached = map_get(&cached_array_types, key);
+    for (CachedArrayType *it = cached; it; it = it->next) {
+        Type *type = it->type;
+        if (type->base == base && type->num_elems == num_elems) {
+            return type;
         }
     }
-    complete_type(elem);
+    complete_type(base);
     Type *type = type_alloc(TYPE_ARRAY);
-    type->nonmodifiable = elem->nonmodifiable;
-    type->size = num_elems * type_sizeof(elem);
-    type->align = type_alignof(elem);
-    type->base = elem;
+    type->nonmodifiable = base->nonmodifiable;
+    type->size = num_elems * type_sizeof(base);
+    type->align = type_alignof(base);
+    type->base = base;
     type->num_elems = num_elems;
-    buf_push(cached_array_types, (CachedArrayType){elem, num_elems, type});
+    CachedArrayType *new_cached = xmalloc(sizeof(CachedArrayType));
+    new_cached->type = type;
+    new_cached->next = cached;
+    map_put(&cached_array_types, key, new_cached);
     return type;
 }
 
 typedef struct CachedFuncType {
-    Type **params;
-    size_t num_params;
-    bool has_varargs;
-    Type *ret;
-    Type *func;
+    Type *type;
+    struct CachedFuncType *next;
 } CachedFuncType;
 
-CachedFuncType *cached_func_types;
+Map cached_func_types;
 
 Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
-    for (CachedFuncType *it = cached_func_types; it != buf_end(cached_func_types); it++) {
-        if (it->num_params == num_params && it->ret == ret && it->has_varargs == has_varargs) {
-            bool match = true;
-            for (size_t i = 0; i < num_params; i++) {
-                if (it->params[i] != params[i]) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) {
-                return it->func;
+    size_t params_size = num_params * sizeof(*params);
+    uint64_t hash = hash_mix(hash_bytes(params, params_size), hash_ptr(ret));
+    void *key = (void *)(hash ? hash : 1);
+    CachedFuncType *cached = map_get(&cached_func_types, key);
+    for (CachedFuncType *it = cached; it; it = it->next) {
+        Type *type = it->type;
+        if (type->func.num_params == num_params && type->func.ret == ret && type->func.has_varargs == has_varargs) {
+            if (memcmp(type->func.params, params, params_size) == 0) {
+                return type;
             }
         }
     }
     Type *type = type_alloc(TYPE_FUNC);
     type->size = PTR_SIZE;
     type->align = PTR_ALIGN;
-    type->func.params = memdup(params, num_params * sizeof(*params));
+    type->func.params = memdup(params, params_size);
     type->func.num_params = num_params;
     type->func.has_varargs = has_varargs;
     type->func.ret = ret;
-    buf_push(cached_func_types, (CachedFuncType){params, num_params, ret, type});
+    CachedFuncType *new_cached = xmalloc(sizeof(CachedFuncType));
+    new_cached->type = type;
+    new_cached->next = cached;
+    map_put(&cached_func_types, key, new_cached);
     return type;
 }
 

@@ -45,8 +45,8 @@ struct Typespec {
         struct {
             Typespec **args;
             size_t num_args;
-            Typespec *ret;
             bool has_varargs;
+            Typespec *ret;
         } func;
         Expr *num_elems;
     };
