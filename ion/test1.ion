@@ -9,6 +9,16 @@ func puts(str: char const*): int;
 @foreign
 func getchar(): int;
 
+/* This is a block comment */
+
+/*
+    This is a
+    multi-line
+    block comment
+*/
+
+/* This is a /* nested */ block comment */
+
 const PI = 3.14;
 const PI2 = PI + PI;
 

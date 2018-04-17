@@ -628,6 +628,21 @@ repeat:
                 stream++;
             }
             goto repeat;
+        } else if (*stream == '*') {
+            stream++;
+            int level = 1;
+            while (*stream && level > 0) {
+                if (stream[0] == '/' && stream[1] == '*') {
+                    level++;
+                    stream += 2;
+                } else if (stream[0] == '*' && stream[1] == '/') {
+                    level--;
+                    stream += 2;
+                } else {
+                    stream++;
+                }
+            }
+            goto repeat;
         }
         break;
     CASE1('\0', TOKEN_EOF)
