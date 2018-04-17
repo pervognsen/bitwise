@@ -582,14 +582,11 @@ void gen_decl(Sym *sym) {
         genf(")");
         break;
     case DECL_VAR:
+        genlnf("extern ");
         if (decl->var.type && !is_incomplete_array_typespec(decl->var.type)) {
-            genlnf("%s", typespec_to_cdecl(decl->var.type, sym->name));
+            genf("%s", typespec_to_cdecl(decl->var.type, sym->name));
         } else {
-            genlnf("%s", type_to_cdecl(sym->type, sym->name));
-        }
-        if (decl->var.expr) {
-            genf(" = ");
-            gen_init_expr(decl->var.expr);
+            genf("%s", type_to_cdecl(sym->type, sym->name));
         }
         genf(";");
         break;
@@ -620,18 +617,29 @@ void gen_sorted_decls(void) {
     }
 }
 
-void gen_func_defs(void) {
+void gen_defs(void) {
     for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (decl && decl->kind == DECL_FUNC && !is_decl_foreign(decl)) {
-            if (decl->is_incomplete) {
-                fatal_error(decl->pos, "Incomplete function definition: %s\n", decl->name);
-            }
+        if (!decl || is_decl_foreign(decl) || decl->is_incomplete) {
+            continue;
+        }
+        if (decl->kind == DECL_FUNC) {
             gen_func_decl(decl);
             genf(" ");
             gen_stmt_block(decl->func.block);
             genln();
+        } else if (decl->kind == DECL_VAR) {
+            if (decl->var.type && !is_incomplete_array_typespec(decl->var.type)) {
+                genlnf("%s", typespec_to_cdecl(decl->var.type, sym->name));
+            } else {
+                genlnf("%s", type_to_cdecl(sym->type, sym->name));
+            }
+            if (decl->var.expr) {
+                genf(" = ");
+                gen_init_expr(decl->var.expr);
+            }
+            genf(";");
         }
     }
 }
@@ -680,6 +688,6 @@ void gen_all(void) {
     genln();
     genlnf("// Sorted declarations");
     gen_sorted_decls();
-    genlnf("// Function definitions");
-    gen_func_defs();
+    genlnf("// Definitions");
+    gen_defs();
 }

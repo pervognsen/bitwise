@@ -118,7 +118,7 @@ struct UartCtrl {
 const UART_CTRL_REG = (:uint32*)0x12345678;
 
 func pack(ctrl: UartCtrl): uint32 {
-    return (ctrl.tx_enable & 1u) | ((ctrl.rx_enable & 1u) << 1);
+    return (ctrl.tx_enable & 1) | ((ctrl.rx_enable & 1) << 1);
 }
 
 func unpack(word: uint32): UartCtrl {
