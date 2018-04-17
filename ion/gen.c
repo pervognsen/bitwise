@@ -207,27 +207,29 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
 
 void gen_func_decl(Decl *decl) {
     assert(decl->kind == DECL_FUNC);
-    gen_sync_pos(decl->pos);
-    if (decl->func.ret_type) {
-        genlnf("%s %s(", typespec_to_cdecl(decl->func.ret_type, ""), decl->name);
-    } else {
-        genlnf("void %s(", decl->name);
-    }
+    char *result = NULL;
+    buf_printf(result, "%s(", decl->name);
     if (decl->func.num_params == 0) {
-        genf("void");
+        buf_printf(result, "void");
     } else {
         for (size_t i = 0; i < decl->func.num_params; i++) {
             FuncParam param = decl->func.params[i];
             if (i != 0) {
-                genf(", ");
+                buf_printf(result, ", ");
             }
-            genf("%s", typespec_to_cdecl(param.type, param.name));
+            buf_printf(result, "%s", typespec_to_cdecl(param.type, param.name));
         }
     }
     if (decl->func.has_varargs) {
-        genf(", ...");
+        buf_printf(result, ", ...");
     }
-    genf(")");
+    buf_printf(result, ")");
+    gen_sync_pos(decl->pos);
+    if (decl->func.ret_type) {
+        genlnf("%s", typespec_to_cdecl(decl->func.ret_type, result));
+    } else {
+        genlnf("void %s", result);
+    }
 }
 
 void gen_forward_decls(void) {
