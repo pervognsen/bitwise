@@ -449,6 +449,9 @@ Type *resolve_typespec(Typespec *typespec) {
     switch (typespec->kind) {
     case TYPESPEC_NAME: {
         Sym *sym = resolve_name(typespec->name);
+        if (!sym) {
+            fatal_error(typespec->pos, "Unresolved type name");
+        }
         if (sym->kind != SYM_TYPE) {
             fatal_error(typespec->pos, "%s must denote a type", typespec->name);
             return NULL;
