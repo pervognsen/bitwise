@@ -1681,6 +1681,7 @@ void init_builtins(void) {
     sym_global_type("llong", type_llong);
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
+    sym_global_type("double", type_double);
 
     sym_global_typedef("uint8", type_uchar);
     sym_global_typedef("int8", type_schar);

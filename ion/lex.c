@@ -344,6 +344,7 @@ void scan_int(void) {
         } else if (isdigit(*stream)) {
             token.mod = MOD_OCT;
             base = 8;
+            start_digits = stream;
         }
     }
     unsigned long long val = 0;
