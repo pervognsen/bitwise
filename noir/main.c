@@ -199,20 +199,10 @@ bool init_window(void) {
     if (!noir.window.title) {
         noir.window.title = default_window_title;
     }
-    uint32_t x = noir.window.pos.x;
-    uint32_t y = noir.window.pos.y;
-    if (x == 0 && y == 0) {
-        x = SDL_WINDOWPOS_CENTERED;
-        y = SDL_WINDOWPOS_CENTERED;
-    }
-    uint32_t width = noir.window.size.x;
-    uint32_t height = noir.window.size.y;
-    if (width == 0) {
-        width = default_window_size.x;
-    }
-    if (height == 0) {
-        height = default_window_size.y;
-    }
+    int x = noir.window.pos.x < 0 ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
+    int y = noir.window.pos.y < 0 ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
+    int width = noir.window.size.x == 0 ? default_window_size.x : noir.window.size.x;
+    int height = noir.window.size.y == 0 ? default_window_size.y : noir.window.size.y;
     SDL_WindowFlags flags = 0;
     if (noir.window.resizable) {
         flags |= SDL_WINDOW_RESIZABLE;
@@ -226,6 +216,7 @@ bool init_window(void) {
         return false;
     }
     noir.window.sdl_window = sdl_window;
+    noir.window.prev_pos = noir.window.pos;
     update_window();
     return true;
 }
@@ -240,6 +231,7 @@ bool init(void) {
     if (noir.init) {
         return true;
     }
+
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         noir.error = "Initialization failed";
         return false;

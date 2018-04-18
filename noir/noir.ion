@@ -111,13 +111,16 @@ struct Noir {
 var default_window_title = "Noir";
 var default_window_size = int2{800, 600};
 
-var noir: Noir;
+var noir: Noir = {
+    window = {pos = {-1, -1}},
+};
 
 func init(): bool;
 func update(): bool;
 
 func main(argc: int, argv: char**): int {
     init();
+    show_time_msecs := uint64(0);
     while (update()) {
         if (noir.error) {
             printf("Error: %s\n", noir.error);
@@ -147,28 +150,31 @@ func main(argc: int, argv: char**): int {
             printf("Window %s\n", noir.window.resizable ? "resizable" : "non-resizable");
         }
         if (noir.keys['h'].pressed) {
-            noir.window.hidden = !noir.window.hidden;
-            printf("Window %s\n", noir.window.hidden ? "hidden" : "shown");
+            noir.window.hidden = true;
+            show_time_msecs = noir.time.msecs + 1000;
+            printf("Window hidden\n");
         }
-        dest: int2*;
+        if (noir.window.hidden && noir.time.msecs >= show_time_msecs) {
+            noir.window.hidden = false;
+            printf("Window shown\n");
+        }
+        dest := &noir.window.pos;
         if (noir.keys[KEY_SHIFT].down) {
             dest = &noir.mouse.pos;
         } else if (noir.keys[KEY_CTRL].down) {
             dest = &noir.window.size;
-        } else {
-            dest = &noir.window.pos;
         }
         if (noir.keys[KEY_LEFT].pressed) {
-            dest.x = dest.x - 100;
+            dest.x -= 100;
         }
         if (noir.keys[KEY_RIGHT].pressed) {
-            dest.x = dest.x + 100;
-        }
-        if (noir.keys[KEY_DOWN].pressed) {
-            dest.y = dest.y + 100;
+            dest.x += 100;
         }
         if (noir.keys[KEY_UP].pressed) {
-            dest.y = dest.y - 100;
+            dest.y -= 100;
+        }
+        if (noir.keys[KEY_DOWN].pressed) {
+            dest.y += 100;
         }
         return_key := noir.keys[KEY_RETURN];
         if (return_key.pressed) {
