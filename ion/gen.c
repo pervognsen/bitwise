@@ -293,11 +293,7 @@ void gen_expr_compound(Expr *expr, bool is_init) {
             gen_expr(field.index);
             genf("] = ");
         }
-        if (is_init) {
-            gen_init_expr(field.init);
-        } else {
-            gen_expr(field.init);
-        }
+        gen_init_expr(field.init);
     }
     if (expr->compound.num_fields == 0) {
         genf("0");

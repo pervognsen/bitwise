@@ -60,12 +60,12 @@ void update_keys() {
 }
 
 void update_mouse(void) {
-    if (noir.mouse.captured != noir.mouse.prev_captured) {
+    if (noir.mouse.captured != noir.mouse.synced_captured) {
         if (SDL_CaptureMouse(noir.mouse.captured) != 0) {
             noir.error = "Mouse capture failed";
         }
     }
-    noir.mouse.prev_captured = noir.mouse.captured;
+    noir.mouse.synced_captured = noir.mouse.captured;
 
     int x, y;
     uint32_t state = SDL_GetMouseState(&x, &y);
@@ -73,7 +73,7 @@ void update_mouse(void) {
     update_digital_button(&noir.mouse.middle_button, state & SDL_BUTTON_MIDDLE);
     update_digital_button(&noir.mouse.right_button, state & SDL_BUTTON_RIGHT);
     int2 new_pos;
-    if (noir.mouse.pos.x != noir.mouse.prev_pos.x || noir.mouse.pos.y != noir.mouse.prev_pos.y) {
+    if (noir.mouse.pos.x != noir.mouse.synced_pos.x || noir.mouse.pos.y != noir.mouse.synced_pos.y) {
         SDL_WarpMouseInWindow(NULL, noir.mouse.pos.x, noir.mouse.pos.y);
         new_pos = noir.mouse.pos;
     } else {
@@ -82,15 +82,15 @@ void update_mouse(void) {
     noir.mouse.delta_pos = (int2){new_pos.x - noir.mouse.pos.x, new_pos.y - noir.mouse.pos.y};
     noir.mouse.moved = noir.mouse.delta_pos.x || noir.mouse.delta_pos.y;
     noir.mouse.pos = new_pos;
-    noir.mouse.prev_pos = new_pos;
+    noir.mouse.synced_pos = new_pos;
 
     SDL_GetGlobalMouseState(&x, &y);
-    if (noir.mouse.global_pos.x != noir.mouse.prev_global_pos.x || noir.mouse.global_pos.y != noir.mouse.prev_global_pos.y) {
+    if (noir.mouse.global_pos.x != noir.mouse.synced_global_pos.x || noir.mouse.global_pos.y != noir.mouse.synced_global_pos.y) {
         SDL_WarpMouseGlobal(noir.mouse.global_pos.x, noir.mouse.global_pos.y);
     } else {
         noir.mouse.global_pos = (int2){x, y};
     }
-    noir.mouse.prev_global_pos = noir.mouse.global_pos;
+    noir.mouse.synced_global_pos = noir.mouse.global_pos;
 }
 
 void update_events(void) {
@@ -135,39 +135,39 @@ void update_time(void) {
 }
 
 void update_window(void) {
-    if (noir.window.pos.x != noir.window.prev_pos.x || noir.window.pos.y != noir.window.prev_pos.y) {
+    if (noir.window.pos.x != noir.window.synced_pos.x || noir.window.pos.y != noir.window.synced_pos.y) {
         SDL_SetWindowPosition(noir.window.sdl_window, noir.window.pos.x, noir.window.pos.y);
     }
     int x, y;
     SDL_GetWindowPosition(noir.window.sdl_window, &x, &y);
-    noir.window.moved = noir.window.pos.x != x || noir.window.pos.y != y;
+    noir.window.moved = noir.window.synced_pos.x != x || noir.window.synced_pos.y != y;
     noir.window.pos.x = x;
     noir.window.pos.y = y;
-    noir.window.prev_pos = noir.window.pos;
+    noir.window.synced_pos = noir.window.pos;
 
-    if (noir.window.size.x != noir.window.prev_size.x || noir.window.size.y != noir.window.prev_size.y) {
+    if (noir.window.size.x != noir.window.synced_size.x || noir.window.size.y != noir.window.synced_size.y) {
         SDL_SetWindowSize(noir.window.sdl_window, noir.window.size.x, noir.window.size.y);
     }
     int width, height;
     SDL_GetWindowSize(noir.window.sdl_window, &width, &height);
-    noir.window.resized = noir.window.size.x != width || noir.window.size.y != height;
+    noir.window.resized = noir.num_updates == 0 || noir.window.synced_size.x != width || noir.window.synced_size.y != height;
     noir.window.size.x = width;
     noir.window.size.y = height;
-    noir.window.prev_size = noir.window.size;
+    noir.window.synced_size = noir.window.size;
 
-    if (noir.window.resizable != noir.window.prev_resizable) {
+    if (noir.window.resizable != noir.window.synced_resizable) {
         SDL_SetWindowResizable(noir.window.sdl_window, noir.window.resizable);
     }
-    noir.window.prev_resizable = noir.window.resizable;
+    noir.window.synced_resizable = noir.window.resizable;
 
-    if (noir.window.hidden != noir.window.prev_hidden) {
+    if (noir.window.hidden != noir.window.synced_hidden) {
         if (noir.window.hidden) {
             SDL_HideWindow(noir.window.sdl_window);
         } else {
             SDL_ShowWindow(noir.window.sdl_window);
         }
     }
-    noir.window.prev_hidden = noir.window.hidden;
+    noir.window.synced_hidden = noir.window.hidden;
 }
 
 bool update(void) {
@@ -180,6 +180,7 @@ bool update(void) {
     update_time();
     update_keys();
     update_mouse();
+    noir.num_updates++;
     return !noir.quit;
 }
 
@@ -199,8 +200,8 @@ bool init_window(void) {
     if (!noir.window.title) {
         noir.window.title = default_window_title;
     }
-    int x = noir.window.pos.x < 0 ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
-    int y = noir.window.pos.y < 0 ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
+    int x = noir.window.pos.x == CENTER_POS ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
+    int y = noir.window.pos.y == CENTER_POS ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
     int width = noir.window.size.x == 0 ? default_window_size.x : noir.window.size.x;
     int height = noir.window.size.y == 0 ? default_window_size.y : noir.window.size.y;
     SDL_WindowFlags flags = 0;
@@ -216,7 +217,7 @@ bool init_window(void) {
         return false;
     }
     noir.window.sdl_window = sdl_window;
-    noir.window.prev_pos = noir.window.pos;
+    noir.window.synced_pos = noir.window.pos;
     update_window();
     return true;
 }
