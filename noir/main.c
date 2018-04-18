@@ -40,12 +40,12 @@ int noir_key_to_sdl_scancode[NUM_KEYS] = {
 int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
 
 void update_mouse(void) {
-    if (app.mouse.captured != app.mouse.synced_captured) {
-        if (SDL_CaptureMouse(app.mouse.captured) != 0) {
+    if (app.mouse.capture != app.mouse.synced_capture) {
+        if (SDL_CaptureMouse(app.mouse.capture) != 0) {
             app.error = "Mouse capture failed";
         }
     }
-    app.mouse.synced_captured = app.mouse.captured;
+    app.mouse.synced_capture = app.mouse.capture;
 
     if (app.mouse.pos.x != app.mouse.synced_pos.x || app.mouse.pos.y != app.mouse.synced_pos.y) {
         SDL_WarpMouseInWindow(NULL, app.mouse.pos.x, app.mouse.pos.y);
@@ -132,6 +132,11 @@ void update_time(void) {
 }
 
 void update_window(void) {
+    if (strcmp(app.window.title, app.window.synced_title) != 0) {
+        SDL_SetWindowTitle(app.window.sdl_window, app.window.title);
+        strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
+    }
+
     if (app.window.pos.x != app.window.synced_pos.x || app.window.pos.y != app.window.synced_pos.y) {
         SDL_SetWindowPosition(app.window.sdl_window, app.window.pos.x, app.window.pos.y);
     }
@@ -220,6 +225,7 @@ bool init_window(void) {
     }
     app.window.sdl_window = sdl_window;
     app.window.synced_pos = app.window.pos;
+    strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
     update_window();
     return true;
 }

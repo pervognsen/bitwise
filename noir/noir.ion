@@ -43,6 +43,7 @@ const KEY_DOWN = 274;
 const NUM_KEYS = KEY_DOWN + 1;
 
 const MAX_TEXT = 1024;
+const MAX_TITLE = 256;
 
 struct Time {
     delta_ticks: int;
@@ -74,9 +75,9 @@ struct Mouse {
     left_button: DigitalButton;
     middle_button: DigitalButton;
     right_button: DigitalButton;
-    captured: bool;
+    capture: bool;
 
-    synced_captured: bool;
+    synced_capture: bool;
     synced_pos: int2;
     synced_global_pos: int2;
 }
@@ -92,7 +93,8 @@ struct Window {
     size: int2;
     moved: bool;
     resized: bool;
-
+    
+    synced_title: char[MAX_TITLE];
     synced_pos: int2;
     synced_size: int2;
     synced_resizable: bool;
@@ -141,9 +143,14 @@ func update(): bool;
 @foreign
 func printf(fmt: char const*, ...): int;
 
+@foreign
+func sprintf(dest: char*, fmt: char const*, ...): int;
+
 func main(argc: int, argv: char**): int {
-    init();
+    title_counter := 0;
+    title_buf: char[16];
     show_time_msecs: uint64 = 0;
+    init();
     while (update()) {
         if (app.error) {
             printf("Error: %s\n", app.error);
@@ -176,13 +183,19 @@ func main(argc: int, argv: char**): int {
         if (app.keys[KEY_ESCAPE].pressed) {
             app.quit = true;
         }
-        if (app.keys['a'].pressed) {
-            app.mouse.captured = !app.mouse.captured;
-            printf("Mouse capture %s\n", app.mouse.captured ? "enabled" : "disabled");
+        if (app.keys['t'].pressed) {
+            printf("Changing title\n");
+            title_counter++;
+            sprintf(title_buf, "Title %d", title_counter);
+            app.window.title = title_buf;
+        }
+        if (app.keys['c'].pressed) {
+            app.mouse.capture = !app.mouse.capture;
+            printf("Mouse capture %s\n", app.mouse.capture ? "enabled" : "disabled");
         }
         if (app.keys['r'].pressed) {
             app.window.resizable = !app.window.resizable;
-            printf("Window %s\n", app.window.resizable ? "resizable" : "non-resizable");
+            printf("Window resizing %s\n", app.window.resizable ? "enabled" : "disabled");
         }
         if (app.keys['h'].pressed) {
             app.window.hidden = true;
