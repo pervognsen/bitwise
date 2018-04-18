@@ -1,0 +1,203 @@
+#foreign(include = "<stdio.h>")
+
+@foreign
+func printf(fmt: char const*, ...): int;
+
+struct int2 {
+    x, y: int;
+}
+
+struct DigitalButton {
+    down: bool;
+    pressed: bool;
+    released: bool;
+}
+
+func update_digital_button(button: DigitalButton*, down: bool) {
+    was_down := button.down;
+    button.down = down;
+    button.pressed = down && !was_down;
+    button.released = !down && was_down;
+}
+
+const KEY_LSHIFT = 0x100;
+const KEY_RSHIFT = 0x101;
+const KEY_SHIFT = 0x102;
+const KEY_LCTRL = 0x103;
+const KEY_RCTRL = 0x104;
+const KEY_CTRL = 0x105;
+const KEY_LALT = 0x106;
+const KEY_RALT = 0x107;
+const KEY_ALT = 0x108;
+const KEY_CAPS = 0x109;
+const KEY_RETURN = 0x10A;
+const KEY_SPACE = 0x10B;
+const KEY_BACKSPACE = 0x10C;
+const KEY_TAB = 0x10D;
+const KEY_LEFT = 0x10E;
+const KEY_RIGHT = 0x10F;
+const KEY_UP = 0x110;
+const KEY_DOWN = 0x111;
+
+const NUM_KEYS = KEY_DOWN + 1;
+
+const MAX_TEXT = 3;
+
+struct Time {
+    delta_ticks: uint64;
+    delta_nsecs: uint64;
+    delta_usecs: uint64;
+    delta_msecs: uint64;
+    delta_secs: float;
+    
+    ticks: uint64;
+    nsecs: uint64;
+    usecs: uint64;
+    msecs: uint64;
+    secs: double;
+
+    start_ticks: uint64;
+    ticks_per_sec: uint64;
+}
+
+struct Mouse {
+    moved: bool;
+    delta_pos: int2;
+    pos: int2;
+    global_pos: int2;
+
+    left_button: DigitalButton;
+    middle_button: DigitalButton;
+    right_button: DigitalButton;
+    captured: bool;
+
+    prev_captured: bool;
+    prev_pos: int2;
+    prev_global_pos: int2;
+}
+
+struct SDL_Window;
+
+struct Window {
+    resizable: bool;
+    hidden: bool;
+
+    title: char const *;
+    pos: int2;
+    size: int2;
+    moved: bool;
+    resized: bool;
+
+    prev_pos: int2;
+    prev_size: int2;
+    prev_resizable: bool;
+    prev_hidden: bool;
+
+    sdl_window: SDL_Window*;
+}
+
+struct Noir {
+    init: bool;
+    quit: bool;
+    error: char const *;
+
+    window: Window;
+    keys: DigitalButton[NUM_KEYS];
+    mouse: Mouse;
+    text: char[MAX_TEXT];
+    time: Time;
+}
+
+var default_window_title = "Noir";
+var default_window_size = int2{800, 600};
+
+var noir: Noir;
+
+func init(): bool;
+func update(): bool;
+
+func main(argc: int, argv: char**): int {
+    init();
+    while (update()) {
+        if (noir.error) {
+            printf("Error: %s\n", noir.error);
+            noir.error = NULL;
+        }
+        // printf("Mouse = (%d, %d)\n", noir.mouse.pos.x, noir.mouse.pos.y);
+        // printf("Time: %fs\n", noir.time.secs);
+        // printf("Delta time: %fs\n", noir.time.delta_secs);
+        if (noir.mouse.moved) {
+            printf("Mouse move: (%d, %d)\n", noir.mouse.delta_pos.x, noir.mouse.delta_pos.y);
+        }
+        if (noir.window.moved) {
+            printf("Window moved: (%d, %d)\n", noir.window.pos.x, noir.window.pos.y);
+        }
+        if (noir.window.resized) {
+            printf("Window resized: (%d, %d)\n", noir.window.size.x, noir.window.size.y);
+        }
+        if (*noir.text) {
+            printf("Text: %s\n", noir.text);
+        }
+        if (noir.keys['a'].pressed) {
+            noir.mouse.captured = !noir.mouse.captured;
+            printf("Mouse captured %s\n", noir.mouse.captured ? "enabled" : "disabled");
+        }
+        if (noir.keys['r'].pressed) {
+            noir.window.resizable = !noir.window.resizable;
+            printf("Window %s\n", noir.window.resizable ? "resizable" : "non-resizable");
+        }
+        if (noir.keys['h'].pressed) {
+            noir.window.hidden = !noir.window.hidden;
+            printf("Window %s\n", noir.window.hidden ? "hidden" : "shown");
+        }
+        dest: int2*;
+        if (noir.keys[KEY_SHIFT].down) {
+            dest = &noir.mouse.pos;
+        } else if (noir.keys[KEY_CTRL].down) {
+            dest = &noir.window.size;
+        } else {
+            dest = &noir.window.pos;
+        }
+        if (noir.keys[KEY_LEFT].pressed) {
+            dest.x = dest.x - 100;
+        }
+        if (noir.keys[KEY_RIGHT].pressed) {
+            dest.x = dest.x + 100;
+        }
+        if (noir.keys[KEY_DOWN].pressed) {
+            dest.y = dest.y + 100;
+        }
+        if (noir.keys[KEY_UP].pressed) {
+            dest.y = dest.y - 100;
+        }
+        return_key := noir.keys[KEY_RETURN];
+        if (return_key.pressed) {
+            printf("Return key pressed\n");
+        }
+        if (return_key.released) {
+            printf("Return key released\n");
+        }
+        lshift := noir.keys[KEY_LSHIFT];
+        if (lshift.pressed) {
+            printf("Left shift pressed\n");
+        }
+        if (lshift.released) {
+            printf("Left shift released\n");
+        }
+        rshift := noir.keys[KEY_RSHIFT];
+        if (rshift.pressed) {
+            printf("Right shift pressed\n");
+        }
+        if (rshift.released) {
+            printf("Right shift released\n");
+        }
+        shift := noir.keys[KEY_SHIFT];
+        if (shift.pressed) {
+            printf("Shift pressed\n");
+        }
+        if (shift.released) {
+            printf("Shift released\n");
+        }
+    }
+    return 0;
+}
