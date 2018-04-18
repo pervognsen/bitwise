@@ -20,16 +20,6 @@ func update_digital_button(button: DigitalButton*, down: bool) {
     button.released += !down && was_down;
 }
 
-func update_combination_key(dest_key: int, src_key1: int, src_key2: int) {
-    update_digital_button(&app.keys[dest_key], app.keys[src_key1].down || app.keys[src_key2].down);
-}
-
-func update_combination_keys() {
-    update_combination_key(KEY_SHIFT, KEY_LSHIFT, KEY_RSHIFT);
-    update_combination_key(KEY_CTRL, KEY_LCTRL, KEY_RCTRL);
-    update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
-}
-
 const KEY_LSHIFT = 256;
 const KEY_RSHIFT = 257;
 const KEY_SHIFT = 258;
@@ -130,6 +120,16 @@ var default_window_size = int2{800, 600};
 const DEFAULT_WINDOW_POS = 1000000;
 
 var app: App = {window = {pos = {DEFAULT_WINDOW_POS , DEFAULT_WINDOW_POS}}};
+
+func update_combination_key(dest_key: int, src_key1: int, src_key2: int) {
+    update_digital_button(&app.keys[dest_key], app.keys[src_key1].down || app.keys[src_key2].down);
+}
+
+func update_combination_keys() {
+    update_combination_key(KEY_SHIFT, KEY_LSHIFT, KEY_RSHIFT);
+    update_combination_key(KEY_CTRL, KEY_LCTRL, KEY_RCTRL);
+    update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
+}
 
 func init(): bool;
 func update(): bool;
