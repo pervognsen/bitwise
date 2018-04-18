@@ -15,24 +15,25 @@ func update_digital_button(button: DigitalButton*, down: bool) {
     button.released = !down && was_down;
 }
 
-const KEY_LSHIFT = 0x100;
-const KEY_RSHIFT = 0x101;
-const KEY_SHIFT = 0x102;
-const KEY_LCTRL = 0x103;
-const KEY_RCTRL = 0x104;
-const KEY_CTRL = 0x105;
-const KEY_LALT = 0x106;
-const KEY_RALT = 0x107;
-const KEY_ALT = 0x108;
-const KEY_CAPS = 0x109;
-const KEY_RETURN = 0x10A;
-const KEY_SPACE = 0x10B;
-const KEY_BACKSPACE = 0x10C;
-const KEY_TAB = 0x10D;
-const KEY_LEFT = 0x10E;
-const KEY_RIGHT = 0x10F;
-const KEY_UP = 0x110;
-const KEY_DOWN = 0x111;
+const KEY_LSHIFT = 256;
+const KEY_RSHIFT = 257;
+const KEY_SHIFT = 258;
+const KEY_LCTRL = 259;
+const KEY_RCTRL = 260;
+const KEY_CTRL = 261;
+const KEY_LALT = 262;
+const KEY_RALT = 263;
+const KEY_ALT = 264;
+const KEY_CAPS = 265;
+const KEY_RETURN = 266;
+const KEY_SPACE = 267;
+const KEY_BACKSPACE = 268;
+const KEY_ESCAPE = 269;
+const KEY_TAB = 270;
+const KEY_LEFT = 271;
+const KEY_RIGHT = 272;
+const KEY_UP = 273;
+const KEY_DOWN = 274;
 
 const NUM_KEYS = KEY_DOWN + 1;
 
@@ -51,8 +52,9 @@ struct Time {
     msecs: uint64;
     secs: double;
 
-    start_ticks: uint64;
     ticks_per_sec: uint64;
+
+    sdl_start_ticks: uint64;
 }
 
 struct Mouse {
@@ -106,10 +108,9 @@ struct Noir {
 
 var default_window_title = "Noir";
 var default_window_size = int2{800, 600};
+const DEFAULT_WINDOW_POS = 1000000;
 
-const CENTER_POS = 1000000;
-
-var noir: Noir = {window = {pos = {CENTER_POS, CENTER_POS}}};
+var noir: Noir = {window = {pos = {DEFAULT_WINDOW_POS , DEFAULT_WINDOW_POS}}};
 
 func init(): bool;
 func update(): bool;
@@ -123,7 +124,7 @@ func printf(fmt: char const*, ...): int;
 
 func main(argc: int, argv: char**): int {
     init();
-    show_time_msecs := uint64(0);
+    show_time_msecs: uint64 = 0;
     while (update()) {
         if (noir.error) {
             printf("Error: %s\n", noir.error);
@@ -143,6 +144,9 @@ func main(argc: int, argv: char**): int {
         }
         if (*noir.text) {
             printf("Text: %s\n", noir.text);
+        }
+        if (noir.keys[KEY_ESCAPE].pressed) {
+            noir.quit = true;
         }
         if (noir.keys['a'].pressed) {
             noir.mouse.captured = !noir.mouse.captured;

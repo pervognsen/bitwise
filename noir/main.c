@@ -21,7 +21,9 @@ bool check_init(void) {
 int noir_to_sdl_scancode[NUM_KEYS] = {
     [KEY_RETURN] = SDL_SCANCODE_RETURN,
     [KEY_SPACE] = SDL_SCANCODE_SPACE,
+    [KEY_BACKSPACE] = SDL_SCANCODE_BACKSPACE,
     [KEY_TAB] = SDL_SCANCODE_TAB,
+    [KEY_ESCAPE] = SDL_SCANCODE_ESCAPE,
     [KEY_LEFT] = SDL_SCANCODE_LEFT,
     [KEY_RIGHT] = SDL_SCANCODE_RIGHT,
     [KEY_UP] = SDL_SCANCODE_UP,
@@ -119,7 +121,7 @@ void update_events(void) {
 }
 
 void update_time(void) {
-    uint64 ticks = SDL_GetPerformanceCounter() - noir.time.start_ticks;
+    uint64 ticks = SDL_GetPerformanceCounter() - noir.time.sdl_start_ticks;
     noir.time.delta_ticks = ticks - noir.time.ticks;
     noir.time.ticks = ticks;
 
@@ -140,7 +142,7 @@ void update_window(void) {
     }
     int x, y;
     SDL_GetWindowPosition(noir.window.sdl_window, &x, &y);
-    noir.window.moved = noir.window.synced_pos.x != x || noir.window.synced_pos.y != y;
+    noir.window.moved = noir.num_updates == 0 || noir.window.synced_pos.x != x || noir.window.synced_pos.y != y;
     noir.window.pos.x = x;
     noir.window.pos.y = y;
     noir.window.synced_pos = noir.window.pos;
@@ -200,8 +202,8 @@ bool init_window(void) {
     if (!noir.window.title) {
         noir.window.title = default_window_title;
     }
-    int x = noir.window.pos.x == CENTER_POS ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
-    int y = noir.window.pos.y == CENTER_POS ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
+    int x = noir.window.pos.x == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
+    int y = noir.window.pos.y == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
     int width = noir.window.size.x == 0 ? default_window_size.x : noir.window.size.x;
     int height = noir.window.size.y == 0 ? default_window_size.y : noir.window.size.y;
     SDL_WindowFlags flags = 0;
@@ -224,15 +226,13 @@ bool init_window(void) {
 
 void init_time(void) {
     noir.time.ticks_per_sec = SDL_GetPerformanceFrequency();
-    noir.time.start_ticks = SDL_GetPerformanceCounter();
-    noir.time.ticks = noir.time.start_ticks;
+    noir.time.sdl_start_ticks = SDL_GetPerformanceCounter();
 }
 
 bool init(void) {
     if (noir.init) {
         return true;
     }
-
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         noir.error = "Initialization failed";
         return false;
