@@ -4,15 +4,30 @@ struct int2 {
 
 struct DigitalButton {
     down: bool;
-    pressed: bool;
-    released: bool;
+    pressed: int;
+    released: int;
+}
+
+func reset_digital_button_events(button: DigitalButton*) {
+    button.pressed = 0;
+    button.released = 0;
 }
 
 func update_digital_button(button: DigitalButton*, down: bool) {
     was_down := button.down;
     button.down = down;
-    button.pressed = down && !was_down;
-    button.released = !down && was_down;
+    button.pressed += down && !was_down;
+    button.released += !down && was_down;
+}
+
+func update_combination_key(dest_key: int, src_key1: int, src_key2: int) {
+    update_digital_button(&noir.keys[dest_key], noir.keys[src_key1].down || noir.keys[src_key2].down);
+}
+
+func update_combination_keys() {
+    update_combination_key(KEY_SHIFT, KEY_LSHIFT, KEY_RSHIFT);
+    update_combination_key(KEY_CTRL, KEY_LCTRL, KEY_RCTRL);
+    update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
 }
 
 const KEY_LSHIFT = 256;
@@ -40,10 +55,10 @@ const NUM_KEYS = KEY_DOWN + 1;
 const MAX_TEXT = 1024;
 
 struct Time {
-    delta_ticks: uint64;
-    delta_nsecs: uint64;
-    delta_usecs: uint64;
-    delta_msecs: uint64;
+    delta_ticks: int;
+    delta_nsecs: int;
+    delta_usecs: int;
+    delta_msecs: int;
     delta_secs: float;
     
     ticks: uint64;
@@ -82,7 +97,7 @@ struct Window {
     resizable: bool;
     hidden: bool;
 
-    title: char const *;
+    title: char const*;
     pos: int2;
     size: int2;
     moved: bool;
@@ -141,7 +156,7 @@ func main(argc: int, argv: char**): int {
             printf("Mouse move: (%d, %d)\n", noir.mouse.delta_pos.x, noir.mouse.delta_pos.y);
         }
         if (noir.mouse.global_moved) {
-            printf("Mouse global move: (%d, %d)\n", noir.mouse.global_delta_pos.x, noir.mouse.global_delta_pos.y);
+            printf("Global mouse move: (%d, %d)\n", noir.mouse.global_delta_pos.x, noir.mouse.global_delta_pos.y);
         }
         if (noir.window.moved) {
             printf("Window moved: (%d, %d)\n", noir.window.pos.x, noir.window.pos.y);
@@ -151,6 +166,12 @@ func main(argc: int, argv: char**): int {
         }
         if (*noir.text) {
             printf("Text: %s\n", noir.text);
+        }
+        if (noir.mouse.left_button.pressed) {
+            printf("Left mouse button pressed\n");
+        }
+        if (noir.mouse.left_button.released) {
+            printf("Left mouse button released\n");
         }
         if (noir.keys[KEY_ESCAPE].pressed) {
             noir.quit = true;
