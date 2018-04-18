@@ -1691,6 +1691,10 @@ void init_builtins(void) {
     sym_global_typedef("uint64", type_ullong);
     sym_global_typedef("int64", type_llong);
 
+    sym_global_typedef("usize", type_usize);
+    sym_global_typedef("ssize", type_ssize);
+    sym_global_typedef("uintptr", type_uintptr);
+
     sym_global_const("true", type_bool, (Val){.b = true});
     sym_global_const("false", type_bool, (Val){.b = false});
     sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});

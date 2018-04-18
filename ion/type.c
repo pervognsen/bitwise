@@ -82,6 +82,7 @@ Type *type_ullong = &(Type){TYPE_ULLONG, 8, 8};
 Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
 Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
 
+#define type_uintptr type_ullong
 #define type_usize type_ullong
 #define type_ssize type_llong
 
