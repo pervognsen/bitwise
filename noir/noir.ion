@@ -137,8 +137,11 @@ func main(argc: int, argv: char**): int {
         // printf("Mouse = (%d, %d)\n", noir.mouse.pos.x, noir.mouse.pos.y);
         // printf("Time: %fs\n", noir.time.secs);
         // printf("Delta time: %fs\n", noir.time.delta_secs);
+        if (noir.mouse.moved) {
+            printf("Mouse move: (%d, %d)\n", noir.mouse.delta_pos.x, noir.mouse.delta_pos.y);
+        }
         if (noir.mouse.global_moved) {
-            printf("Mouse move: (%d, %d)\n", noir.mouse.global_delta_pos.x, noir.mouse.global_delta_pos.y);
+            printf("Mouse global move: (%d, %d)\n", noir.mouse.global_delta_pos.x, noir.mouse.global_delta_pos.y);
         }
         if (noir.window.moved) {
             printf("Window moved: (%d, %d)\n", noir.window.pos.x, noir.window.pos.y);
