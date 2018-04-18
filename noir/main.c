@@ -132,9 +132,10 @@ void update_time(void) {
 }
 
 void update_window(void) {
-    if (app.window.title != app.window.synced_title || strcmp(app.window.title, app.window.synced_title) != 0) {
+    if (app.window.title != app.window.synced_title) {
         SDL_SetWindowTitle(app.window.sdl_window, app.window.title);
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
+        app.window.title = app.window.synced_title;
     }
 
     if (app.window.pos.x != app.window.synced_pos.x || app.window.pos.y != app.window.synced_pos.y) {
