@@ -1,3 +1,9 @@
+# Bitwise, Day 18: Making Noir
+- Review/follow-up
+- Noir's genesis in experimental Mu library: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72
+- Old Mu videos: https://www.youtube.com/watch?v=NG_mUhc8LRw, https://www.youtube.com/watch?v=pAIdfsT7-EU
+- Start working on Noir
+
 # Bitwise, Day 17: Ion Version 0
 - Video: https://www.youtube.com/watch?v=Oeqeqw4OHPE
 - Extra: https://www.youtube.com/watch?v=DoPG4OCnh7A
