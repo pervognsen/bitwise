@@ -132,7 +132,7 @@ void update_time(void) {
 }
 
 void update_window(void) {
-    if (strcmp(app.window.title, app.window.synced_title) != 0) {
+    if (app.window.title != app.window.synced_title || strcmp(app.window.title, app.window.synced_title) != 0) {
         SDL_SetWindowTitle(app.window.sdl_window, app.window.title);
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
     }
