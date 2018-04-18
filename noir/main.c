@@ -87,11 +87,16 @@ void update_mouse(void) {
     noir.mouse.synced_pos = new_pos;
 
     SDL_GetGlobalMouseState(&x, &y);
+    int2 new_global_pos;
     if (noir.mouse.global_pos.x != noir.mouse.synced_global_pos.x || noir.mouse.global_pos.y != noir.mouse.synced_global_pos.y) {
         SDL_WarpMouseGlobal(noir.mouse.global_pos.x, noir.mouse.global_pos.y);
+        new_global_pos = noir.mouse.pos;
     } else {
-        noir.mouse.global_pos = (int2){x, y};
+        new_global_pos = (int2){x, y};
     }
+    noir.mouse.global_delta_pos = (int2){new_global_pos.x - noir.mouse.global_pos.x, new_global_pos.y - noir.mouse.global_pos.y};
+    noir.mouse.global_moved = noir.mouse.global_delta_pos.x || noir.mouse.global_delta_pos.y;
+    noir.mouse.global_pos = new_global_pos;
     noir.mouse.synced_global_pos = noir.mouse.global_pos;
 }
 

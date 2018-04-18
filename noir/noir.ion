@@ -37,7 +37,7 @@ const KEY_DOWN = 274;
 
 const NUM_KEYS = KEY_DOWN + 1;
 
-const MAX_TEXT = 3;
+const MAX_TEXT = 1024;
 
 struct Time {
     delta_ticks: uint64;
@@ -59,9 +59,12 @@ struct Time {
 
 struct Mouse {
     moved: bool;
-    delta_pos: int2;
     pos: int2;
+    delta_pos: int2;
+
+    global_moved: bool;
     global_pos: int2;
+    global_delta_pos: int2;
 
     left_button: DigitalButton;
     middle_button: DigitalButton;
@@ -97,7 +100,7 @@ struct Noir {
     init: bool;
     quit: bool;
     num_updates: int;
-    error: char const *;
+    error: char const*;
 
     window: Window;
     keys: DigitalButton[NUM_KEYS];
@@ -108,6 +111,7 @@ struct Noir {
 
 var default_window_title = "Noir";
 var default_window_size = int2{800, 600};
+
 const DEFAULT_WINDOW_POS = 1000000;
 
 var noir: Noir = {window = {pos = {DEFAULT_WINDOW_POS , DEFAULT_WINDOW_POS}}};
@@ -133,8 +137,8 @@ func main(argc: int, argv: char**): int {
         // printf("Mouse = (%d, %d)\n", noir.mouse.pos.x, noir.mouse.pos.y);
         // printf("Time: %fs\n", noir.time.secs);
         // printf("Delta time: %fs\n", noir.time.delta_secs);
-        if (noir.mouse.moved) {
-            printf("Mouse move: (%d, %d)\n", noir.mouse.delta_pos.x, noir.mouse.delta_pos.y);
+        if (noir.mouse.global_moved) {
+            printf("Mouse move: (%d, %d)\n", noir.mouse.global_delta_pos.x, noir.mouse.global_delta_pos.y);
         }
         if (noir.window.moved) {
             printf("Window moved: (%d, %d)\n", noir.window.pos.x, noir.window.pos.y);
@@ -150,7 +154,7 @@ func main(argc: int, argv: char**): int {
         }
         if (noir.keys['a'].pressed) {
             noir.mouse.captured = !noir.mouse.captured;
-            printf("Mouse captured %s\n", noir.mouse.captured ? "enabled" : "disabled");
+            printf("Mouse capture %s\n", noir.mouse.captured ? "enabled" : "disabled");
         }
         if (noir.keys['r'].pressed) {
             noir.window.resizable = !noir.window.resizable;
@@ -167,7 +171,7 @@ func main(argc: int, argv: char**): int {
         }
         dest := &noir.window.pos;
         if (noir.keys[KEY_SHIFT].down) {
-            dest = &noir.mouse.pos;
+            dest = &noir.mouse.global_pos;
         } else if (noir.keys[KEY_CTRL].down) {
             dest = &noir.window.size;
         }
