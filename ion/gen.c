@@ -271,6 +271,8 @@ void gen_aggregate(Decl *decl) {
     genlnf("};");
 }
 
+void gen_init_expr(Expr *expr);
+
 void gen_expr_compound(Expr *expr, bool is_init) {
     if (is_init) {
         genf("{");
@@ -291,7 +293,11 @@ void gen_expr_compound(Expr *expr, bool is_init) {
             gen_expr(field.index);
             genf("] = ");
         }
-        gen_expr(field.init);
+        if (is_init) {
+            gen_init_expr(field.init);
+        } else {
+            gen_expr(field.init);
+        }
     }
     if (expr->compound.num_fields == 0) {
         genf("0");
