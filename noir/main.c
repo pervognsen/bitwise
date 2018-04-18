@@ -11,8 +11,8 @@
 #include "SDL.h"
 
 bool check_init(void) {
-    if (!noir.init) {
-        noir.error = "Not initialized";
+    if (!app.init) {
+        app.error = "Not initialized";
         return false;
     }
     return true;
@@ -40,50 +40,50 @@ int noir_key_to_sdl_scancode[NUM_KEYS] = {
 int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
 
 void update_mouse(void) {
-    if (noir.mouse.captured != noir.mouse.synced_captured) {
-        if (SDL_CaptureMouse(noir.mouse.captured) != 0) {
-            noir.error = "Mouse capture failed";
+    if (app.mouse.captured != app.mouse.synced_captured) {
+        if (SDL_CaptureMouse(app.mouse.captured) != 0) {
+            app.error = "Mouse capture failed";
         }
     }
-    noir.mouse.synced_captured = noir.mouse.captured;
+    app.mouse.synced_captured = app.mouse.captured;
 
-    if (noir.mouse.pos.x != noir.mouse.synced_pos.x || noir.mouse.pos.y != noir.mouse.synced_pos.y) {
-        SDL_WarpMouseInWindow(NULL, noir.mouse.pos.x, noir.mouse.pos.y);
+    if (app.mouse.pos.x != app.mouse.synced_pos.x || app.mouse.pos.y != app.mouse.synced_pos.y) {
+        SDL_WarpMouseInWindow(NULL, app.mouse.pos.x, app.mouse.pos.y);
     }
-    uint32_t state = SDL_GetMouseState(&noir.mouse.pos.x, &noir.mouse.pos.y);
-    noir.mouse.delta_pos = (int2){noir.mouse.pos.x - noir.mouse.synced_pos.x, noir.mouse.pos.y - noir.mouse.synced_pos.y};
-    noir.mouse.moved = noir.mouse.delta_pos.x || noir.mouse.delta_pos.y;
-    noir.mouse.synced_pos = noir.mouse.pos;
+    uint32_t state = SDL_GetMouseState(&app.mouse.pos.x, &app.mouse.pos.y);
+    app.mouse.delta_pos = (int2){app.mouse.pos.x - app.mouse.synced_pos.x, app.mouse.pos.y - app.mouse.synced_pos.y};
+    app.mouse.moved = app.mouse.delta_pos.x || app.mouse.delta_pos.y;
+    app.mouse.synced_pos = app.mouse.pos;
 
-    if (noir.mouse.global_pos.x != noir.mouse.synced_global_pos.x || noir.mouse.global_pos.y != noir.mouse.synced_global_pos.y) {
-        SDL_WarpMouseGlobal(noir.mouse.global_pos.x, noir.mouse.global_pos.y);
+    if (app.mouse.global_pos.x != app.mouse.synced_global_pos.x || app.mouse.global_pos.y != app.mouse.synced_global_pos.y) {
+        SDL_WarpMouseGlobal(app.mouse.global_pos.x, app.mouse.global_pos.y);
     }
-    SDL_GetGlobalMouseState(&noir.mouse.global_pos.x, &noir.mouse.global_pos.y);
-    noir.mouse.global_delta_pos = (int2){noir.mouse.global_pos.x - noir.mouse.synced_global_pos.x, noir.mouse.global_pos.y - noir.mouse.synced_global_pos.y};
-    noir.mouse.global_moved = noir.mouse.global_delta_pos.x || noir.mouse.global_delta_pos.y;
-    noir.mouse.synced_global_pos = noir.mouse.global_pos;
+    SDL_GetGlobalMouseState(&app.mouse.global_pos.x, &app.mouse.global_pos.y);
+    app.mouse.global_delta_pos = (int2){app.mouse.global_pos.x - app.mouse.synced_global_pos.x, app.mouse.global_pos.y - app.mouse.synced_global_pos.y};
+    app.mouse.global_moved = app.mouse.global_delta_pos.x || app.mouse.global_delta_pos.y;
+    app.mouse.synced_global_pos = app.mouse.global_pos;
 }
 
 void update_events(void) {
     for (int key = 0; key < NUM_KEYS; key++) {
-        reset_digital_button_events(&noir.keys[key]);
+        reset_digital_button_events(&app.keys[key]);
     }
-    reset_digital_button_events(&noir.mouse.left_button);
-    reset_digital_button_events(&noir.mouse.middle_button);
-    reset_digital_button_events(&noir.mouse.right_button);
+    reset_digital_button_events(&app.mouse.left_button);
+    reset_digital_button_events(&app.mouse.middle_button);
+    reset_digital_button_events(&app.mouse.right_button);
     SDL_Event event;
-    char *text_ptr = noir.text;
-    char *text_end = noir.text + sizeof(noir.text) - 1;
+    char *text_ptr = app.text;
+    char *text_end = app.text + sizeof(app.text) - 1;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
             if (event.button.button == SDL_BUTTON_LEFT) {
-                update_digital_button(&noir.mouse.left_button, event.button.state == SDL_PRESSED);
+                update_digital_button(&app.mouse.left_button, event.button.state == SDL_PRESSED);
             } else if (event.button.button == SDL_BUTTON_MIDDLE) {
-                update_digital_button(&noir.mouse.middle_button, event.button.state == SDL_PRESSED);
+                update_digital_button(&app.mouse.middle_button, event.button.state == SDL_PRESSED);
             } else if (event.button.button == SDL_BUTTON_RIGHT) {
-                update_digital_button(&noir.mouse.right_button, event.button.state == SDL_PRESSED);
+                update_digital_button(&app.mouse.right_button, event.button.state == SDL_PRESSED);
             }
             break;
         case SDL_KEYDOWN:
@@ -91,7 +91,7 @@ void update_events(void) {
             if (!event.key.repeat) {
                 int key = sdl_scancode_to_noir_key[event.key.keysym.scancode];
                 if (key) {
-                    update_digital_button(&noir.keys[key], event.key.state == SDL_PRESSED);
+                    update_digital_button(&app.keys[key], event.key.state == SDL_PRESSED);
                     update_combination_keys();
                 }
             }
@@ -100,7 +100,7 @@ void update_events(void) {
             const char *str = event.text.text;
             while (*str) {
                 if (text_ptr == text_end) {
-                    noir.error = "Text buffer overflow";
+                    app.error = "Text buffer overflow";
                     break;
                 }
                 *text_ptr++ = *str++;
@@ -108,7 +108,7 @@ void update_events(void) {
             break;
         }
         case SDL_QUIT:
-            noir.quit = true;
+            app.quit = true;
             break;
         }
     }
@@ -116,55 +116,55 @@ void update_events(void) {
 }
 
 void update_time(void) {
-    uint64 ticks = SDL_GetPerformanceCounter() - noir.time.sdl_start_ticks;
-    noir.time.ticks = ticks;
+    uint64 ticks = SDL_GetPerformanceCounter() - app.time.sdl_start_ticks;
+    app.time.ticks = ticks;
 
-    noir.time.nsecs = (noir.time.ticks * 1000 * 1000 * 1000) / noir.time.ticks_per_sec;
-    noir.time.usecs = (noir.time.ticks * 1000 * 1000) / noir.time.ticks_per_sec;
-    noir.time.msecs = (noir.time.ticks * 1000) / noir.time.ticks_per_sec;
-    noir.time.secs = (double)noir.time.ticks / (double)noir.time.ticks_per_sec;
+    app.time.nsecs = (app.time.ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec;
+    app.time.usecs = (app.time.ticks * 1000 * 1000) / app.time.ticks_per_sec;
+    app.time.msecs = (app.time.ticks * 1000) / app.time.ticks_per_sec;
+    app.time.secs = (double)app.time.ticks / (double)app.time.ticks_per_sec;
 
-    noir.time.delta_ticks = (int)(ticks - noir.time.ticks);
-    noir.time.delta_nsecs = (int)((noir.time.delta_ticks * 1000 * 1000 * 1000) / noir.time.ticks_per_sec);
-    noir.time.delta_usecs = (int)((noir.time.delta_ticks * 1000 * 1000) / noir.time.ticks_per_sec);
-    noir.time.delta_msecs = (int)((noir.time.delta_ticks * 1000) / noir.time.ticks_per_sec);
-    noir.time.delta_secs = (float)noir.time.delta_ticks / (float)noir.time.ticks_per_sec;
+    app.time.delta_ticks = (int)(ticks - app.time.ticks);
+    app.time.delta_nsecs = (int)((app.time.delta_ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec);
+    app.time.delta_usecs = (int)((app.time.delta_ticks * 1000 * 1000) / app.time.ticks_per_sec);
+    app.time.delta_msecs = (int)((app.time.delta_ticks * 1000) / app.time.ticks_per_sec);
+    app.time.delta_secs = (float)app.time.delta_ticks / (float)app.time.ticks_per_sec;
 }
 
 void update_window(void) {
-    if (noir.window.pos.x != noir.window.synced_pos.x || noir.window.pos.y != noir.window.synced_pos.y) {
-        SDL_SetWindowPosition(noir.window.sdl_window, noir.window.pos.x, noir.window.pos.y);
+    if (app.window.pos.x != app.window.synced_pos.x || app.window.pos.y != app.window.synced_pos.y) {
+        SDL_SetWindowPosition(app.window.sdl_window, app.window.pos.x, app.window.pos.y);
     }
     int x, y;
-    SDL_GetWindowPosition(noir.window.sdl_window, &x, &y);
-    noir.window.moved = noir.num_updates == 0 || noir.window.synced_pos.x != x || noir.window.synced_pos.y != y;
-    noir.window.pos.x = x;
-    noir.window.pos.y = y;
-    noir.window.synced_pos = noir.window.pos;
+    SDL_GetWindowPosition(app.window.sdl_window, &x, &y);
+    app.window.moved = app.num_updates == 0 || app.window.synced_pos.x != x || app.window.synced_pos.y != y;
+    app.window.pos.x = x;
+    app.window.pos.y = y;
+    app.window.synced_pos = app.window.pos;
 
-    if (noir.window.size.x != noir.window.synced_size.x || noir.window.size.y != noir.window.synced_size.y) {
-        SDL_SetWindowSize(noir.window.sdl_window, noir.window.size.x, noir.window.size.y);
+    if (app.window.size.x != app.window.synced_size.x || app.window.size.y != app.window.synced_size.y) {
+        SDL_SetWindowSize(app.window.sdl_window, app.window.size.x, app.window.size.y);
     }
     int width, height;
-    SDL_GetWindowSize(noir.window.sdl_window, &width, &height);
-    noir.window.resized = noir.num_updates == 0 || noir.window.synced_size.x != width || noir.window.synced_size.y != height;
-    noir.window.size.x = width;
-    noir.window.size.y = height;
-    noir.window.synced_size = noir.window.size;
+    SDL_GetWindowSize(app.window.sdl_window, &width, &height);
+    app.window.resized = app.num_updates == 0 || app.window.synced_size.x != width || app.window.synced_size.y != height;
+    app.window.size.x = width;
+    app.window.size.y = height;
+    app.window.synced_size = app.window.size;
 
-    if (noir.window.resizable != noir.window.synced_resizable) {
-        SDL_SetWindowResizable(noir.window.sdl_window, noir.window.resizable);
+    if (app.window.resizable != app.window.synced_resizable) {
+        SDL_SetWindowResizable(app.window.sdl_window, app.window.resizable);
     }
-    noir.window.synced_resizable = noir.window.resizable;
+    app.window.synced_resizable = app.window.resizable;
 
-    if (noir.window.hidden != noir.window.synced_hidden) {
-        if (noir.window.hidden) {
-            SDL_HideWindow(noir.window.sdl_window);
+    if (app.window.hidden != app.window.synced_hidden) {
+        if (app.window.hidden) {
+            SDL_HideWindow(app.window.sdl_window);
         } else {
-            SDL_ShowWindow(noir.window.sdl_window);
+            SDL_ShowWindow(app.window.sdl_window);
         }
     }
-    noir.window.synced_hidden = noir.window.hidden;
+    app.window.synced_hidden = app.window.hidden;
 }
 
 bool update(void) {
@@ -176,8 +176,8 @@ bool update(void) {
     update_window();
     update_time();
     update_mouse();
-    noir.num_updates++;
-    return !noir.quit;
+    app.num_updates++;
+    return !app.quit;
 }
 
 void init_keys(void) {
@@ -199,42 +199,42 @@ void init_keys(void) {
 }
 
 bool init_window(void) {
-    if (!noir.window.title) {
-        noir.window.title = default_window_title;
+    if (!app.window.title) {
+        app.window.title = default_window_title;
     }
-    int x = noir.window.pos.x == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : noir.window.pos.x;
-    int y = noir.window.pos.y == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : noir.window.pos.y;
-    int width = noir.window.size.x == 0 ? default_window_size.x : noir.window.size.x;
-    int height = noir.window.size.y == 0 ? default_window_size.y : noir.window.size.y;
+    int x = app.window.pos.x == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : app.window.pos.x;
+    int y = app.window.pos.y == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : app.window.pos.y;
+    int width = app.window.size.x == 0 ? default_window_size.x : app.window.size.x;
+    int height = app.window.size.y == 0 ? default_window_size.y : app.window.size.y;
     SDL_WindowFlags flags = 0;
-    if (noir.window.resizable) {
+    if (app.window.resizable) {
         flags |= SDL_WINDOW_RESIZABLE;
     }
-    if (noir.window.hidden) {
+    if (app.window.hidden) {
         flags |= SDL_WINDOW_HIDDEN;
     }
-    SDL_Window *sdl_window = SDL_CreateWindow(noir.window.title, x, y, width, height, flags);
+    SDL_Window *sdl_window = SDL_CreateWindow(app.window.title, x, y, width, height, flags);
     if (!sdl_window) {
-        noir.error = "Window creation failed";
+        app.error = "Window creation failed";
         return false;
     }
-    noir.window.sdl_window = sdl_window;
-    noir.window.synced_pos = noir.window.pos;
+    app.window.sdl_window = sdl_window;
+    app.window.synced_pos = app.window.pos;
     update_window();
     return true;
 }
 
 void init_time(void) {
-    noir.time.ticks_per_sec = SDL_GetPerformanceFrequency();
-    noir.time.sdl_start_ticks = SDL_GetPerformanceCounter();
+    app.time.ticks_per_sec = SDL_GetPerformanceFrequency();
+    app.time.sdl_start_ticks = SDL_GetPerformanceCounter();
 }
 
 bool init(void) {
-    if (noir.init) {
+    if (app.init) {
         return true;
     }
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-        noir.error = "Initialization failed";
+        app.error = "Initialization failed";
         return false;
     }
     if (!init_window()) {
@@ -242,6 +242,6 @@ bool init(void) {
     }
     init_keys();
     init_time();
-    noir.init = true;
+    app.init = true;
     return true;
 }
