@@ -47,6 +47,7 @@ const KEY_DOWN = 274;
 const NUM_KEYS = KEY_DOWN + 1;
 
 const MAX_TEXT = 1024;
+const MAX_ERROR = 256;
 const MAX_TITLE = 256;
 
 struct Time {
@@ -107,11 +108,20 @@ struct Window {
     sdl: SDL_Window*;
 }
 
+struct Display {
+    size: int2;
+    rate: int;
+    dpi: float;
+}
+
 struct App {
     init: bool;
     quit: bool;
     num_updates: int;
     error: char const*;
+    error_buf: char[MAX_ERROR];
+
+    display: Display;
 
     window: Window;
     keys: DigitalButton[NUM_KEYS];
@@ -151,15 +161,25 @@ func printf(fmt: char const*, ...): int;
 @foreign
 func sprintf(dest: char*, fmt: char const*, ...): int;
 
+func print_and_clear_error() {
+    if (app.error) {
+        printf("Error: %s\n", app.error);
+        app.error = NULL;
+    }
+}
+
 func main(argc: int, argv: char**): int {
     title_count := 0;
     title_buf: char[16];
     show_time_msecs: uint64 = 0;
-    init();
+    if (!init()) {
+        print_and_clear_error();
+        return 1;
+    }
+    printf("Display: %d x %d, %d Hz, %.2f DPI\n", app.display.size.x, app.display.size.y, app.display.rate, app.display.dpi);
     while (update()) {
         if (app.error) {
-            printf("Error: %s\n", app.error);
-            app.error = NULL;
+            print_and_clear_error();
         }
         // printf("Mouse = (%d, %d)\n", app.mouse.pos.x, app.mouse.pos.y);
         // printf("Time: %fs\n", app.time.secs);
@@ -250,6 +270,9 @@ func main(argc: int, argv: char**): int {
         if (shift.released) {
             printf("Shift released\n");
         }
+    }
+    if (app.error) {
+        print_and_clear_error();
     }
     return 0;
 }

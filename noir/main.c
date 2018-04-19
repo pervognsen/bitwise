@@ -10,12 +10,20 @@
 
 #include "SDL.h"
 
-bool check_init(void) {
+static bool check_init(void) {
     if (!app.init) {
         app.error = "Not initialized";
         return false;
     }
     return true;
+}
+
+static void sdl_error(const char *name) {
+    const char *error = SDL_GetError();
+    if (*error) {
+        sprintf_s(app.error_buf, sizeof(app.error_buf), "%s: %s", name, error);
+        app.error = app.error_buf;
+    }
 }
 
 int noir_key_to_sdl_scancode[NUM_KEYS] = {
@@ -38,7 +46,7 @@ int noir_key_to_sdl_scancode[NUM_KEYS] = {
 
 int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
 
-void update_mouse(void) {
+static void update_mouse(void) {
     if (app.mouse.capture != app.mouse.synced_capture) {
         if (SDL_CaptureMouse(app.mouse.capture) != 0) {
             app.error = "Mouse capture failed";
@@ -49,7 +57,7 @@ void update_mouse(void) {
     if (app.mouse.pos.x != app.mouse.synced_pos.x || app.mouse.pos.y != app.mouse.synced_pos.y) {
         SDL_WarpMouseInWindow(NULL, app.mouse.pos.x, app.mouse.pos.y);
     }
-    uint32_t state = SDL_GetMouseState(&app.mouse.pos.x, &app.mouse.pos.y);
+    uint32 state = SDL_GetMouseState(&app.mouse.pos.x, &app.mouse.pos.y);
     app.mouse.delta_pos = (int2){app.mouse.pos.x - app.mouse.synced_pos.x, app.mouse.pos.y - app.mouse.synced_pos.y};
     app.mouse.moved = app.mouse.delta_pos.x || app.mouse.delta_pos.y;
     app.mouse.synced_pos = app.mouse.pos;
@@ -63,7 +71,7 @@ void update_mouse(void) {
     app.mouse.synced_global_pos = app.mouse.global_pos;
 }
 
-void update_events(void) {
+static void update_events(void) {
     for (int key = 0; key < NUM_KEYS; key++) {
         reset_digital_button_events(&app.keys[key]);
     }
@@ -118,7 +126,7 @@ void update_events(void) {
     *text_ptr = 0;
 }
 
-void update_time(void) {
+static void update_time(void) {
     uint64 ticks = SDL_GetPerformanceCounter() - app.time.sdl_start_ticks;
     app.time.ticks = ticks;
 
@@ -134,7 +142,7 @@ void update_time(void) {
     app.time.delta_secs = (float)app.time.delta_ticks / (float)app.time.ticks_per_sec;
 }
 
-void update_window(void) {
+static void update_window(void) {
     if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
         SDL_SetWindowTitle(app.window.sdl, app.window.title);
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
@@ -170,9 +178,12 @@ void update_window(void) {
     app.window.synced_hidden = app.window.hidden;
 }
 
-bool update(void) {
+static bool update(void) {
     if (!check_init()) {
         return false;
+    }
+    if (!app.error) {
+        SDL_ClearError();
     }
     SDL_PumpEvents();
     update_events();
@@ -183,7 +194,26 @@ bool update(void) {
     return !app.quit;
 }
 
-void init_keys(void) {
+static bool init_display(void) {
+    float dpi;
+    if (SDL_GetDisplayDPI(0, &dpi, NULL, NULL) != 0) {
+        sdl_error("SDL_GetDisplayDPI");
+        return false;
+    }
+    app.display.dpi = dpi;
+
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) != 0) {
+        sdl_error("SDL_GetCurrentDisplayMode");
+        return false;
+    }
+    app.display.size.x = mode.w;
+    app.display.size.y = mode.h;
+    app.display.rate = mode.refresh_rate;
+    return true;
+}
+
+static void init_keys(void) {
     for (int c = 0; c < 256; c++) {
         if (isprint(c)) {
             char str[] = {c, 0};
@@ -201,7 +231,7 @@ void init_keys(void) {
     }
 }
 
-bool init_window(void) {
+static bool init_window(void) {
     if (!app.window.title) {
         app.window.title = default_window_title;
     }
@@ -228,17 +258,20 @@ bool init_window(void) {
     return true;
 }
 
-void init_time(void) {
+static void init_time(void) {
     app.time.ticks_per_sec = SDL_GetPerformanceFrequency();
     app.time.sdl_start_ticks = SDL_GetPerformanceCounter();
 }
 
-bool init(void) {
+static bool init(void) {
     if (app.init) {
         return true;
     }
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-        app.error = "Initialization failed";
+        sdl_error("SDL_Init");
+        return false;
+    }
+    if (!init_display()) {
         return false;
     }
     if (!init_window()) {
