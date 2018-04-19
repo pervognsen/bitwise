@@ -8,7 +8,7 @@
 
 #include "noir.c"
 
-#include "SDL.h"
+#include <SDL2/SDL.h>
 
 int noir_key_to_sdl_scancode[NUM_KEYS] = {
     [KEY_RETURN] = SDL_SCANCODE_RETURN,
@@ -33,7 +33,7 @@ int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
 static void sdl_error(const char *name) {
     const char *error = SDL_GetError();
     if (*error) {
-        sprintf_s(app.error_buf, sizeof(app.error_buf), "%s: %s", name, error);
+        snprintf(app.error_buf, sizeof(app.error_buf), "%s: %s", name, error);
         app.error = app.error_buf;
     }
 }
@@ -102,6 +102,8 @@ static void init_keys(void) {
     }
 }
 
+static void update_window();
+
 static bool init_window(void) {
     if (!app.window.title) {
         app.window.title = default_window_title;
@@ -124,8 +126,8 @@ static bool init_window(void) {
     }
     app.window.sdl = sdl_window;
     app.window.synced_pos = app.window.pos;
-    strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
-    extern void update_window();
+    strncpy(app.window.synced_title, app.window.title, sizeof(app.window.synced_title) - 1);
+    app.window.synced_title[sizeof(app.window.synced_title) - 1] = '\0';
     update_window();
     return true;
 }
@@ -219,7 +221,7 @@ static void update_events(void) {
             break;
         }
         case SDL_KEYDOWN:
-        case SDL_KEYUP:
+        case SDL_KEYUP: {
             int key = sdl_scancode_to_noir_key[event.key.keysym.scancode];
             if (key) {
                 if (!event.key.repeat) {
@@ -230,6 +232,7 @@ static void update_events(void) {
                 push_event(kind, (EventData){.key = {.key = key, .repeat = event.key.repeat}});
             }
             break;
+        }
         case SDL_TEXTINPUT: {
             const char *str = event.text.text;
             while (*str) {
@@ -276,7 +279,8 @@ static void update_window(void) {
 
     if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
         SDL_SetWindowTitle(app.window.sdl, app.window.title);
-        strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
+        strncpy(app.window.synced_title, app.window.title, sizeof(app.window.synced_title) - 1);
+        app.window.synced_title[sizeof(app.window.synced_title) - 1] = '\0';
         app.window.title = app.window.synced_title;
     }
 
