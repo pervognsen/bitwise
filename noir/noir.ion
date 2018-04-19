@@ -194,19 +194,26 @@ func fmodf(x: float, y: float): float;
 const PI = 3.14159265358979323846264338327950288;
 const PI2 = PI + PI;
 
-var osc_freq: float = 440;
-var osc_amp: float = 0.1;
-var osc_phase: float;
+var osc1_freq: float = 440;
+var osc1_amp: float = 0.1;
+var osc1_phase: float;
+
+var osc2_freq: float = 300;
+var osc2_amp: float = 3.0;
+var osc2_phase: float;
 
 func audio_callback(context: void*, frames: float2*, num_frames: int) {
-    delta_phase := PI2 * osc_freq / app.audio.rate;
+    delta_osc1_phase := PI2 * osc1_freq / app.audio.rate;
+    delta_osc2_phase := PI2 * osc2_freq / app.audio.rate;
     for (i := 0; i < num_frames; i++) {
-        sample := osc_amp * cosf(osc_phase);
-        frames[i].x = sample;
-        frames[i].y = sample;
-        osc_phase += delta_phase;
+        val := osc1_amp * cosf(osc1_phase + osc2_amp*cosf(osc2_phase));
+        frames[i].x = val;
+        frames[i].y = val;
+        osc1_phase += delta_osc1_phase;
+        osc2_phase += delta_osc2_phase;
     }
-    osc_phase = fmodf(osc_phase, PI2);
+    osc1_phase = fmodf(osc1_phase, PI2);
+    osc2_phase = fmodf(osc2_phase, PI2);
 }
 
 func print_and_clear_error() {
@@ -217,7 +224,6 @@ func print_and_clear_error() {
 }
 
 func main(argc: int, argv: char**): int {
-//    app.audio.callback = audio_callback;
     if (!init()) {
         print_and_clear_error();
         return 1;
@@ -254,6 +260,28 @@ func main(argc: int, argv: char**): int {
         }
         if (app.mouse.left_button.released) {
             printf("Left mouse button released\n");
+        }
+        lshift := app.keys[KEY_LSHIFT];
+        if (lshift.pressed) {
+            printf("Left shift pressed\n");
+        }
+        if (lshift.released) {
+            printf("Left shift released\n");
+        }
+        rshift := app.keys[KEY_RSHIFT];
+        if (rshift.pressed) {
+            printf("Right shift pressed\n");
+        }
+        if (rshift.released) {
+            printf("Right shift released\n");
+        }
+        shift := app.keys[KEY_SHIFT];
+        ctrl := app.keys[KEY_CTRL];
+        if (shift.pressed) {
+            printf("Shift pressed\n");
+        }
+        if (shift.released) {
+            printf("Shift released\n");
         }
         if (app.keys[KEY_ESCAPE].pressed) {
             app.quit = true;
@@ -294,25 +322,41 @@ func main(argc: int, argv: char**): int {
             printf("Window hidden\n");
         }
         if (app.keys['j'].down) {
-            osc_freq -= 100 * app.time.delta_secs;
+            if (shift.down) {
+                osc2_freq -= 100 * app.time.delta_secs;
+            } else {
+                osc1_freq -= 100 * app.time.delta_secs;
+            }
         }
         if (app.keys['l'].down) {
-            osc_freq += 100 * app.time.delta_secs;
+            if (shift.down) {
+                osc2_freq += 100 * app.time.delta_secs;
+            } else {
+                osc1_freq += 100 * app.time.delta_secs;
+            }
         }
         if (app.keys['i'].down) {
-            osc_amp += 0.01 * app.time.delta_secs;
+            if (shift.down) {
+                osc2_amp += 0.1 * app.time.delta_secs;
+            } else {
+                osc1_amp += 0.01 * app.time.delta_secs;
+            }
         }
         if (app.keys['k'].down) {
-            osc_amp -= 0.01 * app.time.delta_secs;
+            if (shift.down) {
+                osc2_amp -= 0.1 * app.time.delta_secs;
+            } else {
+                osc1_amp -= 0.01 * app.time.delta_secs;
+            }
         }
         if (app.window.hidden && app.time.msecs >= show_time_msecs) {
             app.window.hidden = false;
             printf("Window shown\n");
         }
         dest := &app.window.pos;
-        if (app.keys[KEY_SHIFT].down) {
+        if (shift.down) {
             dest = &app.mouse.global_pos;
-        } else if (app.keys[KEY_CTRL].down) {
+        } else if (ctrl.down) {
             dest = &app.window.size;
         }
         if (app.keys[KEY_LEFT].pressed) {
@@ -326,27 +370,6 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_DOWN].pressed) {
             dest.y += 100;
-        }
-        lshift := app.keys[KEY_LSHIFT];
-        if (lshift.pressed) {
-            printf("Left shift pressed\n");
-        }
-        if (lshift.released) {
-            printf("Left shift released\n");
-        }
-        rshift := app.keys[KEY_RSHIFT];
-        if (rshift.pressed) {
-            printf("Right shift pressed\n");
-        }
-        if (rshift.released) {
-            printf("Right shift released\n");
-        }
-        shift := app.keys[KEY_SHIFT];
-        if (shift.pressed) {
-            printf("Shift pressed\n");
-        }
-        if (shift.released) {
-            printf("Shift released\n");
         }
     }
     if (app.error) {
