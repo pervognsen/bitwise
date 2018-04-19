@@ -133,6 +133,51 @@ struct Display {
     dpi: float;
 }
 
+enum MouseButton {
+    MOUSE_BUTTON_NONE,
+    MOUSE_BUTTON_LEFT,
+    MOUSE_BUTTON_MIDDLE,
+    MOUSE_BUTTON_RIGHT,
+}
+
+enum EventKind {
+    EVENT_NONE,
+    EVENT_KEY_DOWN,
+    EVENT_KEY_UP,
+    EVENT_MOUSE_BUTTON_DOWN,
+    EVENT_MOUSE_BUTTON_UP,
+    EVENT_MOUSE_MOVE,
+}
+
+struct KeyEvent {
+    which: int;
+    repeat: bool;
+}
+
+struct MouseButtonEvent {
+    which: MouseButton;
+    pos: int2;
+}
+
+struct MouseMoveEvent {
+    pos: int2;
+    delta_pos: int2;
+}
+
+union EventData {
+    down: bool;
+    key: KeyEvent;
+    mouse_button: MouseButtonEvent;
+    mouse_move: MouseMoveEvent;
+}
+
+struct Event {
+    kind: EventKind;
+    data: EventData;
+}
+
+const MAX_EVENTS = 256;
+
 struct App {
     init: bool;
     quit: bool;
@@ -149,6 +194,9 @@ struct App {
     text: char[MAX_TEXT];
     time: Time;
     audio: Audio;
+
+    events: Event[MAX_EVENTS];
+    num_events: int;
 
     synced_clipboard: char*;
 }
@@ -170,9 +218,9 @@ func update_combination_keys() {
     update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
 }
 
-func init(): bool;
+func app_init(): bool;
 
-func update(): bool;
+func app_update(): bool;
 
 // Test program
 
@@ -206,7 +254,7 @@ func audio_callback(context: void*, frames: float2*, num_frames: int) {
     delta_osc1_phase := PI2 * osc1_freq / app.audio.rate;
     delta_osc2_phase := PI2 * osc2_freq / app.audio.rate;
     for (i := 0; i < num_frames; i++) {
-        val := osc1_amp * cosf(osc1_phase + osc2_amp*cosf(osc2_phase));
+        val := osc1_amp * cosf(osc1_phase + osc2_amp * cosf(osc2_phase));
         frames[i].x = val;
         frames[i].y = val;
         osc1_phase += delta_osc1_phase;
@@ -224,7 +272,7 @@ func print_and_clear_error() {
 }
 
 func main(argc: int, argv: char**): int {
-    if (!init()) {
+    if (!app_init()) {
         print_and_clear_error();
         return 1;
     }
@@ -233,7 +281,7 @@ func main(argc: int, argv: char**): int {
     title_buf: char[16];
     show_time_msecs: uint64 = 0;
     app.audio.callback = audio_callback;
-    while (update()) {
+    while (app_update()) {
         if (app.error) {
             print_and_clear_error();
         }
@@ -276,6 +324,7 @@ func main(argc: int, argv: char**): int {
             printf("Right shift released\n");
         }
         shift := app.keys[KEY_SHIFT];
+        alt := app.keys[KEY_ALT];
         ctrl := app.keys[KEY_CTRL];
         if (shift.pressed) {
             printf("Shift pressed\n");
@@ -290,7 +339,7 @@ func main(argc: int, argv: char**): int {
             app.audio.play = !app.audio.play;
             printf("%s audio\n", app.audio.play ? "Playing" : "Pausing");
         }
-        if (app.keys[KEY_ALT].down && app.keys[KEY_RETURN].pressed) {
+        if (alt.down && app.keys[KEY_RETURN].pressed) {
             printf("Toggling full screen\n");
             app.window.fullscreen = !app.window.fullscreen;
         }
@@ -321,6 +370,10 @@ func main(argc: int, argv: char**): int {
             show_time_msecs = app.time.msecs + 1000;
             printf("Window hidden\n");
         }
+        if (app.window.hidden && app.time.msecs >= show_time_msecs) {
+            app.window.hidden = false;
+            printf("Window shown\n");
+        }
         if (app.keys['j'].down) {
             if (shift.down) {
                 osc2_freq -= 100 * app.time.delta_secs;
@@ -349,10 +402,6 @@ func main(argc: int, argv: char**): int {
                 osc1_amp -= 0.01 * app.time.delta_secs;
             }
         }
-        if (app.window.hidden && app.time.msecs >= show_time_msecs) {
-            app.window.hidden = false;
-            printf("Window shown\n");
-        }
         dest := &app.window.pos;
         if (shift.down) {
             dest = &app.mouse.global_pos;
@@ -370,6 +419,26 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_DOWN].pressed) {
             dest.y += 100;
+        }
+        for (i := 0; i < app.num_events; i++) {
+            event := app.events[i];
+            switch (event.kind) {
+            case EVENT_KEY_DOWN:
+                data := event.data.key;
+                printf("EVENT_KEY_DOWN: %d\n", data.which);
+            case EVENT_KEY_UP:
+                data := event.data.key;
+                printf("EVENT_KEY_UP: %d\n", data.which);
+            case EVENT_MOUSE_BUTTON_DOWN:
+                data := event.data.mouse_button;
+                printf("EVENT_MOUSE_BUTTON_DOWN: %d, (%d, %d)\n", data.which, data.pos.x, data.pos.y);
+            case EVENT_MOUSE_BUTTON_UP:
+                data := event.data.mouse_button;
+                printf("EVENT_MOUSE_BUTTON_UP: %d, (%d, %d)\n", data.which, data.pos.x, data.pos.y);
+            case EVENT_MOUSE_MOVE:
+                data := event.data.mouse_move;
+                printf("EVENT_MOUSE_MOVE: (%d, %d), (%d, %d)\n", data.pos.x, data.pos.y, data.delta_pos.x, data.delta_pos.y);
+            }
         }
     }
     if (app.error) {

@@ -168,6 +168,14 @@ static void update_mouse(void) {
     app.mouse.synced_global_pos = app.mouse.global_pos;
 }
 
+void push_event(EventKind kind, EventData data) {
+    if (app.num_events == MAX_EVENTS) {
+        app.error = "Event queue overflow";
+        return;
+    }
+    app.events[app.num_events++] = (Event){.kind = kind, .data = data};
+}
+
 static void update_events(void) {
     for (int key = 0; key < NUM_KEYS; key++) {
         reset_digital_button_events(&app.keys[key]);
@@ -180,27 +188,46 @@ static void update_events(void) {
     char *text_ptr = app.text;
     char *text_end = app.text + sizeof(app.text) - 1;
 
+    app.num_events = 0;
+
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
+        case SDL_MOUSEMOTION: {
+            int2 pos = {event.motion.x, event.motion.y};
+            int2 delta_pos = {event.motion.xrel, event.motion.yrel};
+            push_event(EVENT_MOUSE_MOVE, (EventData){.mouse_move = {.pos = pos, .delta_pos = delta_pos}});
+            break;
+        }
         case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
+        case SDL_MOUSEBUTTONUP: {
+            MouseButton button = 0;
             if (event.button.button == SDL_BUTTON_LEFT) {
                 update_digital_button(&app.mouse.left_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_LEFT;
             } else if (event.button.button == SDL_BUTTON_MIDDLE) {
                 update_digital_button(&app.mouse.middle_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_MIDDLE;
             } else if (event.button.button == SDL_BUTTON_RIGHT) {
                 update_digital_button(&app.mouse.right_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_RIGHT;
+            }
+            if (button) {
+                EventKind kind = event.type == SDL_MOUSEBUTTONDOWN ? EVENT_MOUSE_BUTTON_DOWN : EVENT_MOUSE_BUTTON_UP;
+                push_event(kind, (EventData){.mouse_button = {.which = button, .pos = {event.button.x, event.button.y}}});
             }
             break;
+        }
         case SDL_KEYDOWN:
         case SDL_KEYUP:
-            if (!event.key.repeat) {
-                int key = sdl_scancode_to_noir_key[event.key.keysym.scancode];
-                if (key) {
+            int key = sdl_scancode_to_noir_key[event.key.keysym.scancode];
+            if (key) {
+                if (!event.key.repeat) {
                     update_digital_button(&app.keys[key], event.key.state == SDL_PRESSED);
                     update_combination_keys();
                 }
+                EventKind kind = event.type == SDL_KEYDOWN ? EVENT_KEY_DOWN : EVENT_KEY_UP;
+                push_event(kind, (EventData){.key = {.which = key, .repeat = event.key.repeat}});
             }
             break;
         case SDL_TEXTINPUT: {
@@ -313,7 +340,7 @@ void update_audio(void) {
     app.audio.synced_play = app.audio.play;
 }
 
-bool init(void) {
+bool app_init(void) {
     if (app.init) {
         return true;
     }
@@ -334,7 +361,7 @@ bool init(void) {
     return true;
 }
 
-bool update(void) {
+bool app_update(void) {
     if (!check_init()) {
         return false;
     }
