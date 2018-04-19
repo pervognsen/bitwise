@@ -183,7 +183,9 @@ struct App {
     num_updates: int;
     error: char const*;
     error_buf: char[MAX_ERROR];
- 
+    events: Event[MAX_EVENTS];
+    num_events: int;
+
     platform: char const*;
     clipboard: char const*;
     display: Display;
@@ -193,9 +195,6 @@ struct App {
     text: char[MAX_TEXT];
     time: Time;
     audio: Audio;
-
-    events: Event[MAX_EVENTS];
-    num_events: int;
 
     synced_clipboard: char*;
 }
@@ -294,6 +293,7 @@ func print_events() {
 }
 
 func main(argc: int, argv: char**): int {
+    app.audio.callback = audio_callback;
     if (!app_init()) {
         print_and_clear_error();
         return 1;
@@ -303,7 +303,6 @@ func main(argc: int, argv: char**): int {
     title_buf: char[16];
     show_time_msecs: uint64 = 0;
     print_events_enabled := false;
-    app.audio.callback = audio_callback;
     while (app_update()) {
         if (app.error) {
             print_and_clear_error();
