@@ -214,7 +214,7 @@ static void update_events(void) {
             }
             if (button) {
                 EventKind kind = event.type == SDL_MOUSEBUTTONDOWN ? EVENT_MOUSE_BUTTON_DOWN : EVENT_MOUSE_BUTTON_UP;
-                push_event(kind, (EventData){.mouse_button = {.which = button, .pos = {event.button.x, event.button.y}}});
+                push_event(kind, (EventData){.mouse_button = {.button = button, .pos = {event.button.x, event.button.y}}});
             }
             break;
         }
@@ -227,7 +227,7 @@ static void update_events(void) {
                     update_combination_keys();
                 }
                 EventKind kind = event.type == SDL_KEYDOWN ? EVENT_KEY_DOWN : EVENT_KEY_UP;
-                push_event(kind, (EventData){.key = {.which = key, .repeat = event.key.repeat}});
+                push_event(kind, (EventData){.key = {.key = key, .repeat = event.key.repeat}});
             }
             break;
         case SDL_TEXTINPUT: {

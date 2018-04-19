@@ -150,12 +150,12 @@ enum EventKind {
 }
 
 struct KeyEvent {
-    which: int;
+    key: int;
     repeat: bool;
 }
 
 struct MouseButtonEvent {
-    which: MouseButton;
+    button: MouseButton;
     pos: int2;
 }
 
@@ -165,7 +165,6 @@ struct MouseMoveEvent {
 }
 
 union EventData {
-    down: bool;
     key: KeyEvent;
     mouse_button: MouseButtonEvent;
     mouse_move: MouseMoveEvent;
@@ -271,6 +270,29 @@ func print_and_clear_error() {
     }
 }
 
+func print_events() {
+    for (i := 0; i < app.num_events; i++) {
+        event := app.events[i];
+        switch (event.kind) {
+        case EVENT_KEY_DOWN:
+            data := event.data.key;
+            printf("EVENT_KEY_DOWN: %d\n", data.key);
+        case EVENT_KEY_UP:
+            data := event.data.key;
+            printf("EVENT_KEY_UP: %d\n", data.key);
+        case EVENT_MOUSE_BUTTON_DOWN:
+            data := event.data.mouse_button;
+            printf("EVENT_MOUSE_BUTTON_DOWN: %d, (%d, %d)\n", data.button, data.pos.x, data.pos.y);
+        case EVENT_MOUSE_BUTTON_UP:
+            data := event.data.mouse_button;
+            printf("EVENT_MOUSE_BUTTON_UP: %d, (%d, %d)\n", data.button, data.pos.x, data.pos.y);
+        case EVENT_MOUSE_MOVE:
+            data := event.data.mouse_move;
+            printf("EVENT_MOUSE_MOVE: (%d, %d), (%d, %d)\n", data.pos.x, data.pos.y, data.delta_pos.x, data.delta_pos.y);
+        }
+    }
+}
+
 func main(argc: int, argv: char**): int {
     if (!app_init()) {
         print_and_clear_error();
@@ -280,10 +302,14 @@ func main(argc: int, argv: char**): int {
     title_count := 0;
     title_buf: char[16];
     show_time_msecs: uint64 = 0;
+    print_events_enabled := false;
     app.audio.callback = audio_callback;
     while (app_update()) {
         if (app.error) {
             print_and_clear_error();
+        }
+        if (print_events_enabled) {
+            print_events();
         }
         // printf("Mouse = (%d, %d)\n", app.mouse.pos.x, app.mouse.pos.y);
         // printf("Time: %fs\n", app.time.secs);
@@ -334,6 +360,9 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_ESCAPE].pressed) {
             app.quit = true;
+        }
+        if (app.keys['e'].pressed) {
+            print_events_enabled = !print_events_enabled;
         }
         if (app.keys['p'].pressed) {
             app.audio.play = !app.audio.play;
@@ -419,26 +448,6 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_DOWN].pressed) {
             dest.y += 100;
-        }
-        for (i := 0; i < app.num_events; i++) {
-            event := app.events[i];
-            switch (event.kind) {
-            case EVENT_KEY_DOWN:
-                data := event.data.key;
-                printf("EVENT_KEY_DOWN: %d\n", data.which);
-            case EVENT_KEY_UP:
-                data := event.data.key;
-                printf("EVENT_KEY_UP: %d\n", data.which);
-            case EVENT_MOUSE_BUTTON_DOWN:
-                data := event.data.mouse_button;
-                printf("EVENT_MOUSE_BUTTON_DOWN: %d, (%d, %d)\n", data.which, data.pos.x, data.pos.y);
-            case EVENT_MOUSE_BUTTON_UP:
-                data := event.data.mouse_button;
-                printf("EVENT_MOUSE_BUTTON_UP: %d, (%d, %d)\n", data.which, data.pos.x, data.pos.y);
-            case EVENT_MOUSE_MOVE:
-                data := event.data.mouse_move;
-                printf("EVENT_MOUSE_MOVE: (%d, %d), (%d, %d)\n", data.pos.x, data.pos.y, data.delta_pos.x, data.delta_pos.y);
-            }
         }
     }
     if (app.error) {
