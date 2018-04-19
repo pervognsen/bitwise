@@ -188,6 +188,9 @@ func sprintf(dest: char*, fmt: char const*, ...): int;
 @foreign
 func cosf(x: float): float;
 
+@foreign
+func fmodf(x: float, y: float): float;
+
 const PI = 3.14159265358979323846264338327950288;
 const PI2 = PI + PI;
 
@@ -196,13 +199,14 @@ var osc_amp: float = 0.1;
 var osc_phase: float;
 
 func audio_callback(context: void*, frames: float2*, num_frames: int) {
-    cycles_per_sample := PI2 * osc_freq / app.audio.rate;
+    delta_phase := PI2 * osc_freq / app.audio.rate;
     for (i := 0; i < num_frames; i++) {
         sample := osc_amp * cosf(osc_phase);
         frames[i].x = sample;
         frames[i].y = sample;
-        osc_phase += cycles_per_sample;
+        osc_phase += delta_phase;
     }
+    osc_phase = fmodf(osc_phase, PI2);
 }
 
 func print_and_clear_error() {
@@ -296,10 +300,10 @@ func main(argc: int, argv: char**): int {
             osc_freq += 100 * app.time.delta_secs;
         }
         if (app.keys['i'].down) {
-            osc_amp -= 0.1 * app.time.delta_secs;
+            osc_amp += 0.01 * app.time.delta_secs;
         }
         if (app.keys['k'].down) {
-            osc_amp += 0.1 * app.time.delta_secs;
+            osc_amp -= 0.01 * app.time.delta_secs;
         }
         if (app.window.hidden && app.time.msecs >= show_time_msecs) {
             app.window.hidden = false;
