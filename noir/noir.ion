@@ -120,6 +120,8 @@ struct App {
     num_updates: int;
     error: char const*;
     error_buf: char[MAX_ERROR];
+    
+    clipboard: char const*;
 
     display: Display;
 
@@ -128,6 +130,8 @@ struct App {
     mouse: Mouse;
     text: char[MAX_TEXT];
     time: Time;
+
+    synced_clipboard: char*;
 }
 
 var default_window_title = "Noir";
@@ -168,21 +172,21 @@ func print_and_clear_error() {
     }
 }
 
-var is_full_screen: bool;
-var saved_pos: int2;
-var saved_size: int2;
+var full_screen: bool;
+var saved_window_pos: int2;
+var saved_window_size: int2;
 
 func toggle_full_screen() {
-    if (is_full_screen) {
-        app.window.pos = saved_pos;
-        app.window.size = saved_size;
+    if (full_screen) {
+        app.window.pos = saved_window_pos;
+        app.window.size = saved_window_size;
     } else {
-        saved_pos = app.window.pos;
-        saved_size = app.window.size;
+        saved_window_pos = app.window.pos;
+        saved_window_size = app.window.size;
         app.window.pos = {};
         app.window.size = app.display.size;
     }
-    is_full_screen = !is_full_screen;
+    full_screen = !full_screen;
 }
 
 func main(argc: int, argv: char**): int {
@@ -234,6 +238,14 @@ func main(argc: int, argv: char**): int {
             title_count++;
             sprintf(title_buf, "Title %d", title_count);
             app.window.title = title_buf;
+        }
+        if (app.keys['a'].pressed) {
+            printf("Copying title to clipboard\n");
+            app.clipboard = app.window.title;
+        }
+        if (app.keys['b'].pressed) {
+            printf("Copying clipboard to title\n");
+            app.window.title = app.clipboard;
         }
         if (app.keys['c'].pressed) {
             app.mouse.capture = !app.mouse.capture;
