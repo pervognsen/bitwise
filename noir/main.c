@@ -48,8 +48,8 @@ int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
 
 static void update_mouse(void) {
     if (app.mouse.capture != app.mouse.synced_capture) {
-        if (SDL_CaptureMouse(app.mouse.capture) != 0) {
-            app.error = "Mouse capture failed";
+        if (SDL_CaptureMouse(app.mouse.capture) < 0) {
+            sdl_error("SDL_CaptureMouse");
         }
     }
     app.mouse.synced_capture = app.mouse.capture;
@@ -144,7 +144,7 @@ static void update_time(void) {
 
 static void update_window(void) {
     if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
-        SDL_SetWindowTitle(app.window.sdl, app.window.title);
+        sdl_error("SDL_SetWindowTitle");
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
         app.window.title = app.window.synced_title;
     }
@@ -176,22 +176,6 @@ static void update_window(void) {
         }
     }
     app.window.synced_hidden = app.window.hidden;
-}
-
-static bool update(void) {
-    if (!check_init()) {
-        return false;
-    }
-    if (!app.error) {
-        SDL_ClearError();
-    }
-    SDL_PumpEvents();
-    update_events();
-    update_window();
-    update_time();
-    update_mouse();
-    app.num_updates++;
-    return !app.quit;
 }
 
 static bool init_display(void) {
@@ -263,11 +247,11 @@ static void init_time(void) {
     app.time.sdl_start_ticks = SDL_GetPerformanceCounter();
 }
 
-static bool init(void) {
+bool init(void) {
     if (app.init) {
         return true;
     }
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         sdl_error("SDL_Init");
         return false;
     }
@@ -281,4 +265,20 @@ static bool init(void) {
     init_time();
     app.init = true;
     return true;
+}
+
+bool update(void) {
+    if (!check_init()) {
+        return false;
+    }
+    if (!app.error) {
+        SDL_ClearError();
+    }
+    SDL_PumpEvents();
+    update_events();
+    update_window();
+    update_time();
+    update_mouse();
+    app.num_updates++;
+    return !app.quit;
 }

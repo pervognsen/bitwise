@@ -168,6 +168,23 @@ func print_and_clear_error() {
     }
 }
 
+var is_full_screen: bool;
+var saved_pos: int2;
+var saved_size: int2;
+
+func toggle_full_screen() {
+    if (is_full_screen) {
+        app.window.pos = saved_pos;
+        app.window.size = saved_size;
+    } else {
+        saved_pos = app.window.pos;
+        saved_size = app.window.size;
+        app.window.pos = {};
+        app.window.size = app.display.size;
+    }
+    is_full_screen = !is_full_screen;
+}
+
 func main(argc: int, argv: char**): int {
     title_count := 0;
     title_buf: char[16];
@@ -207,6 +224,10 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_ESCAPE].pressed) {
             app.quit = true;
+        }
+        if (app.keys[KEY_ALT].down && app.keys[KEY_RETURN].pressed) {
+            printf("Enabling borderless full screen\n");
+            toggle_full_screen();
         }
         if (app.keys['t'].pressed) {
             printf("Changing title\n");
