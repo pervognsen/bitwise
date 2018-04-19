@@ -174,7 +174,9 @@ const char *gen_expr_str(Expr *expr) {
 }
 
 char *typespec_to_cdecl(Typespec *typespec, const char *str) {
-    // TODO: Figure out how to handle type vs typespec in C gen for inferred types. How to prevent "flattened" const values?
+    if (!typespec) {
+        return strf("void%s%s", *str ? " " : "", str);
+    }
     switch (typespec->kind) {
     case TYPESPEC_NAME:
         return strf("%s%s%s", typespec->name, *str ? " " : "", str);
