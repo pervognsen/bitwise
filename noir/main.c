@@ -38,6 +38,33 @@ static void sdl_error(const char *name) {
     }
 }
 
+void sdl_audio_callback(void *userdata, uint8 *buf, int len) {
+    if (app.audio.callback) {
+        app.audio.callback(app.audio.callback_context, (float2 *)buf, len / sizeof(float2));
+    }
+}
+
+static bool init_audio(void) {
+    app.audio.rate = 44100;
+    app.audio.channels = 2;
+    SDL_AudioSpec desired_spec = {
+        .freq = app.audio.rate,
+        .channels = app.audio.channels,
+        .format = AUDIO_F32,
+        .samples = 4096,
+        .callback = sdl_audio_callback,
+    };
+    SDL_AudioSpec obtained_spec;
+    int sdl_device = SDL_OpenAudioDevice(NULL, 0, &desired_spec, &obtained_spec, 0);
+    if (sdl_device < 0) {
+        sdl_error("SDL_OpenAudioDevice");
+        return false;
+    }
+    app.audio.valid = true;
+    app.audio.sdl_device = sdl_device;
+    return true;
+}
+
 static bool init_display(void) {
     float dpi;
     if (SDL_GetDisplayDPI(0, &dpi, NULL, NULL) != 0) {
@@ -198,6 +225,7 @@ static void update_events(void) {
 
 static void update_time(void) {
     uint64 ticks = SDL_GetPerformanceCounter() - app.time.sdl_start_ticks;
+    app.time.delta_ticks = (int)(ticks - app.time.ticks);
     app.time.ticks = ticks;
 
     app.time.nsecs = (app.time.ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec;
@@ -205,7 +233,6 @@ static void update_time(void) {
     app.time.msecs = (app.time.ticks * 1000) / app.time.ticks_per_sec;
     app.time.secs = (double)app.time.ticks / (double)app.time.ticks_per_sec;
 
-    app.time.delta_ticks = (int)(ticks - app.time.ticks);
     app.time.delta_nsecs = (int)((app.time.delta_ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec);
     app.time.delta_usecs = (int)((app.time.delta_ticks * 1000 * 1000) / app.time.ticks_per_sec);
     app.time.delta_msecs = (int)((app.time.delta_ticks * 1000) / app.time.ticks_per_sec);
@@ -276,6 +303,16 @@ void update_clipboard(void) {
     }
 }
 
+void update_audio(void) {
+    if (!app.audio.valid) {
+        return;
+    }
+    if (app.audio.synced_play != app.audio.play) {
+        SDL_PauseAudioDevice(app.audio.sdl_device, !app.audio.play);
+    }
+    app.audio.synced_play = app.audio.play;
+}
+
 bool init(void) {
     if (app.init) {
         return true;
@@ -292,6 +329,7 @@ bool init(void) {
     }
     init_keys();
     init_time();
+    init_audio();
     app.init = true;
     return true;
 }
@@ -309,6 +347,7 @@ bool update(void) {
     update_time();
     update_mouse();
     update_clipboard();
+    update_audio();
     app.num_updates++;
     return !app.quit;
 }

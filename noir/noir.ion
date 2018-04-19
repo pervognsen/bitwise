@@ -6,6 +6,10 @@ func int2_eq(a: int2, b: int2): bool {
     return a.x == b.x && a.y == b.y;
 }
 
+struct float2 {
+    x, y: float;
+}
+
 struct DigitalButton {
     down: bool;
     pressed: int;
@@ -87,6 +91,19 @@ struct Mouse {
     synced_global_pos: int2;
 }
 
+struct Audio {
+    valid: bool;
+    play: bool;
+    rate: int;
+    channels: int;
+    callback: func(context: void*, frames: float2*, num_frames: int);
+    callback_context: void*;
+
+    synced_play: bool;
+
+    sdl_device: int;
+}
+
 struct SDL_Window;
 
 struct Window {
@@ -122,16 +139,16 @@ struct App {
     num_updates: int;
     error: char const*;
     error_buf: char[MAX_ERROR];
-    
+ 
+    platform: char const*;
     clipboard: char const*;
-
     display: Display;
-
     window: Window;
     keys: DigitalButton[NUM_KEYS];
     mouse: Mouse;
     text: char[MAX_TEXT];
     time: Time;
+    audio: Audio;
 
     synced_clipboard: char*;
 }
@@ -160,12 +177,33 @@ func update(): bool;
 // Test program
 
 #foreign(include = "<stdio.h>")
+#foreign(include = "<math.h>")
 
 @foreign
 func printf(fmt: char const*, ...): int;
 
 @foreign
 func sprintf(dest: char*, fmt: char const*, ...): int;
+
+@foreign
+func cosf(x: float): float;
+
+const PI = 3.14159265358979323846264338327950288;
+const PI2 = PI + PI;
+
+var osc_freq: float = 440;
+var osc_amp: float = 0.1;
+var osc_phase: float;
+
+func audio_callback(context: void*, frames: float2*, num_frames: int) {
+    cycles_per_sample := PI2 * osc_freq / app.audio.rate;
+    for (i := 0; i < num_frames; i++) {
+        sample := osc_amp * cosf(osc_phase);
+        frames[i].x = sample;
+        frames[i].y = sample;
+        osc_phase += cycles_per_sample;
+    }
+}
 
 func print_and_clear_error() {
     if (app.error) {
@@ -175,14 +213,16 @@ func print_and_clear_error() {
 }
 
 func main(argc: int, argv: char**): int {
-    title_count := 0;
-    title_buf: char[16];
-    show_time_msecs: uint64 = 0;
+//    app.audio.callback = audio_callback;
     if (!init()) {
         print_and_clear_error();
         return 1;
     }
     printf("Display: %d x %d, %d Hz, %.2f DPI\n", app.display.size.x, app.display.size.y, app.display.rate, app.display.dpi);
+    title_count := 0;
+    title_buf: char[16];
+    show_time_msecs: uint64 = 0;
+    app.audio.callback = audio_callback;
     while (update()) {
         if (app.error) {
             print_and_clear_error();
@@ -214,6 +254,10 @@ func main(argc: int, argv: char**): int {
         if (app.keys[KEY_ESCAPE].pressed) {
             app.quit = true;
         }
+        if (app.keys['p'].pressed) {
+            app.audio.play = !app.audio.play;
+            printf("%s audio\n", app.audio.play ? "Playing" : "Pausing");
+        }
         if (app.keys[KEY_ALT].down && app.keys[KEY_RETURN].pressed) {
             printf("Toggling full screen\n");
             app.window.fullscreen = !app.window.fullscreen;
@@ -244,6 +288,18 @@ func main(argc: int, argv: char**): int {
             app.window.hidden = true;
             show_time_msecs = app.time.msecs + 1000;
             printf("Window hidden\n");
+        }
+        if (app.keys['j'].down) {
+            osc_freq -= 100 * app.time.delta_secs;
+        }
+        if (app.keys['l'].down) {
+            osc_freq += 100 * app.time.delta_secs;
+        }
+        if (app.keys['i'].down) {
+            osc_amp -= 0.1 * app.time.delta_secs;
+        }
+        if (app.keys['k'].down) {
+            osc_amp += 0.1 * app.time.delta_secs;
         }
         if (app.window.hidden && app.time.msecs >= show_time_msecs) {
             app.window.hidden = false;
