@@ -244,7 +244,7 @@ var osc1_freq: float = 440;
 var osc1_amp: float = 0.1;
 var osc1_phase: float;
 
-var osc2_freq: float = 300;
+var osc2_freq: float = 10;
 var osc2_amp: float = 3.0;
 var osc2_phase: float;
 
@@ -420,14 +420,14 @@ func main(argc: int, argv: char**): int {
             if (shift.down) {
                 osc2_amp += 0.1 * app.time.delta_secs;
             } else {
-                osc1_amp += 0.01 * app.time.delta_secs;
+                osc1_amp += 0.03 * app.time.delta_secs;
             }
         }
         if (app.keys['k'].down) {
             if (shift.down) {
                 osc2_amp -= 0.1 * app.time.delta_secs;
             } else {
-                osc1_amp -= 0.01 * app.time.delta_secs;
+                osc1_amp -= 0.03 * app.time.delta_secs;
             }
         }
         dest := &app.window.pos;

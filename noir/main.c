@@ -278,7 +278,7 @@ static void update_window(void) {
 
     if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
         SDL_SetWindowTitle(app.window.sdl, app.window.title);
-        strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
+        strncpy(app.window.synced_title, app.window.title, sizeof(app.window.synced_title));
         app.window.title = app.window.synced_title;
     }
 
