@@ -2,6 +2,10 @@ struct int2 {
     x, y: int;
 }
 
+func int2_eq(a: int2, b: int2): bool {
+    return a.x == b.x && a.y == b.y;
+}
+
 struct DigitalButton {
     down: bool;
     pressed: int;
@@ -100,7 +104,7 @@ struct Window {
     synced_resizable: bool;
     synced_hidden: bool;
 
-    sdl_window: SDL_Window*;
+    sdl: SDL_Window*;
 }
 
 struct App {
@@ -119,7 +123,7 @@ struct App {
 var default_window_title = "Noir";
 var default_window_size = int2{800, 600};
 
-const DEFAULT_WINDOW_POS = 1000000;
+const DEFAULT_WINDOW_POS = 1 << 31;
 
 var app: App = {window = {pos = {DEFAULT_WINDOW_POS , DEFAULT_WINDOW_POS}}};
 
@@ -134,6 +138,7 @@ func update_combination_keys() {
 }
 
 func init(): bool;
+
 func update(): bool;
 
 // Test program
@@ -147,7 +152,7 @@ func printf(fmt: char const*, ...): int;
 func sprintf(dest: char*, fmt: char const*, ...): int;
 
 func main(argc: int, argv: char**): int {
-    title_counter := 0;
+    title_count := 0;
     title_buf: char[16];
     show_time_msecs: uint64 = 0;
     init();
@@ -185,8 +190,8 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys['t'].pressed) {
             printf("Changing title\n");
-            title_counter++;
-            sprintf(title_buf, "Title %d", title_counter);
+            title_count++;
+            sprintf(title_buf, "Title %d", title_count);
             app.window.title = title_buf;
         }
         if (app.keys['c'].pressed) {
@@ -223,13 +228,6 @@ func main(argc: int, argv: char**): int {
         }
         if (app.keys[KEY_DOWN].pressed) {
             dest.y += 100;
-        }
-        return_key := app.keys[KEY_RETURN];
-        if (return_key.pressed) {
-            printf("Return key pressed\n");
-        }
-        if (return_key.released) {
-            printf("Return key released\n");
         }
         lshift := app.keys[KEY_LSHIFT];
         if (lshift.pressed) {

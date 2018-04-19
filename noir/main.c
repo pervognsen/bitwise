@@ -34,7 +34,6 @@ int noir_key_to_sdl_scancode[NUM_KEYS] = {
     [KEY_RCTRL] = SDL_SCANCODE_RCTRL,
     [KEY_LALT] = SDL_SCANCODE_LALT,
     [KEY_RALT] = SDL_SCANCODE_RALT,
-
 };
 
 int sdl_scancode_to_noir_key[SDL_NUM_SCANCODES];
@@ -68,12 +67,15 @@ void update_events(void) {
     for (int key = 0; key < NUM_KEYS; key++) {
         reset_digital_button_events(&app.keys[key]);
     }
+
     reset_digital_button_events(&app.mouse.left_button);
     reset_digital_button_events(&app.mouse.middle_button);
     reset_digital_button_events(&app.mouse.right_button);
-    SDL_Event event;
+
     char *text_ptr = app.text;
     char *text_end = app.text + sizeof(app.text) - 1;
+
+    SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
         case SDL_MOUSEBUTTONDOWN:
@@ -112,6 +114,7 @@ void update_events(void) {
             break;
         }
     }
+
     *text_ptr = 0;
 }
 
@@ -132,42 +135,36 @@ void update_time(void) {
 }
 
 void update_window(void) {
-    if (app.window.title != app.window.synced_title) {
-        SDL_SetWindowTitle(app.window.sdl_window, app.window.title);
+    if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
+        SDL_SetWindowTitle(app.window.sdl, app.window.title);
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
         app.window.title = app.window.synced_title;
     }
 
-    if (app.window.pos.x != app.window.synced_pos.x || app.window.pos.y != app.window.synced_pos.y) {
-        SDL_SetWindowPosition(app.window.sdl_window, app.window.pos.x, app.window.pos.y);
+    if (!int2_eq(app.window.pos, app.window.synced_pos)) {
+        SDL_SetWindowPosition(app.window.sdl, app.window.pos.x, app.window.pos.y);
     }
-    int x, y;
-    SDL_GetWindowPosition(app.window.sdl_window, &x, &y);
-    app.window.moved = app.num_updates == 0 || app.window.synced_pos.x != x || app.window.synced_pos.y != y;
-    app.window.pos.x = x;
-    app.window.pos.y = y;
+    SDL_GetWindowPosition(app.window.sdl, &app.window.pos.x, &app.window.pos.y);
+    app.window.moved = app.num_updates == 0 || !int2_eq(app.window.pos, app.window.synced_pos);
     app.window.synced_pos = app.window.pos;
 
-    if (app.window.size.x != app.window.synced_size.x || app.window.size.y != app.window.synced_size.y) {
-        SDL_SetWindowSize(app.window.sdl_window, app.window.size.x, app.window.size.y);
+    if (!int2_eq(app.window.size, app.window.synced_size)) {
+        SDL_SetWindowSize(app.window.sdl, app.window.size.x, app.window.size.y);
     }
-    int width, height;
-    SDL_GetWindowSize(app.window.sdl_window, &width, &height);
-    app.window.resized = app.num_updates == 0 || app.window.synced_size.x != width || app.window.synced_size.y != height;
-    app.window.size.x = width;
-    app.window.size.y = height;
+    SDL_GetWindowSize(app.window.sdl, &app.window.size.x, &app.window.size.y);
+    app.window.resized = app.num_updates == 0 || !int2_eq(app.window.size, app.window.synced_size);
     app.window.synced_size = app.window.size;
 
     if (app.window.resizable != app.window.synced_resizable) {
-        SDL_SetWindowResizable(app.window.sdl_window, app.window.resizable);
+        SDL_SetWindowResizable(app.window.sdl, app.window.resizable);
     }
     app.window.synced_resizable = app.window.resizable;
 
     if (app.window.hidden != app.window.synced_hidden) {
         if (app.window.hidden) {
-            SDL_HideWindow(app.window.sdl_window);
+            SDL_HideWindow(app.window.sdl);
         } else {
-            SDL_ShowWindow(app.window.sdl_window);
+            SDL_ShowWindow(app.window.sdl);
         }
     }
     app.window.synced_hidden = app.window.hidden;
@@ -224,7 +221,7 @@ bool init_window(void) {
         app.error = "Window creation failed";
         return false;
     }
-    app.window.sdl_window = sdl_window;
+    app.window.sdl = sdl_window;
     app.window.synced_pos = app.window.pos;
     strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);
     update_window();
