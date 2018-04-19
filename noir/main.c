@@ -213,6 +213,13 @@ static void update_time(void) {
 }
 
 static void update_window(void) {
+    if (app.window.fullscreen != app.window.synced_fullscreen) {
+        if (SDL_SetWindowFullscreen(app.window.sdl, app.window.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) < 0) {
+            sdl_error("SDL_SetWindowFullscreen");
+        }
+        app.window.synced_fullscreen = app.window.fullscreen;
+    }
+
     if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
         SDL_SetWindowTitle(app.window.sdl, app.window.title);
         strcpy_s(app.window.synced_title, sizeof(app.window.synced_title), app.window.title);

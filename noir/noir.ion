@@ -92,18 +92,20 @@ struct SDL_Window;
 struct Window {
     resizable: bool;
     hidden: bool;
+    fullscreen: bool;
 
     title: char const*;
     pos: int2;
     size: int2;
     moved: bool;
     resized: bool;
-    
+
     synced_title: char[MAX_TITLE];
     synced_pos: int2;
     synced_size: int2;
     synced_resizable: bool;
     synced_hidden: bool;
+    synced_fullscreen: bool;
 
     sdl: SDL_Window*;
 }
@@ -172,23 +174,6 @@ func print_and_clear_error() {
     }
 }
 
-var full_screen: bool;
-var saved_window_pos: int2;
-var saved_window_size: int2;
-
-func toggle_full_screen() {
-    if (full_screen) {
-        app.window.pos = saved_window_pos;
-        app.window.size = saved_window_size;
-    } else {
-        saved_window_pos = app.window.pos;
-        saved_window_size = app.window.size;
-        app.window.pos = {};
-        app.window.size = app.display.size;
-    }
-    full_screen = !full_screen;
-}
-
 func main(argc: int, argv: char**): int {
     title_count := 0;
     title_buf: char[16];
@@ -230,8 +215,8 @@ func main(argc: int, argv: char**): int {
             app.quit = true;
         }
         if (app.keys[KEY_ALT].down && app.keys[KEY_RETURN].pressed) {
-            printf("Enabling borderless full screen\n");
-            toggle_full_screen();
+            printf("Toggling full screen\n");
+            app.window.fullscreen = !app.window.fullscreen;
         }
         if (app.keys['t'].pressed) {
             printf("Changing title\n");
