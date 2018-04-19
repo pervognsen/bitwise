@@ -14,6 +14,7 @@ const char *gen_preamble =
     "// Preamble\n"
     "#include <stdbool.h>\n"
     "#include <stdint.h>\n"
+    "#include <stddef.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
     "typedef signed char schar;\n"
