@@ -435,10 +435,100 @@ func test_cast() {
     p = (:int*)a;
 }
 
+struct Any {
+    ptr: void*;
+    type: typeid;
+}
+
+func print_any(any: Any) {
+    switch (any.type) {
+    case typeof(int):
+        printf("%d", *(:int const*)any.ptr);
+    case typeof(float):
+        printf("%f", *(:float const *)any.ptr);
+    default:
+        printf("<unknown>");
+    }
+}
+
+func print_type(type: typeid) {
+    typeinfo := get_typeinfo(type);
+    if (!typeinfo) {
+        printf("<typeid %d>", type);
+    }
+    switch (typeinfo.kind) {
+    case TYPE_PTR:
+        printf("(ptr ");
+        print_type(typeinfo.base);
+        printf(")");
+    case TYPE_CONST:
+        printf("(const ");
+        print_type(typeinfo.base);
+        printf(")");
+    case TYPE_STRUCT:
+    case TYPE_UNION:
+        printf("(%s %s", typeinfo.kind == TYPE_STRUCT ? "struct" : "union", typeinfo.name);
+        for (i := 0; typeinfo.num_fields; i++) {
+            field := typeinfo.fields[i];
+            printf("[%s %d ", field.name, field.offset);
+            print_type(field.type);
+        }
+        printf(")");
+    default:
+        if (typeinfo.name) {
+            printf("%s", typeinfo.name);
+        } else {
+            printf("typeid %d>", type);
+        }
+    }
+}
+
+func print_typeinfo(type: typeid) {
+    typeinfo := get_typeinfo(type);
+    if (!typeinfo) {
+        printf("<no typeinfo>");
+        return;
+    }
+    switch (typeinfo.kind) {
+    case TYPE_INT:
+        printf("INT ");
+    default:
+        printf("? ");
+    }
+    printf("size=%d align=%d\n", typeinfo.size, typeinfo.align);
+}
+
+func test_typeof() {
+    i := 42;
+    f := 3.14;
+    p := &i;
+
+    type1 := typeof(i);
+    type2 := typeof(i + 1);
+    type3 := typeof(int);
+    type4 := typeof(:int*);
+
+    print_any({&i, typeof(i)});
+    printf("\n");
+    print_any({&f, typeof(f)});
+    printf("\n");
+    print_any({&p, typeof(p)});
+    printf("\n");
+}
+
+func test_typeinfo() {
+    print_typeinfo(typeof(int));
+    print_type(typeof(int));
+    printf("\n");
+    print_type(typeof(:int*));
+    printf("\n");
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_typeof();
     test_loops();
     test_sizeof();
     test_assign();
@@ -450,12 +540,7 @@ func main(argc: int, argv: char const**): int {
     test_const();
     test_bool();
     test_ops();
-    b := example_test();
-    puts("Hello, world!");
-    c := getchar();
-    printf("You wrote '%c'\n", c);
-    va_test(1);
-    va_test(1, 2);
-    argv = NULL;
+    test_typeinfo();
+    getchar();
     return 0;
 }

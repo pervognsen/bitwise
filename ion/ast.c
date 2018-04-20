@@ -178,6 +178,18 @@ Expr *new_expr_sizeof_type(SrcPos pos, Typespec *type) {
     return e;
 }
 
+Expr *new_expr_typeof_expr(SrcPos pos, Expr *expr) {
+    Expr *e = new_expr(EXPR_TYPEOF_EXPR, pos);
+    e->typeof_expr  = expr;
+    return e;
+}
+
+Expr *new_expr_typeof_type(SrcPos pos, Typespec *type) {
+    Expr *e = new_expr(EXPR_TYPEOF_TYPE, pos);
+    e->typeof_type = type;
+    return e;
+}
+
 Expr *new_expr_int(SrcPos pos, unsigned long long val, TokenMod mod, TokenSuffix suffix) {
     Expr *e = new_expr(EXPR_INT, pos);
     e->int_lit.val = val;

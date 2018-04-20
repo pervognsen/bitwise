@@ -1,5 +1,3 @@
-// This file is in rapid flux, so there's not much point in reporting bugs yet.
-
 char *gen_buf = NULL;
 
 #define genf(...) buf_printf(gen_buf, __VA_ARGS__)
@@ -36,6 +34,7 @@ const char *gen_preamble =
     "typedef uintptr_t uintptr;\n"
     "typedef size_t usize;\n"
     "typedef ptrdiff_t ssize;\n"
+    "typedef int typeid;\n"
     "\n"
     ;
 
@@ -116,8 +115,8 @@ void gen_sync_pos(SrcPos pos) {
     }
 }
 
-const char *cdecl_paren(const char *str, bool b) {
-    return b ? strf("(%s)", str) : str;
+const char *cdecl_paren(const char *str, char c) {
+    return c && c != '[' ? strf("(%s)", str) : str;
 }
 
 const char *cdecl_name(Type *type) {
@@ -399,6 +398,18 @@ void gen_expr(Expr *expr) {
     case EXPR_SIZEOF_TYPE:
         genf("sizeof(%s)", type_to_cdecl(get_resolved_type(expr->sizeof_type), ""));
         break;
+    case EXPR_TYPEOF_EXPR: {
+        Type *type = get_resolved_type(expr->typeof_expr);
+        assert(type->typeid);
+        genf("%d", type->typeid);
+        break;
+    }
+    case EXPR_TYPEOF_TYPE: {
+        Type *type = get_resolved_type(expr->typeof_type);
+        assert(type->typeid);
+        genf("%d", type->typeid);
+        break;
+    }
     default:
         assert(0);
     }
@@ -694,10 +705,114 @@ void gen_headers(void) {
     }
 }
 
+#define CASE(kind, name) \
+    case kind: \
+        genf("&(TypeInfo){" #kind ", .size = sizeof(" #name "), .align = sizeof(" #name "), .name = "); \
+        gen_str(#name, false); \
+        genf("},"); \
+        break;
+
+void gen_typeinfo_header(const char *kind, Type *type) { 
+    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = %d", kind, type_to_cdecl(type, ""), type->align);
+}
+
+void gen_typeinfo_fields(Type *type) {
+    gen_indent++;
+    assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+        TypeField field = type->aggregate.fields[i];
+        genlnf("{");
+        gen_str(field.name, false);
+        genf(", .type = %d, .offset = offsetof(%s, %s)},", field.type->typeid, type->sym->name, field.name);
+    }
+    gen_indent--;
+}
+
+void gen_typeinfo(Type *type) {
+    switch (type->kind) {
+    CASE(TYPE_BOOL, bool)
+    CASE(TYPE_CHAR, char)
+    CASE(TYPE_UCHAR, uchar)
+    CASE(TYPE_SCHAR, schar)
+    CASE(TYPE_SHORT, short)
+    CASE(TYPE_USHORT, ushort)
+    CASE(TYPE_INT, int)
+    CASE(TYPE_UINT, uint)
+    CASE(TYPE_LONG, long)
+    CASE(TYPE_ULONG, ulong)
+    CASE(TYPE_LLONG, llong)
+    CASE(TYPE_ULLONG, ullong)
+    CASE(TYPE_FLOAT, float)
+    CASE(TYPE_DOUBLE, double)
+    case TYPE_VOID:
+        genf("&(TypeInfo){TYPE_VOID, .name = \"void\"},");
+        break;
+    case TYPE_PTR:
+        genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = sizeof(void *), .base = %d},", type->base->typeid);
+        break;
+    case TYPE_CONST:
+        gen_typeinfo_header("TYPE_CONST", type);
+        genf(", .base = %d},", type->base->typeid);
+        break;
+    case TYPE_ARRAY:
+        if (is_incomplete_array_type(type)) {
+            genf("NULL, // Incomplete array type");
+        } else {
+            gen_typeinfo_header("TYPE_ARRAY", type);
+            genf(", .base = %d, .count = %d},", type->base->typeid, type->num_elems);
+        }
+        break;
+    case TYPE_STRUCT:
+    case TYPE_UNION:
+        gen_typeinfo_header(type->kind == TYPE_STRUCT ? "TYPE_STRUCT" : "TYPE_UNION", type);
+        genf(", .name = ");
+        gen_str(type->sym->name, false);
+        genf(", .num_fields = %d, .fields = (TypeField[]) {", type->aggregate.num_fields);
+        gen_typeinfo_fields(type);
+        genlnf("}},");
+        break;
+    case TYPE_FUNC:
+        genf("NULL, // Func");
+        break;
+    case TYPE_ENUM:
+        genf("NULL, // Enum");
+        break;
+    case TYPE_INCOMPLETE:
+        genf("NULL, // Incomplete: %s", type->sym->name);
+        break;
+    default:
+        genf("NULL, // Unhandled kind");
+        break;
+    }
+}
+
+#undef CASE
+
+void gen_typeinfos(void) {
+    int num_typeinfos = next_typeid;
+    genlnf("TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
+    gen_indent++;
+    for (int typeid = 0; typeid < num_typeinfos; typeid++) {
+        genlnf("[%d] = ", typeid);
+        Type *type = get_type_from_typeid(typeid);
+        if (type) {
+            gen_typeinfo(type);
+        } else {
+            genf("NULL, // No associated type");
+        }
+    }
+    gen_indent--;
+    genlnf("};");
+    genln();
+    genlnf("int num_typeinfos = %d;", num_typeinfos);
+    genlnf("TypeInfo **typeinfos = typeinfo_table;");
+}
+
 void gen_all(void) {
     gen_buf = NULL;
     genf("// Foreign includes");
     gen_headers();
+    genln();
     genln();
     genlnf("%s", gen_preamble);
     genf("// Forward declarations");
@@ -705,6 +820,8 @@ void gen_all(void) {
     genln();
     genlnf("// Sorted declarations");
     gen_sorted_decls();
+    genf("// Typeinfo");
+    gen_typeinfos();
     genlnf("// Definitions");
     gen_defs();
 }

@@ -1648,6 +1648,24 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_const(type_usize, (Val){.ull = type_sizeof(type)});
         break;
     }
+    case EXPR_TYPEOF_TYPE: {
+        Type *type = resolve_typespec(expr->typeof_type);
+        result = operand_const(type_int, (Val){.i = type->typeid});
+        break;
+    }
+    case EXPR_TYPEOF_EXPR: {
+        if (expr->typeof_expr->kind == EXPR_NAME) {
+            Sym *sym = resolve_name(expr->typeof_expr->name);
+            if (sym && sym->kind == SYM_TYPE) {
+                result = operand_const(type_int, (Val){.i = sym->type->typeid});
+                set_resolved_type(expr->typeof_expr, sym->type);
+                break;
+            }
+        }
+        Type *type = resolve_expr(expr->typeof_expr).type;
+        result = operand_const(type_int, (Val){.i = type->typeid});
+        break;
+    }
     default:
         assert(0);
         result = operand_null;
@@ -1665,7 +1683,13 @@ Operand resolve_const_expr(Expr *expr) {
     return result;
 }
 
+
 void init_builtins(void) {
+    static bool is_init;
+    if (is_init) {
+        return;
+    }
+
     sym_global_type("void", type_void);
     sym_global_type("bool", type_bool);
     sym_global_type("char", type_char);
@@ -1694,10 +1718,13 @@ void init_builtins(void) {
     sym_global_typedef("usize", type_usize);
     sym_global_typedef("ssize", type_ssize);
     sym_global_typedef("uintptr", type_uintptr);
+    sym_global_typedef("typeid", type_int);
 
     sym_global_const("true", type_bool, (Val){.b = true});
     sym_global_const("false", type_bool, (Val){.b = false});
     sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});
+
+    is_init = true;
 }
 
 void sym_global_decls(void) {

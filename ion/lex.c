@@ -6,6 +6,7 @@ const char *var_keyword;
 const char *const_keyword;
 const char *func_keyword;
 const char *sizeof_keyword;
+const char *typeof_keyword;
 const char *break_keyword;
 const char *continue_keyword;
 const char *return_keyword;
@@ -40,6 +41,7 @@ void init_keywords(void) {
     KEYWORD(var);
     KEYWORD(func);
     KEYWORD(sizeof);
+    KEYWORD(typeof);
     KEYWORD(break);
     KEYWORD(continue);
     KEYWORD(return);

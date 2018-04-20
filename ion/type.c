@@ -42,6 +42,7 @@ struct Type {
     size_t align;
     Sym *sym;
     Type *base;
+    int typeid;
     bool nonmodifiable;
     union {
         size_t num_elems;
@@ -58,29 +59,23 @@ struct Type {
     };
 };
 
-void complete_type(Type *type);
+Type *type_void = &(Type){TYPE_VOID, .size = 0, .align = 0, .typeid = 1};
+Type *type_bool = &(Type){TYPE_BOOL, .size = 1, .align = 1, .typeid = 2};
+Type *type_char = &(Type){TYPE_CHAR, .size = 1, .align = 1, .typeid = 3};
+Type *type_uchar = &(Type){TYPE_UCHAR, .size = 1, .align = 1, .typeid = 4};
+Type *type_schar = &(Type){TYPE_SCHAR, .size = 1, .align = 1, .typeid = 5};
+Type *type_short = &(Type){TYPE_SHORT, .size = 2, .align = 2, .typeid = 6};
+Type *type_ushort = &(Type){TYPE_USHORT, .size = 2, .align = 2, .typeid = 7};
+Type *type_int = &(Type){TYPE_INT, .size = 4, .align = 4, .typeid = 8};
+Type *type_uint = &(Type){TYPE_UINT, .size = 4, .align = 4, .typeid = 9};
+Type *type_long = &(Type){TYPE_LONG, .size = 4, .align = 4, .typeid = 10}; // 4 on 64-bit windows, 8 on 64-bit linux, probably factor this out to the backend
+Type *type_ulong = &(Type){TYPE_ULONG, .size = 4, .align = 4, .typeid = 11};
+Type *type_llong = &(Type){TYPE_LLONG, .size = 8, .align = 8, .typeid = 12};
+Type *type_ullong = &(Type){TYPE_ULLONG, .size = 8, .align = 8, .typeid = 13};
+Type *type_float = &(Type){TYPE_FLOAT, .size = 4, .align = 4, .typeid = 14};
+Type *type_double = &(Type){TYPE_DOUBLE, .size = 8, .align = 8, .typeid = 15};
 
-Type *type_alloc(TypeKind kind) {
-    Type *type = xcalloc(1, sizeof(Type));
-    type->kind = kind;
-    return type;
-}
-
-Type *type_void = &(Type){TYPE_VOID, 0};
-Type *type_bool = &(Type){TYPE_BOOL, 1, 1};
-Type *type_char = &(Type){TYPE_CHAR, 1, 1};
-Type *type_uchar = &(Type){TYPE_UCHAR, 1, 1};
-Type *type_schar = &(Type){TYPE_SCHAR, 1, 1};
-Type *type_short = &(Type){TYPE_SHORT, 2, 2};
-Type *type_ushort = &(Type){TYPE_USHORT, 2, 2};
-Type *type_int = &(Type){TYPE_INT, 4, 4};
-Type *type_uint = &(Type){TYPE_UINT, 4, 4};
-Type *type_long = &(Type){TYPE_LONG, 4, 4}; // 4 on 64-bit windows, 8 on 64-bit linux, probably factor this out to the backend
-Type *type_ulong = &(Type){TYPE_ULONG, 4, 4};
-Type *type_llong = &(Type){TYPE_LLONG, 8, 8};
-Type *type_ullong = &(Type){TYPE_ULLONG, 8, 8};
-Type *type_float = &(Type){TYPE_FLOAT, 4, 4};
-Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
+int next_typeid = 16;
 
 #define type_uintptr type_ullong
 #define type_usize type_ullong
@@ -88,6 +83,29 @@ Type *type_double = &(Type){TYPE_DOUBLE, 8, 8};
 
 const size_t PTR_SIZE = 8;
 const size_t PTR_ALIGN = 8;
+
+void complete_type(Type *type);
+
+Map typeid_map;
+
+Type *get_type_from_typeid(int typeid) {
+    if (typeid == 0) {
+        return NULL;
+    }
+    return map_get(&typeid_map, (void *)(uintptr_t)typeid);
+}
+
+void register_typeid(Type *type) {
+    map_put(&typeid_map, (void *)(uintptr_t)type->typeid, type);
+}
+
+Type *type_alloc(TypeKind kind) {
+    Type *type = xcalloc(1, sizeof(Type));
+    type->kind = kind;
+    type->typeid = next_typeid++;
+    register_typeid(type);
+    return type;
+}
 
 bool is_ptr_type(Type *type) {
     return type->kind == TYPE_PTR;
@@ -376,4 +394,22 @@ Type *type_enum(Sym *sym) {
     type->size = type_int->size;
     type->align = type_int->align;
     return type;
+}
+
+void init_types(void) {
+    register_typeid(type_void);
+    register_typeid(type_bool);
+    register_typeid(type_char);
+    register_typeid(type_uchar);
+    register_typeid(type_schar);
+    register_typeid(type_short);
+    register_typeid(type_ushort);
+    register_typeid(type_int);
+    register_typeid(type_uint);
+    register_typeid(type_long);
+    register_typeid(type_ulong);
+    register_typeid(type_llong);
+    register_typeid(type_ullong);
+    register_typeid(type_float);
+    register_typeid(type_double);
 }

@@ -141,6 +141,8 @@ typedef enum ExprKind {
     EXPR_TERNARY,
     EXPR_SIZEOF_EXPR,
     EXPR_SIZEOF_TYPE,
+    EXPR_TYPEOF_EXPR,
+    EXPR_TYPEOF_TYPE,
 } ExprKind;
 
 typedef enum CompoundFieldKind {
@@ -179,6 +181,8 @@ struct Expr {
         const char *name;
         Expr *sizeof_expr;
         Typespec *sizeof_type;
+        Expr *typeof_expr;
+        Typespec *typeof_type;
         struct {
             Typespec *type;
             CompoundField *fields;
