@@ -1,3 +1,9 @@
+#if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L
+// Visual Studio C++ 2015 supports enough C99/C11 features for us
+#else
+#error "C99 support required"
+#endif
+
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdint.h>
