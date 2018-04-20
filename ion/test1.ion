@@ -449,6 +449,8 @@ func print_any(any: Any) {
     default:
         printf("<unknown>");
     }
+    printf(": ");
+    print_type(any.type);
 }
 
 func println_any(any: Any) {
@@ -463,23 +465,14 @@ func print_type(type: typeid) {
     }
     switch (typeinfo.kind) {
     case TYPE_PTR:
-        printf("(ptr ");
         print_type(typeinfo.base);
-        printf(")");
+        printf("*");
     case TYPE_CONST:
-        printf("(const ");
         print_type(typeinfo.base);
-        printf(")");
-    case TYPE_STRUCT:
-    case TYPE_UNION:
-        printf("(%s %s ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union", typeinfo.name);
-        for (i := 0; i < typeinfo.num_fields; i++) {
-            field := typeinfo.fields[i];
-            printf("%s[%s %d ", i == 0 ? "" : ", ", field.name, field.offset);
-            print_type(field.type);
-            printf("]");
-        }
-        printf(")");
+        printf(" const");
+    case TYPE_ARRAY:
+        print_type(typeinfo.base);
+        printf("[%d]", typeinfo.count);
     default:
         if (typeinfo.name) {
             printf("%s", typeinfo.name);
@@ -497,16 +490,25 @@ func println_type(type: typeid) {
 func print_typeinfo(type: typeid) {
     typeinfo := get_typeinfo(type);
     if (!typeinfo) {
-        printf("<no typeinfo>");
+        printf("<typeid %d>", type);
         return;
     }
+    printf("<");
+    print_type(type);
+    printf(" size=%d align=%d", typeinfo.size, typeinfo.align);
     switch (typeinfo.kind) {
-    case TYPE_INT:
-        printf("INT ");
-    default:
-        printf("? ");
+    case TYPE_STRUCT:
+    case TYPE_UNION:
+        printf(" %s={ ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union");
+        for (i := 0; i < typeinfo.num_fields; i++) {
+            field := typeinfo.fields[i];
+            printf("@offset(%d) %s: ", field.offset, field.name);
+            print_type(field.type);
+            printf("; ");
+        }
+        printf("}");
     }
-    printf("size=%d align=%d\n", typeinfo.size, typeinfo.align);
+    printf(">");
 }
 
 func println_typeinfo(type: typeid) {
@@ -531,8 +533,10 @@ func test_typeof() {
 
 func test_typeinfo() {
     println_typeinfo(typeof(int));
+    println_typeinfo(typeof(UartCtrl));
     println_type(typeof(int));
     println_type(typeof(:int const*));
+    println_type(typeof(:int const*[42]));
     println_type(typeof(UartCtrl));
 }
 

@@ -711,13 +711,6 @@ void gen_headers(void) {
     }
 }
 
-#define CASE(kind, name) \
-    case kind: \
-        genf("&(TypeInfo){" #kind ", .size = sizeof(" #name "), .align = sizeof(" #name "), .name = "); \
-        gen_str(#name, false); \
-        genf("},"); \
-        break;
-
 void gen_typeinfo_header(const char *kind, Type *type) { 
     const char *ctype = type_to_cdecl(type, "");
     genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype);
@@ -734,6 +727,13 @@ void gen_typeinfo_fields(Type *type) {
     }
     gen_indent--;
 }
+
+#define CASE(kind, name) \
+    case kind: \
+        genf("&(TypeInfo){" #kind ", .size = sizeof(" #name "), .align = sizeof(" #name "), .name = "); \
+        gen_str(#name, false); \
+        genf("},"); \
+        break;
 
 void gen_typeinfo(Type *type) {
     switch (type->kind) {
