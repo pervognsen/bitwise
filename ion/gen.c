@@ -720,7 +720,7 @@ void gen_headers(void) {
 
 void gen_typeinfo_header(const char *kind, Type *type) { 
     const char *ctype = type_to_cdecl(type, "");
-    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype, type->align);
+    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype);
 }
 
 void gen_typeinfo_fields(Type *type) {
