@@ -238,7 +238,7 @@ uint64_t hash_uint64(uint64_t x) {
     return x;
 }
 
-uint64_t hash_ptr(void *ptr) {
+uint64_t hash_ptr(const void *ptr) {
     return hash_uint64((uintptr_t)ptr);
 }
 
@@ -261,13 +261,13 @@ uint64_t hash_bytes(const void *ptr, size_t len) {
 }
 
 typedef struct Map {
-    void **keys;
+    const void **keys;
     void **vals;
     size_t len;
     size_t cap;
 } Map;
 
-void *map_get(Map *map, void *key) {
+void *map_get(Map *map, const void *key) {
     if (map->len == 0) {
         return NULL;
     }
@@ -286,7 +286,7 @@ void *map_get(Map *map, void *key) {
     return NULL;
 }
 
-void map_put(Map *map, void *key, void *val);
+void map_put(Map *map, const void *key, void *val);
 
 void map_grow(Map *map, size_t new_cap) {
     new_cap = MAX(16, new_cap);
@@ -300,12 +300,12 @@ void map_grow(Map *map, size_t new_cap) {
             map_put(&new_map, map->keys[i], map->vals[i]);
         }
     }
-    free(map->keys);
+    free((void *)map->keys);
     free(map->vals);
     *map = new_map;
 }
 
-void map_put(Map *map, void *key, void *val) {
+void map_put(Map *map, const void *key, void *val) {
     assert(key);
     assert(val);
     if (2*map->len >= map->cap) {

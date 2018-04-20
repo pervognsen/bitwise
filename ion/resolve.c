@@ -110,7 +110,7 @@ void sym_leave(Sym *sym) {
 }
 
 void sym_global_put(Sym *sym) {
-    if (map_get(&global_syms_map, (void *)sym->name)) {
+    if (map_get(&global_syms_map, sym->name)) {
         SrcPos pos = sym->decl ? sym->decl->pos : pos_builtin;
         fatal_error(pos, "Duplicate definition of global symbol");
     }
@@ -738,7 +738,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
             }
             resolve_cond_expr(stmt->note.args[0].expr);
         } else {
-            warning(stmt->pos, "Unknown # directive '%s'", stmt->note.name);
+            warning(stmt->pos, "Unknown statement #directive '%s'", stmt->note.name);
         }
         return false;
     case STMT_IF: {
@@ -1696,12 +1696,15 @@ Operand resolve_const_expr(Expr *expr) {
     return result;
 }
 
+Map decl_note_names;
 
 void init_builtins(void) {
     static bool is_init;
     if (is_init) {
         return;
     }
+
+    map_put(&decl_note_names, declare_note_name, (void *)1);
 
     sym_global_type("void", type_void);
     sym_global_type("bool", type_bool);
@@ -1743,7 +1746,21 @@ void init_builtins(void) {
 void sym_global_decls(void) {
     for (size_t i = 0; i < global_decls->num_decls; i++) {
         Decl *decl = global_decls->decls[i];
-        if (decl->kind != DECL_NOTE) {
+        if (decl->kind == DECL_NOTE) {
+            if (!map_get(&decl_note_names, decl->note.name)) {
+                warning(decl->pos, "Unknown declaration #directive '%s'", decl->note.name);
+            }
+            if (decl->note.name == declare_note_name) {
+                if (decl->note.num_args != 1) {
+                    fatal_error(decl->pos, "#declare_note takes 1 argument");
+                }
+                Expr *arg = decl->note.args[0].expr;
+                if (arg->kind != EXPR_NAME) {
+                    fatal_error(decl->pos, "#declare_note argument must be name");
+                }
+                map_put(&decl_note_names, arg->name, (void *)1);
+            }
+        } else {
             sym_global_decl(global_decls->decls[i]);
         }
     }

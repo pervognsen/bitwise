@@ -44,7 +44,6 @@ const char *gen_preamble =
     "#endif\n"
     ;
 
-
 void genln(void) {
     genf("\n%.*s", gen_indent * 4, "                                                                  ");
     gen_pos.line++;
