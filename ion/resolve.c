@@ -1367,6 +1367,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             type = type_array(type->base, max_index + 1);
         }
     } else {
+        assert(is_scalar_type(type));
         if (expr->compound.num_fields > 1) {
             fatal_error(expr->pos, "Compound literal for scalar type cannot have more than one operand");
         }
