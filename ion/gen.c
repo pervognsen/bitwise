@@ -36,7 +36,13 @@ const char *gen_preamble =
     "typedef ptrdiff_t ssize;\n"
     "typedef int typeid;\n"
     "\n"
+    "#ifdef _MSC_VER\n"
+    "#define alignof(x) __alignof(x)\n"
+    "#else\n"
+    "#define alignof(x) __alignof__(x)\n"
+    "#endif\n"
     ;
+
 
 void genln(void) {
     genf("\n%.*s", gen_indent * 4, "                                                                  ");
@@ -713,7 +719,8 @@ void gen_headers(void) {
         break;
 
 void gen_typeinfo_header(const char *kind, Type *type) { 
-    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = %d", kind, type_to_cdecl(type, ""), type->align);
+    const char *ctype = type_to_cdecl(type, "");
+    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype, type->align);
 }
 
 void gen_typeinfo_fields(Type *type) {
@@ -748,7 +755,7 @@ void gen_typeinfo(Type *type) {
         genf("&(TypeInfo){TYPE_VOID, .name = \"void\"},");
         break;
     case TYPE_PTR:
-        genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = sizeof(void *), .base = %d},", type->base->typeid);
+        genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = alignof(void *), .base = %d},", type->base->typeid);
         break;
     case TYPE_CONST:
         gen_typeinfo_header("TYPE_CONST", type);
