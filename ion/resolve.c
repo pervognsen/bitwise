@@ -1310,6 +1310,8 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
         type = expected_type;
     }
     complete_type(type);
+    bool is_const = is_const_type(type);
+    type = unqualify_type(type);
     if (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION) {
         int index = 0;
         for (size_t i = 0; i < expr->compound.num_fields; i++) {
@@ -1376,7 +1378,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             }
         }
     }
-    return operand_lvalue(type);
+    return operand_lvalue(is_const ? type_const(type) : type);
 }
 
 Operand resolve_expr_call(Expr *expr) {
