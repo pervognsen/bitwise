@@ -774,7 +774,7 @@ void gen_typeinfo(Type *type) {
         gen_typeinfo_header(type->kind == TYPE_STRUCT ? "TYPE_STRUCT" : "TYPE_UNION", type);
         genf(", .name = ");
         gen_str(type->sym->name, false);
-        genf(", .num_fields = %d, .fields = (TypeField[]) {", type->aggregate.num_fields);
+        genf(", .num_fields = %d, .fields = (TypeFieldInfo[]) {", type->aggregate.num_fields);
         gen_typeinfo_fields(type);
         genlnf("}},");
         break;

@@ -9,9 +9,9 @@ func puts(str: char const*): int;
 @foreign
 func getchar(): int;
 
-struct Incomplete;
+struct SomeIncompleteType;
 
-var incomplete_ptr: Incomplete*;
+var incomplete_ptr: SomeIncompleteType*;
 // var incomplete_val: Incomplete;
 
 /* This is a block comment */
@@ -451,6 +451,11 @@ func print_any(any: Any) {
     }
 }
 
+func println_any(any: Any) {
+    print_any(any);
+    printf("\n");
+}
+
 func print_type(type: typeid) {
     typeinfo := get_typeinfo(type);
     if (!typeinfo) {
@@ -467,11 +472,12 @@ func print_type(type: typeid) {
         printf(")");
     case TYPE_STRUCT:
     case TYPE_UNION:
-        printf("(%s %s", typeinfo.kind == TYPE_STRUCT ? "struct" : "union", typeinfo.name);
-        for (i := 0; typeinfo.num_fields; i++) {
+        printf("(%s %s ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union", typeinfo.name);
+        for (i := 0; i < typeinfo.num_fields; i++) {
             field := typeinfo.fields[i];
-            printf("[%s %d ", field.name, field.offset);
+            printf("%s[%s %d ", i == 0 ? "" : ", ", field.name, field.offset);
             print_type(field.type);
+            printf("]");
         }
         printf(")");
     default:
@@ -481,6 +487,11 @@ func print_type(type: typeid) {
             printf("typeid %d>", type);
         }
     }
+}
+
+func println_type(type: typeid) {
+    print_type(type);
+    printf("\n");
 }
 
 func print_typeinfo(type: typeid) {
@@ -498,6 +509,11 @@ func print_typeinfo(type: typeid) {
     printf("size=%d align=%d\n", typeinfo.size, typeinfo.align);
 }
 
+func println_typeinfo(type: typeid) {
+    print_typeinfo(type);
+    printf("\n");
+}
+
 func test_typeof() {
     i := 42;
     f := 3.14;
@@ -508,20 +524,16 @@ func test_typeof() {
     type3 := typeof(int);
     type4 := typeof(:int*);
 
-    print_any({&i, typeof(i)});
-    printf("\n");
-    print_any({&f, typeof(f)});
-    printf("\n");
-    print_any({&p, typeof(p)});
-    printf("\n");
+    println_any({&i, typeof(i)});
+    println_any({&f, typeof(f)});
+    println_any({&p, typeof(p)});
 }
 
 func test_typeinfo() {
-    print_typeinfo(typeof(int));
-    print_type(typeof(int));
-    printf("\n");
-    print_type(typeof(:int*));
-    printf("\n");
+    println_typeinfo(typeof(int));
+    println_type(typeof(int));
+    println_type(typeof(:int const*));
+    println_type(typeof(UartCtrl));
 }
 
 func main(argc: int, argv: char const**): int {
