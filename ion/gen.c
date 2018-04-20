@@ -498,6 +498,14 @@ void gen_stmt(Stmt *stmt) {
         genln();
         gen_stmt_block(stmt->block);
         break;
+    case STMT_NOTE:
+        if (stmt->note.name == assert_name) {
+            genlnf("assert(");
+            assert(stmt->note.num_args == 1);
+            gen_expr(stmt->note.args[0].expr);
+            genf(");");
+        }
+        break;
     case STMT_IF:
         genlnf("if (");
         gen_expr(stmt->if_stmt.cond);

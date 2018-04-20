@@ -472,6 +472,8 @@ Stmt *parse_stmt_switch(SrcPos pos) {
     return new_stmt_switch(pos, expr, cases, buf_len(cases));
 }
 
+Note parse_note(void);
+
 Stmt *parse_stmt(void) {
     Notes notes = parse_notes();
     SrcPos pos = token.pos;
@@ -501,6 +503,10 @@ Stmt *parse_stmt(void) {
         }
         expect_token(TOKEN_SEMICOLON);
         stmt = new_stmt_return(pos, expr);
+    } else if (match_token(TOKEN_POUND)) {
+        Note note = parse_note();
+        expect_token(TOKEN_SEMICOLON);
+        stmt = new_stmt_note(pos, note);
     } else {
         stmt = parse_simple_stmt();
         expect_token(TOKEN_SEMICOLON);

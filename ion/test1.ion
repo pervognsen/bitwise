@@ -552,6 +552,10 @@ func test_complete() {
         y = 2;
     }
 
+    x = 1;
+    // x = -1;
+    #assert(x >= 0);
+
     x = 0;
     // x = 1;
     // x = 2;

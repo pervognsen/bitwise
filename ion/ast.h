@@ -249,6 +249,7 @@ typedef enum StmtKind {
     STMT_ASSIGN,
     STMT_INIT,
     STMT_EXPR,
+    STMT_NOTE,
 } StmtKind;
 
 struct Stmt {
@@ -256,6 +257,7 @@ struct Stmt {
     Notes notes;
     SrcPos pos;
     union {
+        Note note;
         Expr *expr;
         Decl *decl;
         struct {

@@ -731,6 +731,16 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         return false;
     case STMT_BLOCK:
         return resolve_stmt_block(stmt->block, ret_type, ctx);
+    case STMT_NOTE:
+        if (stmt->note.name == assert_name) {
+            if (stmt->note.num_args != 1) {
+                fatal_error(stmt->pos, "#assert takes 1 argument");
+            }
+            resolve_cond_expr(stmt->note.args[0].expr);
+        } else {
+            warning(stmt->pos, "Unknown # directive '%s'", stmt->note.name);
+        }
+        return false;
     case STMT_IF: {
         resolve_cond_expr(stmt->if_stmt.cond);
         bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type, ctx);

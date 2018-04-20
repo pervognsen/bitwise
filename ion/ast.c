@@ -295,6 +295,12 @@ Stmt *new_stmt(StmtKind kind, SrcPos pos) {
     return s;
 }
 
+Stmt *new_stmt_note(SrcPos pos, Note note) {
+    Stmt *s = new_stmt(STMT_NOTE, pos);
+    s->note = note;
+    return s;
+}
+
 Stmt *new_stmt_decl(SrcPos pos, Decl *decl) {
     Stmt *s = new_stmt(STMT_DECL, pos);
     s->decl = decl;
