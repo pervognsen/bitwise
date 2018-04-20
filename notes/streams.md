@@ -1,3 +1,9 @@
+# Bitwise, Day 19: Noir Demo & Dynamic Type Info
+- Video: https://www.youtube.com/watch?v=PfDIP96xEdM
+- Extra: https://www.youtube.com/watch?v=4i12O0S_Vjo
+- Demo of Noir so far
+- Ion dynamic type info
+
 # Bitwise, Day 18: Making Noir
 - Review/follow-up
 - Noir's genesis in experimental Mu library: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72
