@@ -190,6 +190,26 @@ Expr *new_expr_typeof_type(SrcPos pos, Typespec *type) {
     return e;
 }
 
+Expr *new_expr_alignof_expr(SrcPos pos, Expr *expr) {
+    Expr *e = new_expr(EXPR_ALIGNOF_EXPR, pos);
+    e->alignof_expr = expr;
+    return e;
+}
+
+Expr *new_expr_alignof_type(SrcPos pos, Typespec *type) {
+    Expr *e = new_expr(EXPR_ALIGNOF_TYPE, pos);
+    e->alignof_type = type;
+    return e;
+}
+
+Expr *new_expr_offsetof(SrcPos pos, Typespec *type, const char *name) {
+    Expr *e = new_expr(EXPR_OFFSETOF, pos);
+    e->offsetof_field.type = type;
+    e->offsetof_field.name = name;
+    return e;
+}
+
+
 Expr *new_expr_int(SrcPos pos, unsigned long long val, TokenMod mod, TokenSuffix suffix) {
     Expr *e = new_expr(EXPR_INT, pos);
     e->int_lit.val = val;

@@ -3,6 +3,7 @@ Decl *parse_decl(void);
 Typespec *parse_type(void);
 Stmt *parse_stmt(void);
 Expr *parse_expr(void);
+const char *parse_name(void);
 Notes parse_notes(void);
 
 Typespec *parse_type_func_param(void) {
@@ -158,6 +159,17 @@ Expr *parse_expr_operand(void) {
             expect_token(TOKEN_RPAREN);
             return new_expr_sizeof_expr(pos, expr);
         }
+    } else if (match_keyword(alignof_keyword)) {
+        expect_token(TOKEN_LPAREN);
+        if (match_token(TOKEN_COLON)) {
+            Typespec *type = parse_type();
+            expect_token(TOKEN_RPAREN);
+            return new_expr_alignof_type(pos, type);
+        } else {
+            Expr *expr = parse_expr();
+            expect_token(TOKEN_RPAREN);
+            return new_expr_alignof_expr(pos, expr);
+        }
     } else if (match_keyword(typeof_keyword)) {
         expect_token(TOKEN_LPAREN);
         if (match_token(TOKEN_COLON)) {
@@ -169,6 +181,13 @@ Expr *parse_expr_operand(void) {
             expect_token(TOKEN_RPAREN);
             return new_expr_typeof_expr(pos, expr);
         }
+    } else if (match_keyword(offsetof_keyword)) {
+        expect_token(TOKEN_LPAREN);
+        Typespec *type = parse_type();
+        expect_token(TOKEN_COMMA);
+        const char *name = parse_name();
+        expect_token(TOKEN_RPAREN);
+        return new_expr_offsetof(pos, type, name);
     } else if (is_token(TOKEN_LBRACE)) {
         return parse_expr_compound(NULL);
     } else if (match_token(TOKEN_LPAREN)) {

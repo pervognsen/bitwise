@@ -540,13 +540,6 @@ func test_compound_literals() {
     y := (:Any const){&i, typeof(i)};
 }
 
-struct BufHdr {
-    cap, len: usize;
-    buf: char[1];
-//    buf: char[];
-//    buf: char[0];
-}
-
 func test_complete() {
     x := 0;
     // x := 1;
@@ -575,10 +568,32 @@ func test_complete() {
     }
 }
 
+func test_alignof() {
+    i := 42;
+    n1 := alignof(i);
+    n2 := alignof(i+1);
+    n3 := alignof(ullong);
+    n4 := alignof(:int*);
+}
+
+struct BufHdr {
+    cap, len: usize;
+    buf: char[1];
+    //    buf: char[];
+    //    buf: char[0];
+}
+
+func test_offsetof() {
+    n := offsetof(BufHdr, buf);
+//    n = offsetof(BufHdr, foo);
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_alignof();
+    test_offsetof();
     test_complete();
     test_compound_literals();
     test_loops();

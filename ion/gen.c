@@ -404,6 +404,12 @@ void gen_expr(Expr *expr) {
     case EXPR_SIZEOF_TYPE:
         genf("sizeof(%s)", type_to_cdecl(get_resolved_type(expr->sizeof_type), ""));
         break;
+    case EXPR_ALIGNOF_EXPR:
+        genf("alignof(%s)", type_to_cdecl(get_resolved_type(expr->alignof_expr), ""));
+        break;
+    case EXPR_ALIGNOF_TYPE:
+        genf("alignof(%s)", type_to_cdecl(get_resolved_type(expr->alignof_type), ""));
+        break;
     case EXPR_TYPEOF_EXPR: {
         Type *type = get_resolved_type(expr->typeof_expr);
         assert(type->typeid);
@@ -416,6 +422,9 @@ void gen_expr(Expr *expr) {
         genf("%d", type->typeid);
         break;
     }
+    case EXPR_OFFSETOF:
+        genf("offsetof(%s, %s)", typespec_to_cdecl(expr->offsetof_field.type, ""), expr->offsetof_field.name);
+        break;
     default:
         assert(0);
     }

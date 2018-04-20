@@ -1650,6 +1650,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
             if (sym && sym->kind == SYM_TYPE) {
                 complete_type(sym->type);
                 result = operand_const(type_usize, (Val){.ull = type_sizeof(sym->type)});
+                set_resolved_type(expr->sizeof_expr, sym->type);
                 break;
             }
         }
@@ -1662,6 +1663,27 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         Type *type = resolve_typespec(expr->sizeof_type);
         complete_type(type);
         result = operand_const(type_usize, (Val){.ull = type_sizeof(type)});
+        break;
+    }
+    case EXPR_ALIGNOF_EXPR: {
+        if (expr->sizeof_expr->kind == EXPR_NAME) {
+            Sym *sym = resolve_name(expr->alignof_expr->name);
+            if (sym && sym->kind == SYM_TYPE) {
+                complete_type(sym->type);
+                result = operand_const(type_usize, (Val){.ull = type_alignof(sym->type)});
+                set_resolved_type(expr->alignof_expr, sym->type);
+                break;
+            }
+        }
+        Type *type = resolve_expr(expr->alignof_expr).type;
+        complete_type(type);
+        result = operand_const(type_usize, (Val){.ull = type_alignof(type)});
+        break;
+    }
+    case EXPR_ALIGNOF_TYPE: {
+        Type *type = resolve_typespec(expr->alignof_type);
+        complete_type(type);
+        result = operand_const(type_usize, (Val){.ull = type_alignof(type)});
         break;
     }
     case EXPR_TYPEOF_TYPE: {
@@ -1680,6 +1702,18 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         }
         Type *type = resolve_expr(expr->typeof_expr).type;
         result = operand_const(type_int, (Val){.i = type->typeid});
+        break;
+    }
+    case EXPR_OFFSETOF: {
+        Type *type = resolve_typespec(expr->offsetof_field.type);
+        if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
+            fatal_error(expr->pos, "offsetof can only be used with struct/union types");
+        }
+        int field = aggregate_field_index(type, expr->offsetof_field.name);
+        if (field < 0) {
+            fatal_error(expr->pos, "No field '%s' in type", expr->offsetof_field.name);
+        }
+        result = operand_const(type_usize, (Val){.ull = type->aggregate.fields[field].offset});
         break;
     }
     default:
