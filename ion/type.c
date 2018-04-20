@@ -220,7 +220,6 @@ Type *unsigned_type(Type *type) {
 
 size_t type_sizeof(Type *type) {
     assert(type->kind > TYPE_COMPLETING);
-    assert(type->size != 0);
     return type->size;
 }
 

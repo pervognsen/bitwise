@@ -526,6 +526,9 @@ void complete_type(Type *type) {
         AggregateItem item = decl->aggregate.items[i];
         Type *item_type = resolve_typespec(item.type);
         complete_type(item_type);
+        if (type_sizeof(item_type) == 0) {
+            fatal_error(item.pos, "Field type of size 0 is not allowed");
+        }
         for (size_t j = 0; j < item.num_names; j++) {
             buf_push(fields, (TypeField){item.names[j], item_type});
         }

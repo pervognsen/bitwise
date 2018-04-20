@@ -540,6 +540,13 @@ func test_compound_literals() {
     y := (:Any const){&i, typeof(i)};
 }
 
+struct BufHdr {
+    cap, len: usize;
+    buf: char[1];
+//    buf: char[];
+//    buf: char[0];
+}
+
 func test_complete() {
     x := 0;
     // x := 1;
