@@ -855,7 +855,7 @@ void gen_typeinfos(void) {
     genlnf("};");
     genln();
     genlnf("int num_typeinfos = %d;", num_typeinfos);
-    genlnf("TypeInfo **typeinfos = typeinfo_table;");
+    genlnf("const TypeInfo **typeinfos = typeinfo_table;");
 }
 
 void gen_all(void) {

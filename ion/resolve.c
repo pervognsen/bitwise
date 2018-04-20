@@ -625,7 +625,7 @@ typedef struct StmtCtx {
 bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
 
 void resolve_cond_expr(Expr *expr) {
-    Operand cond = resolve_expr(expr);
+    Operand cond = resolve_expr_rvalue(expr);
     if (!is_scalar_type(cond.type)) {
         fatal_error(expr->pos, "Conditional expression must have operand type");
     }
@@ -784,7 +784,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         return false;
     }
     case STMT_SWITCH: {
-        Operand operand = resolve_expr(stmt->switch_stmt.expr);
+        Operand operand = resolve_expr_rvalue(stmt->switch_stmt.expr);
         if (!is_integer_type(operand.type)) {
             fatal_error(stmt->pos, "Switch expression must have integer type");
         }
