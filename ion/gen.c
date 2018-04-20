@@ -752,8 +752,12 @@ void gen_headers(void) {
 }
 
 void gen_typeinfo_header(const char *kind, Type *type) { 
-    const char *ctype = type_to_cdecl(type, "");
-    genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype);
+    if (type_sizeof(type) == 0) {
+        genf("&(TypeInfo){%s, .size = 0, .align = 0", kind);
+    } else {
+        const char *ctype = type_to_cdecl(type, "");
+        genf("&(TypeInfo){%s, .size = sizeof(%s), .align = alignof(%s)", kind, ctype, ctype);
+    }
 }
 
 void gen_typeinfo_fields(Type *type) {
@@ -791,7 +795,7 @@ void gen_typeinfo(Type *type) {
     CASE(TYPE_FLOAT, float)
     CASE(TYPE_DOUBLE, double)
     case TYPE_VOID:
-        genf("&(TypeInfo){TYPE_VOID, .name = \"void\"},");
+        genf("&(TypeInfo){TYPE_VOID, .name = \"void\", .size = 0, .align = 0},");
         break;
     case TYPE_PTR:
         genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = alignof(void *), .base = %d},", type->base->typeid);

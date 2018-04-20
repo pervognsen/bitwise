@@ -9,6 +9,9 @@ func puts(str: char const*): int;
 @foreign
 func getchar(): int;
 
+@foreign
+func memcpy(dest: void*, src: void const*): void*;
+
 struct SomeIncompleteType;
 
 var incomplete_ptr: SomeIncompleteType*;
