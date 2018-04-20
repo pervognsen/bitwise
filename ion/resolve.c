@@ -910,11 +910,13 @@ Sym *resolve_name(const char *name) {
 Operand resolve_expr_field(Expr *expr) {
     assert(expr->kind == EXPR_FIELD);
     Operand operand = resolve_expr(expr->field.expr);
-    bool is_const_type = operand.type->kind == TYPE_CONST;
+    bool was_const_type = is_const_type(operand.type);
     Type *type = unqualify_type(operand.type);
     complete_type(type);
     if (is_ptr_type(type)) {
-        type = type->base;
+        operand = operand_lvalue(type->base);
+        was_const_type = is_const_type(operand.type);
+        type = unqualify_type(operand.type);
     }
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
         fatal_error(expr->pos, "Can only access fields on aggregates or pointers to aggregates");
@@ -924,7 +926,7 @@ Operand resolve_expr_field(Expr *expr) {
         TypeField field = type->aggregate.fields[i];
         if (field.name == expr->field.name) {
             Operand field_operand = operand.is_lvalue ? operand_lvalue(field.type) : operand_rvalue(field.type);
-            if (is_const_type) {
+            if (was_const_type) {
                 field_operand.type = type_const(field_operand.type);
             }
             return field_operand;

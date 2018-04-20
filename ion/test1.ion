@@ -588,10 +588,33 @@ func test_offsetof() {
 //    n = offsetof(BufHdr, foo);
 }
 
+struct Thing {
+    a: int;
+}
+
+var thing: Thing;
+
+func returns_ptr(): Thing* {
+    return &thing;
+}
+
+func returns_ptr_to_const(): Thing const* {
+    return &thing;
+}
+
+func test_lvalue()
+{
+    returns_ptr().a = 5;
+//    returns_ptr_to_const().a = 5;
+    p := returns_ptr_to_const();
+//    p.a = 42;
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_lvalue();
     test_alignof();
     test_offsetof();
     test_complete();
