@@ -245,14 +245,19 @@ var osc1_amp: float = 0.1;
 var osc1_phase: float;
 
 var osc2_freq: float = 10;
-var osc2_amp: float = 3.0;
-var osc2_phase: float;
+var osc2_amp: float = 1.0;
+var osc2_phase: float = 0.0;
+
+var mix_gain = 1.0;
 
 func audio_callback(context: void*, frames: float2*, num_frames: int) {
     delta_osc1_phase := PI2 * osc1_freq / app.audio.rate;
     delta_osc2_phase := PI2 * osc2_freq / app.audio.rate;
     for (i := 0; i < num_frames; i++) {
         val := osc1_amp * cosf(osc1_phase + osc2_amp * cosf(osc2_phase));
+        // val := osc1_amp * cosf(osc1_phase) * osc2_amp * cosf(osc2_phase);
+        // val := osc1_amp * cosf(osc1_phase) + osc2_amp * cosf(osc2_phase);
+        val *= mix_gain;
         frames[i].x = val;
         frames[i].y = val;
         osc1_phase += delta_osc1_phase;
@@ -298,6 +303,7 @@ func main(argc: int, argv: char**): int {
         print_and_clear_error();
         return 1;
     }
+    printf("Platform: %s\n", app.platform);
     printf("Display: %d x %d, %d Hz, %.2f DPI\n", app.display.size.x, app.display.size.y, app.display.rate, app.display.dpi);
     title_count := 0;
     title_buf: char[16];

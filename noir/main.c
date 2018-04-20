@@ -359,6 +359,7 @@ bool app_init(void) {
     init_keys();
     init_time();
     init_audio();
+    app.platform = SDL_GetPlatform();
     app.init = true;
     return true;
 }
