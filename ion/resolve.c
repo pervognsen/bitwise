@@ -1092,7 +1092,7 @@ Operand resolve_expr_name(Expr *expr) {
     assert(expr->kind == EXPR_NAME);
     Sym *sym = resolve_name(expr->name);
     if (!sym) {
-        fatal_error(expr->pos, "Unresolved name");
+        fatal_error(expr->pos, "Unresolved name '%s'", expr->name);
     }
     if (sym->kind == SYM_VAR) {
         return operand_lvalue(sym->type);
