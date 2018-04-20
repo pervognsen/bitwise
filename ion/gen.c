@@ -13,6 +13,7 @@ const char *gen_preamble =
     "#include <stdbool.h>\n"
     "#include <stdint.h>\n"
     "#include <stddef.h>\n"
+    "#include <assert.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
     "typedef signed char schar;\n"
@@ -512,6 +513,16 @@ void gen_stmt(Stmt *stmt) {
         if (stmt->if_stmt.else_block.stmts) {
             genf(" else ");
             gen_stmt_block(stmt->if_stmt.else_block);
+        } else {
+            Note *complete_note = get_stmt_note(stmt, complete_name);
+            if (complete_note) {
+                genf(" else {");
+                gen_indent++;
+                gen_sync_pos(complete_note->pos);
+                genlnf("assert(\"@complete if/elseif chain failed to handle case\" && 0);");
+                gen_indent--;
+                genlnf("}");
+            }
         }
         break;
     case STMT_WHILE:
@@ -545,10 +556,11 @@ void gen_stmt(Stmt *stmt) {
         genf(") ");
         gen_stmt_block(stmt->for_stmt.block);
         break;
-    case STMT_SWITCH:
+    case STMT_SWITCH: {
         genlnf("switch (");
         gen_expr(stmt->switch_stmt.expr);
         genf(") {");
+        bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
             for (size_t j = 0; j < switch_case.num_exprs; j++) {
@@ -558,6 +570,7 @@ void gen_stmt(Stmt *stmt) {
 
             }
             if (switch_case.is_default) {
+                has_default = true;
                 genlnf("default:");
             }
             genf(" ");
@@ -571,8 +584,19 @@ void gen_stmt(Stmt *stmt) {
             gen_indent--;
             genlnf("}");
         }
+        if (!has_default) {
+            Note *note = get_stmt_note(stmt, complete_name);
+            if (note) {
+                genlnf("default:");
+                gen_indent++;
+                genlnf("assert(\"@complete switch failed to handle case\" && 0);");
+                genlnf("break;");
+                gen_indent--;
+            }
+        }
         genlnf("}");
         break;
+    }
     default:
         genln();
         gen_simple_stmt(stmt);
@@ -718,7 +742,6 @@ void gen_typeinfo_header(const char *kind, Type *type) {
 
 void gen_typeinfo_fields(Type *type) {
     gen_indent++;
-    assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         TypeField field = type->aggregate.fields[i];
         genlnf("{");

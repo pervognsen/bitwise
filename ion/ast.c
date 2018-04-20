@@ -22,7 +22,7 @@ Note new_note(SrcPos pos, const char *name, NoteArg *args, size_t num_args) {
     return (Note){.pos = pos, .name = name, .args = AST_DUP(args), .num_args = num_args};
 }
 
-Notes new_note_list(Note *notes, size_t num_notes) {
+Notes new_notes(Note *notes, size_t num_notes) {
     return (Notes){AST_DUP(notes), num_notes};
 }
 
@@ -276,6 +276,16 @@ Expr *new_expr_ternary(SrcPos pos, Expr *cond, Expr *then_expr, Expr *else_expr)
     e->ternary.then_expr = then_expr;
     e->ternary.else_expr = else_expr;
     return e;
+}
+
+Note *get_stmt_note(Stmt *stmt, const char *name) {
+    for (size_t i = 0; i < stmt->notes.num_notes; i++) {
+        Note *note = stmt->notes.notes + i;
+        if (note->name == name) {
+            return note;
+        }
+    }
+    return NULL;
 }
 
 Stmt *new_stmt(StmtKind kind, SrcPos pos) {

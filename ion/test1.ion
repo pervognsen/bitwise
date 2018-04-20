@@ -516,35 +516,60 @@ func println_typeinfo(type: typeid) {
     printf("\n");
 }
 
-func test_typeof() {
+func test_typeinfo() {
     i := 42;
     f := 3.14;
-    p := &i;
-
-    type1 := typeof(i);
-    type2 := typeof(i + 1);
-    type3 := typeof(int);
-    type4 := typeof(:int*);
+    p := NULL;
 
     println_any({&i, typeof(i)});
     println_any({&f, typeof(f)});
     println_any({&p, typeof(p)});
-}
 
-func test_typeinfo() {
-    println_typeinfo(typeof(int));
-    println_typeinfo(typeof(UartCtrl));
     println_type(typeof(int));
     println_type(typeof(:int const*));
     println_type(typeof(:int const*[42]));
     println_type(typeof(UartCtrl));
+
+    println_typeinfo(typeof(int));
+    println_typeinfo(typeof(UartCtrl));
+}
+
+func test_compound_literals() {
+    i := 42;
+    x: Any const = {&i, typeof(i)};
+    y := (:Any const){&i, typeof(i)};
+}
+
+func test_complete() {
+    x := 0;
+    // x := 1;
+    // x := 2;
+    y := 0;
+    @complete
+    if (x == 0) {
+        y = 1;
+    } else if (x == 1) {
+        y = 2;
+    }
+
+    x = 0;
+    // x = 1;
+    // x = 2;
+    @complete
+    switch (x) {
+    case 0:
+        y = 3;
+    case 1:
+        y = 4;
+    }
 }
 
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
-    test_typeof();
+    test_complete();
+    test_compound_literals();
     test_loops();
     test_sizeof();
     test_assign();

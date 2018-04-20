@@ -24,6 +24,7 @@ const char *last_keyword;
 const char **keywords;
 
 const char *foreign_name;
+const char *complete_name;
 
 #define KEYWORD(name) name##_keyword = str_intern(#name); buf_push(keywords, name##_keyword)
 
@@ -58,6 +59,7 @@ void init_keywords(void) {
     last_keyword = default_keyword;
 
     foreign_name = str_intern("foreign");
+    complete_name = str_intern("complete");
 
     inited = true;
 }

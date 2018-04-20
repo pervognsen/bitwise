@@ -3,6 +3,7 @@ Decl *parse_decl(void);
 Typespec *parse_type(void);
 Stmt *parse_stmt(void);
 Expr *parse_expr(void);
+Notes parse_notes(void);
 
 Typespec *parse_type_func_param(void) {
     Typespec *type = parse_type();
@@ -377,7 +378,7 @@ bool is_assign_op(void) {
 Stmt *parse_simple_stmt(void) {
     SrcPos pos = token.pos;
     Expr *expr = parse_expr();
-    Stmt *stmt;
+    Stmt *stmt = NULL;
     if (match_token(TOKEN_COLON_ASSIGN)) {
         if (expr->kind != EXPR_NAME) {
             fatal_error_here(":= must be preceded by a name");
@@ -472,37 +473,40 @@ Stmt *parse_stmt_switch(SrcPos pos) {
 }
 
 Stmt *parse_stmt(void) {
+    Notes notes = parse_notes();
     SrcPos pos = token.pos;
+    Stmt *stmt = NULL;
     if (match_keyword(if_keyword)) {
-        return parse_stmt_if(pos);
+        stmt = parse_stmt_if(pos);
     } else if (match_keyword(while_keyword)) {
-        return parse_stmt_while(pos);
+        stmt = parse_stmt_while(pos);
     } else if (match_keyword(do_keyword)) {
-        return parse_stmt_do_while(pos);
+        stmt = parse_stmt_do_while(pos);
     } else if (match_keyword(for_keyword)) {
-        return parse_stmt_for(pos);
+        stmt = parse_stmt_for(pos);
     } else if (match_keyword(switch_keyword)) {
-        return parse_stmt_switch(pos);
+        stmt = parse_stmt_switch(pos);
     } else if (is_token(TOKEN_LBRACE)) {
-        return new_stmt_block(pos, parse_stmt_block());
+        stmt = new_stmt_block(pos, parse_stmt_block());
     } else if (match_keyword(break_keyword)) {
         expect_token(TOKEN_SEMICOLON);
-        return new_stmt_break(pos);
+        stmt = new_stmt_break(pos);
     } else if (match_keyword(continue_keyword)) {
         expect_token(TOKEN_SEMICOLON);
-        return new_stmt_continue(pos);
+        stmt = new_stmt_continue(pos);
     } else if (match_keyword(return_keyword)) {
         Expr *expr = NULL;
         if (!is_token(TOKEN_SEMICOLON)) {
             expr = parse_expr();
         }
         expect_token(TOKEN_SEMICOLON);
-        return new_stmt_return(pos, expr);
+        stmt = new_stmt_return(pos, expr);
     } else {
-        Stmt *stmt = parse_simple_stmt();
+        stmt = parse_simple_stmt();
         expect_token(TOKEN_SEMICOLON);
-        return stmt;
     }
+    stmt->notes = notes;
+    return stmt;
 }
 
 const char *parse_name(void) {
@@ -681,12 +685,12 @@ Note parse_note(void) {
     return new_note(pos, name, args, buf_len(args));
 }
     
-Notes parse_note_list(void) {
+Notes parse_notes(void) {
     Note *notes = NULL;
     while (match_token(TOKEN_AT)) {
         buf_push(notes, parse_note());
     }
-    return new_note_list(notes, buf_len(notes));
+    return new_notes(notes, buf_len(notes));
 }
 
 Decl *parse_decl_note(SrcPos pos) {
@@ -717,7 +721,7 @@ Decl *parse_decl_opt(void) {
 }
 
 Decl *parse_decl(void) {
-    Notes notes = parse_note_list();
+    Notes notes = parse_notes();
     Decl *decl = parse_decl_opt();
     if (!decl) {
         fatal_error_here("Expected declaration keyword, got %s", token_info());

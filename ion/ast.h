@@ -253,6 +253,7 @@ typedef enum StmtKind {
 
 struct Stmt {
     StmtKind kind;
+    Notes notes;
     SrcPos pos;
     union {
         Expr *expr;
