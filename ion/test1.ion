@@ -461,10 +461,15 @@ func println_any(any: Any) {
     printf("\n");
 }
 
+func print_typeid(type: typeid) {
+    printf("typeid(%d)", type);
+}
+
 func print_type(type: typeid) {
     typeinfo := get_typeinfo(type);
     if (!typeinfo) {
-        printf("<typeid %d>", type);
+        print_typeid(type);
+        return;
     }
     switch (typeinfo.kind) {
     case TYPE_PTR:
@@ -480,7 +485,7 @@ func print_type(type: typeid) {
         if (typeinfo.name) {
             printf("%s", typeinfo.name);
         } else {
-            printf("typeid %d>", type);
+            print_typeid(type);
         }
     }
 }
@@ -493,7 +498,7 @@ func println_type(type: typeid) {
 func print_typeinfo(type: typeid) {
     typeinfo := get_typeinfo(type);
     if (!typeinfo) {
-        printf("<typeid %d>", type);
+        print_typeid(type);
         return;
     }
     printf("<");
@@ -535,6 +540,8 @@ func test_typeinfo() {
 
     println_typeinfo(typeof(int));
     println_typeinfo(typeof(UartCtrl));
+    println_typeinfo(typeof(:IntOrPtr*));
+    println_typeinfo(typeof(IntOrPtr));
 }
 
 func test_compound_literals() {

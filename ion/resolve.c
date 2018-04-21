@@ -917,6 +917,7 @@ Operand resolve_expr_field(Expr *expr) {
         operand = operand_lvalue(type->base);
         was_const_type = is_const_type(operand.type);
         type = unqualify_type(operand.type);
+        complete_type(type);
     }
     if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
         fatal_error(expr->pos, "Can only access fields on aggregates or pointers to aggregates");
