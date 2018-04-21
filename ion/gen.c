@@ -640,17 +640,6 @@ void gen_stmt(Stmt *stmt) {
     }
 }
 
-void gen_enum(Decl *decl) {
-    assert(decl->kind == DECL_ENUM);
-    genlnf("typedef enum %s {", decl->name);
-    gen_indent++;
-    for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
-        genlnf("%s,", decl->enum_decl.items[i].name);
-    }
-    gen_indent--;
-    genlnf("} %s;", decl->name);
-}
-
 void gen_decl(Sym *sym) {
     Decl *decl = sym->decl;
     if (!decl || is_decl_foreign(decl)) {
@@ -690,7 +679,7 @@ void gen_decl(Sym *sym) {
         genlnf("typedef %s;", typespec_to_cdecl(decl->typedef_decl.type, sym->name));
         break;
     case DECL_ENUM:
-        gen_enum(decl);
+        genlnf("typedef int %s;", decl->name);
         break;
     default:
         assert(0);

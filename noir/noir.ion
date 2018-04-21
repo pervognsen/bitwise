@@ -28,27 +28,28 @@ func update_digital_button(button: DigitalButton*, down: bool) {
     button.released += !down && was_down;
 }
 
-const KEY_LSHIFT = 256;
-const KEY_RSHIFT = 257;
-const KEY_SHIFT = 258;
-const KEY_LCTRL = 259;
-const KEY_RCTRL = 260;
-const KEY_CTRL = 261;
-const KEY_LALT = 262;
-const KEY_RALT = 263;
-const KEY_ALT = 264;
-const KEY_CAPS = 265;
-const KEY_RETURN = 266;
-const KEY_SPACE = 267;
-const KEY_BACKSPACE = 268;
-const KEY_ESCAPE = 269;
-const KEY_TAB = 270;
-const KEY_LEFT = 271;
-const KEY_RIGHT = 272;
-const KEY_UP = 273;
-const KEY_DOWN = 274;
-
-const NUM_KEYS = KEY_DOWN + 1;
+enum Key {
+    KEY_LSHIFT = 256,
+    KEY_RSHIFT,
+    KEY_SHIFT,
+    KEY_LCTRL,
+    KEY_RCTRL,
+    KEY_CTRL,
+    KEY_LALT,
+    KEY_RALT,
+    KEY_ALT,
+    KEY_CAPS,
+    KEY_RETURN,
+    KEY_SPACE,
+    KEY_BACKSPACE,
+    KEY_ESCAPE,
+    KEY_TAB,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_UP,
+    KEY_DOWN,
+    NUM_KEYS,
+}
 
 const MAX_TEXT = 1024;
 const MAX_ERROR = 256;
@@ -93,11 +94,12 @@ struct Mouse {
 
 struct Audio {
     valid: bool;
-    play: bool;
     rate: int;
     channels: int;
+
+    play: bool;
     callback: func(context: void*, frames: float2*, num_frames: int);
-    callback_context: void*;
+    context: void*;
 
     synced_play: bool;
 
@@ -244,7 +246,7 @@ var osc1_freq: float = 440;
 var osc1_amp: float = 0.1;
 var osc1_phase: float;
 
-var osc2_freq: float = 10;
+var osc2_freq: float = 330;
 var osc2_amp: float = 1.0;
 var osc2_phase: float = 0.0;
 
