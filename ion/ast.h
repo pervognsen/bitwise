@@ -276,6 +276,7 @@ struct Stmt {
         Expr *expr;
         Decl *decl;
         struct {
+            Stmt *init;
             Expr *cond;
             StmtList then_block;
             ElseIf *elseifs;

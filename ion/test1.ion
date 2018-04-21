@@ -653,10 +653,22 @@ func test_lvalue() {
 //    p.a = 42;
 }
 
+func test_if() {
+    if (1) {
+    }
+//    if (x := Thing{}) {
+//    }
+    if (x := 42) {
+    }
+    if (x := 42; x >= 0) {
+    }
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_if();
     test_modify();
     test_lvalue();
     test_alignof();

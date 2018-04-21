@@ -354,8 +354,9 @@ Stmt *new_stmt_block(SrcPos pos, StmtList block) {
     return s;
 }
 
-Stmt *new_stmt_if(SrcPos pos, Expr *cond, StmtList then_block, ElseIf *elseifs, size_t num_elseifs, StmtList else_block) {
+Stmt *new_stmt_if(SrcPos pos, Stmt *init, Expr *cond, StmtList then_block, ElseIf *elseifs, size_t num_elseifs, StmtList else_block) {
     Stmt *s = new_stmt(STMT_IF, pos);
+    s->if_stmt.init = init;
     s->if_stmt.cond = cond;
     s->if_stmt.then_block = then_block;
     s->if_stmt.elseifs = AST_DUP(elseifs);

@@ -660,7 +660,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr_rvalue(expr);
     if (!is_scalar_type(cond.type)) {
-        fatal_error(expr->pos, "Conditional expression must have operand type");
+        fatal_error(expr->pos, "Conditional expression must have scalar type");
     }
 }
 
@@ -675,6 +675,7 @@ bool resolve_stmt_block(StmtList block, Type *ret_type, StmtCtx ctx) {
 }
 
 Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Operand left, Operand right);
+Operand resolve_name_operand(SrcPos pos, const char *name);
 
 void resolve_stmt_assign(Stmt *stmt) {
     assert(stmt->kind == STMT_ASSIGN);
@@ -753,7 +754,18 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         }
         return false;
     case STMT_IF: {
-        resolve_cond_expr(stmt->if_stmt.cond);
+        Sym *scope = sym_enter();
+        if (stmt->if_stmt.init) {
+            resolve_stmt_init(stmt->if_stmt.init);
+        }
+        if (stmt->if_stmt.cond) {
+            resolve_cond_expr(stmt->if_stmt.cond);
+        } else {
+            Operand operand = operand_decay(resolve_name_operand(stmt->pos, stmt->if_stmt.init->init.name));
+            if (!is_scalar_type(operand.type)) {
+                fatal_error(stmt->pos, "Conditional expression must have scalar type");
+            }
+        }
         bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type, ctx);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
             ElseIf elseif = stmt->if_stmt.elseifs[i];
@@ -765,6 +777,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         } else {
             returns = false;
         }
+        sym_leave(scope);
         return returns;
     }
     case STMT_WHILE:
@@ -1099,11 +1112,10 @@ Val eval_binary_op(TokenKind op, Type *type, Val left, Val right) {
     }
 }
 
-Operand resolve_expr_name(Expr *expr) {
-    assert(expr->kind == EXPR_NAME);
-    Sym *sym = resolve_name(expr->name);
+Operand resolve_name_operand(SrcPos pos, const char *name) {
+    Sym *sym = resolve_name(name);
     if (!sym) {
-        fatal_error(expr->pos, "Unresolved name '%s'", expr->name);
+        fatal_error(pos, "Unresolved name '%s'", name);
     }
     if (sym->kind == SYM_VAR) {
         return operand_lvalue(sym->type);
@@ -1112,9 +1124,14 @@ Operand resolve_expr_name(Expr *expr) {
     } else if (sym->kind == SYM_FUNC) {
         return operand_rvalue(sym->type);
     } else {
-        fatal_error(expr->pos, "%s must be a var or const", expr->name);
+        fatal_error(pos, "%s must be a var or const", name);
         return operand_null;
     }
+}
+
+Operand resolve_expr_name(Expr *expr) {
+    assert(expr->kind == EXPR_NAME);
+    return resolve_name_operand(expr->pos, expr->name);
 }
 
 Operand resolve_unary_op(TokenKind op, Operand operand) {

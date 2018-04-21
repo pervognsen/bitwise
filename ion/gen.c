@@ -520,8 +520,18 @@ void gen_stmt(Stmt *stmt) {
         }
         break;
     case STMT_IF:
+        if (stmt->if_stmt.init) {
+            genlnf("{");
+            gen_indent++;
+            gen_stmt(stmt->if_stmt.init);
+        }
+        gen_sync_pos(stmt->pos);
         genlnf("if (");
-        gen_expr(stmt->if_stmt.cond);
+        if (stmt->if_stmt.cond) {
+            gen_expr(stmt->if_stmt.cond);
+        } else {
+            genf("%s", stmt->if_stmt.init->init.name);
+        }
         genf(") ");
         gen_stmt_block(stmt->if_stmt.then_block);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {
@@ -544,6 +554,10 @@ void gen_stmt(Stmt *stmt) {
                 gen_indent--;
                 genlnf("}");
             }
+        }
+        if (stmt->if_stmt.init) {
+            gen_indent--;
+            genlnf("}");
         }
         break;
     case STMT_WHILE:
