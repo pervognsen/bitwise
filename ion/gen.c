@@ -42,6 +42,7 @@ const char *gen_preamble =
     "#else\n"
     "#define alignof(x) __alignof__(x)\n"
     "#endif\n"
+    "\n"
     ;
 
 void genln(void) {
@@ -835,7 +836,7 @@ void gen_typeinfo(Type *type) {
         genf("NULL, // Incomplete: %s", type->sym->name);
         break;
     default:
-        genf("NULL, // Unhandled kind");
+        genf("NULL, // Unhandled");
         break;
     }
 }
@@ -844,7 +845,7 @@ void gen_typeinfo(Type *type) {
 
 void gen_typeinfos(void) {
     int num_typeinfos = next_typeid;
-    genlnf("TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
+    genlnf("const TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
     gen_indent++;
     for (int typeid = 0; typeid < num_typeinfos; typeid++) {
         genlnf("[%d] = ", typeid);
@@ -859,7 +860,7 @@ void gen_typeinfos(void) {
     genlnf("};");
     genln();
     genlnf("int num_typeinfos = %d;", num_typeinfos);
-    genlnf("const TypeInfo **typeinfos = typeinfo_table;");
+    genlnf("const TypeInfo **typeinfos = (const TypeInfo **)typeinfo_table;");
 }
 
 void gen_all(void) {
