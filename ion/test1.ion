@@ -58,6 +58,25 @@ struct S2 {
     s1: S1;
 }
 
+func test_modify() {
+    i := 42;
+    p := &i;
+    p--;
+    x := *p++;
+    #assert(x == *--p);
+    (*p)++;
+    (*p)--;
+    stk: int[16];
+    sp: int* = stk;
+    *sp++ = 1;
+    *sp++ = 2;
+    x = *--sp;
+    #assert(x == 2);
+    x = *--sp;
+    #assert(x == 1);
+    #assert(sp == stk);
+}
+
 func f10(a: int[3]) {
     a[1] = 42;
 }
@@ -342,11 +361,6 @@ func test_ops() {
     b = n & 1;
     b = (n & ~1) ^ 1;
     b = p && pi;
-    p--;
-    x := *p++;
-    #assert(x == *--p);
-    (*p)++;
-    (*p)--;
 }
 
 const IS_DEBUG = true;
@@ -424,6 +438,8 @@ func test_init() {
     for (i: ullong = 0; i < 10; i++) {
         printf("%llu\n", i);
     }
+    b: int[4] = {1, 2, 3, 4};
+    b[0] = a[2];
 }
 
 func test_sizeof() {
@@ -612,8 +628,7 @@ func returns_ptr_to_const(): Thing const* {
     return &thing;
 }
 
-func test_lvalue()
-{
+func test_lvalue() {
     returns_ptr().a = 5;
 //    returns_ptr_to_const().a = 5;
     p := returns_ptr_to_const();
@@ -624,6 +639,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_modify();
     test_lvalue();
     test_alignof();
     test_offsetof();

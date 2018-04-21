@@ -196,11 +196,16 @@ Operand operand_const(Type *type, Val val) {
     };
 }
 
-Operand operand_decay(Operand operand) {
-    operand.type = unqualify_type(operand.type);
-    if (operand.type->kind == TYPE_ARRAY) {
-        operand.type = type_ptr(operand.type->base);
+Type *type_decay(Type *type) {
+    type = unqualify_type(type);
+    if (type->kind == TYPE_ARRAY) {
+        type = type_ptr(type->base);
     }
+    return type;
+}
+
+Operand operand_decay(Operand operand) {
+    operand.type = type_decay(operand.type);
     operand.is_lvalue = false;
     return operand;
 }
@@ -553,30 +558,39 @@ Type *resolve_decl_type(Decl *decl) {
     return resolve_typespec(decl->typedef_decl.type);
 }
 
-Type *resolve_decl_var(Decl *decl) {
-    assert(decl->kind == DECL_VAR);
-    Type *type = NULL;
-    if (decl->var.type) {
-        type = resolve_typespec(decl->var.type);
-    }
-    if (decl->var.expr) {
-        Operand operand = resolve_expected_expr(decl->var.expr, type);
-        if (type) {
-            if (is_incomplete_array_type(type) && is_array_type(operand.type)) {
+Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
+    Type *type;
+    if (typespec) {
+        type = resolve_typespec(typespec);
+        if (expr) {
+            Type *expected_type = unqualify_type(type);
+            Operand operand = resolve_expected_expr(expr, expected_type);
+            if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
                 // Incomplete array size, so infer the size from the initializer expression's type.
             } else {
-                if (!convert_operand(&operand, type)) {
-                    fatal_error(decl->pos, "Invalid type in variable initializer");
+                if (type && is_ptr_type(type)) {
+                    operand = operand_decay(operand);
+                }
+                if (!convert_operand(&operand, expected_type)) {
+                    fatal_error(pos, "Invalid type in initialization");
                 }
             }
+            type = operand.type;
         }
-        type = operand.type;
+    } else {
+        assert(expr);
+        type = unqualify_type(resolve_expr(expr).type);
     }
     complete_type(type);
     if (type->size == 0) {
-        fatal_error(decl->pos, "Cannot declare variable of size 0");
+        fatal_error(pos, "Cannot declare variable of size 0");
     }
     return type;
+}
+
+Type *resolve_decl_var(Decl *decl) {
+    assert(decl->kind == DECL_VAR);
+    return resolve_init(decl->pos, decl->var.type, decl->var.expr);
 }
 
 Type *resolve_decl_const(Decl *decl, Val *val) {
@@ -679,25 +693,7 @@ void resolve_stmt_assign(Stmt *stmt) {
 
 void resolve_stmt_init(Stmt *stmt) {
     assert(stmt->kind == STMT_INIT);
-    Type *type;
-    if (stmt->init.type) {
-        type = resolve_typespec(stmt->init.type);
-        if (stmt->init.expr) {
-            Type *expected_type = unqualify_type(type);
-            Operand operand = resolve_expected_expr(stmt->init.expr, expected_type);
-            if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
-                type = operand.type;
-            } else if (!convert_operand(&operand, expected_type)) {
-                fatal_error(stmt->pos, "Invalid type in initialization statement");
-            }
-        }
-    } else {
-        assert(stmt->init.expr);
-        type = unqualify_type(resolve_expr(stmt->init.expr).type);
-    }
-    if (type->size == 0) {
-        fatal_error(stmt->pos, "Cannot declare variable of size 0");
-    }
+    Type *type = resolve_init(stmt->pos, stmt->init.type, stmt->init.expr);
     if (!sym_push_var(stmt->init.name, type)) {
         fatal_error(stmt->pos, "Shadowed definition of local symbol");
     }
