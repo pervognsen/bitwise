@@ -55,7 +55,12 @@ const char *builtin_code =
     "    } else {\n"
     "        return NULL;\n"
     "    }\n"
-    "}\n";
+    "}\n"
+    "struct Any {\n"
+    "    ptr: void*;\n"
+    "    type: typeid;\n"
+    "}\n"
+    "";
 
 void init_compiler(void) {
     init_builtins();

@@ -450,6 +450,12 @@ void gen_init_expr(Expr *expr) {
     }
 }
 
+void gen_paren_expr(Expr *expr) {
+    genf("(");
+    gen_expr(expr);
+    genf(")");
+}
+
 void gen_simple_stmt(Stmt *stmt) {
     switch (stmt->kind) {
     case STMT_EXPR:
@@ -472,7 +478,7 @@ void gen_simple_stmt(Stmt *stmt) {
         }
         break;
     case STMT_ASSIGN:
-        gen_expr(stmt->assign.left);
+        gen_paren_expr(stmt->assign.left);
         if (stmt->assign.right) {
             genf(" %s ", token_kind_name(stmt->assign.op));
             gen_expr(stmt->assign.right);

@@ -342,6 +342,7 @@ func test_ops() {
     b = n & 1;
     b = (n & ~1) ^ 1;
     b = p && pi;
+    (*p)++;
 }
 
 const IS_DEBUG = true;
@@ -436,11 +437,6 @@ func test_cast() {
     a = uint64(p);
     // p = a;
     p = (:int*)a;
-}
-
-struct Any {
-    ptr: void*;
-    type: typeid;
 }
 
 func print_any(any: Any) {
