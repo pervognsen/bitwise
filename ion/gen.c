@@ -301,6 +301,7 @@ void gen_expr_compound(Expr *expr, bool is_init) {
     } else {
         genf("(%s){", type_to_cdecl(get_resolved_type(expr), ""));
     }
+    Type *type = unqualify_type(get_resolved_type(expr));
     for (size_t i = 0; i < expr->compound.num_fields; i++) {
         if (i != 0) {
             genf(", ");
@@ -313,7 +314,13 @@ void gen_expr_compound(Expr *expr, bool is_init) {
             gen_expr(field.index);
             genf("] = ");
         }
-        gen_init_expr(field.init);
+        int field_index = get_resolved_field_index(&expr->compound.fields[i]);
+        if (field_index >= 0 && is_ptr_type(unqualify_type(type->aggregate.fields[field_index].type))) {
+            // Need to generate compound literals rather than naked initializers for pointer fields.
+            gen_expr(field.init);
+        } else {
+            gen_init_expr(field.init);
+        }
     }
     if (expr->compound.num_fields == 0) {
         genf("0");
@@ -874,7 +881,6 @@ void gen_all(void) {
     gen_buf = NULL;
     genf("// Foreign includes");
     gen_headers();
-    genln();
     genln();
     genlnf("%s", gen_preamble);
     genf("// Forward declarations");

@@ -430,6 +430,20 @@ void set_resolved_type(void *ptr, Type *type) {
     map_put(&resolved_type_map, ptr, type);
 }
 
+Map resolved_field_index_map;
+
+int get_resolved_field_index(void *ptr) {
+    int val = (int)(uintptr_t)map_get(&resolved_field_index_map, ptr);
+    if (!val) {
+        return -1;
+    }
+    return val - 1;
+}
+
+void set_resolved_field_index(void *ptr, int index) {
+    map_put(&resolved_field_index_map, ptr, (void *)(uintptr_t)(index + 1));
+}
+
 Sym *resolve_name(const char *name);
 Operand resolve_const_expr(Expr *expr);
 Operand resolve_expected_expr(Expr *expr, Type *expected_type);
@@ -558,24 +572,31 @@ Type *resolve_decl_type(Decl *decl) {
     return resolve_typespec(decl->typedef_decl.type);
 }
 
+Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
+    Type *expected_type = unqualify_type(type);
+    Operand operand = resolve_expected_expr(expr, expected_type);
+    if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
+        // Incomplete array size, so infer the size from the initializer expression's type.
+    } else {
+        if (type && is_ptr_type(type)) {
+            operand = operand_decay(operand);
+        }
+        if (!convert_operand(&operand, expected_type)) {
+            return NULL;
+        }
+    }
+    return operand.type;
+}
+
 Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
     Type *type;
     if (typespec) {
         type = resolve_typespec(typespec);
         if (expr) {
-            Type *expected_type = unqualify_type(type);
-            Operand operand = resolve_expected_expr(expr, expected_type);
-            if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
-                // Incomplete array size, so infer the size from the initializer expression's type.
-            } else {
-                if (type && is_ptr_type(type)) {
-                    operand = operand_decay(operand);
-                }
-                if (!convert_operand(&operand, expected_type)) {
-                    fatal_error(pos, "Invalid type in initialization");
-                }
+            type = resolve_typed_init(pos, type, expr);
+            if (!type) {
+                fatal_error(pos, "Invalid type in initialization");
             }
-            type = operand.type;
         }
     } else {
         assert(expr);
@@ -1293,16 +1314,6 @@ Operand resolve_expr_binary(Expr *expr) {
     return resolve_expr_binary_op(op, op_name, expr->pos, left, right);
 }
 
-int aggregate_field_index(Type *type, const char *name) {
-    assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
-    for (int i = 0; i < type->aggregate.num_fields; i++) {
-        if (type->aggregate.fields[i].name == name) {
-            return i;
-        }
-    }
-    return -1;
-}
-
 Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_COMPOUND);
     if (!expected_type && !expr->compound.type) {
@@ -1332,10 +1343,10 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (index >= type->aggregate.num_fields) {
                 fatal_error(field.pos, "Field initializer in struct/union compound literal out of range");
             }
+            set_resolved_field_index(&expr->compound.fields[i], index);
             Type *field_type = type->aggregate.fields[index].type;
-            Operand init = resolve_expected_expr_rvalue(field.init, field_type);
-            if (!convert_operand(&init, field_type)) {
-                fatal_error(field.pos, "Invalid type in compound literal initializer");
+            if (!resolve_typed_init(field.pos, field_type, field.init)) {
+                fatal_error(field.pos, "Invalid type in compound literal initializer for aggregate type");
             }
             index++;
         }
@@ -1361,9 +1372,8 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (type->num_elems && index >= type->num_elems) {
                 fatal_error(field.pos, "Field initializer in array compound literal out of range");
             }
-            Operand init = resolve_expected_expr_rvalue(field.init, type->base);
-            if (!convert_operand(&init, type->base)) {
-                fatal_error(field.pos, "Invalid type in compound literal initializer");
+            if (!resolve_typed_init(field.pos, type->base, field.init)) {
+                fatal_error(field.pos, "Invalid type in compound literal initializer for array type");
             }
             max_index = MAX(max_index, index);
             index++;
@@ -1734,11 +1744,11 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
 }
 
 Operand resolve_const_expr(Expr *expr) {
-    Operand result = resolve_expr(expr);
-    if (!result.is_const) {
+    Operand operand = resolve_expr(expr);
+    if (!operand.is_const) {
         fatal_error(expr->pos, "Expected constant expression");
     }
-    return result;
+    return operand;
 }
 
 Map decl_note_names;
