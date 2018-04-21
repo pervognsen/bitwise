@@ -132,7 +132,7 @@ bool is_floating_type(Type *type) {
 }
 
 bool is_arithmetic_type(Type *type) {
-    return TYPE_BOOL && type->kind && type->kind <= TYPE_DOUBLE;
+    return TYPE_BOOL <= type->kind && type->kind <= TYPE_DOUBLE;
 }
 
 bool is_scalar_type(Type *type) {
