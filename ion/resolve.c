@@ -657,9 +657,14 @@ typedef struct StmtCtx {
 
 bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
 
+bool is_cond_operand(Operand operand) {
+    operand = operand_decay(operand);
+    return is_scalar_type(operand.type);
+}
+
 void resolve_cond_expr(Expr *expr) {
     Operand cond = resolve_expr_rvalue(expr);
-    if (!is_scalar_type(cond.type)) {
+    if (!is_cond_operand(cond)) {
         fatal_error(expr->pos, "Conditional expression must have scalar type");
     }
 }
@@ -760,11 +765,8 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         }
         if (stmt->if_stmt.cond) {
             resolve_cond_expr(stmt->if_stmt.cond);
-        } else {
-            Operand operand = operand_decay(resolve_name_operand(stmt->pos, stmt->if_stmt.init->init.name));
-            if (!is_scalar_type(operand.type)) {
-                fatal_error(stmt->pos, "Conditional expression must have scalar type");
-            }
+        } else if (!is_cond_operand(resolve_name_operand(stmt->pos, stmt->if_stmt.init->init.name))) {
+            fatal_error(stmt->pos, "Conditional expression must have scalar type");
         }
         bool returns = resolve_stmt_block(stmt->if_stmt.then_block, ret_type, ctx);
         for (size_t i = 0; i < stmt->if_stmt.num_elseifs; i++) {

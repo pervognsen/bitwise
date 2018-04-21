@@ -662,6 +662,8 @@ func test_if() {
     }
     if (x := 42; x >= 0) {
     }
+    if (x: int = 42; x >= 0) {
+    }
 }
 
 func main(argc: int, argv: char const**): int {
