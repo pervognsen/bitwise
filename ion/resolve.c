@@ -155,6 +155,7 @@ Sym *sym_global_decl(Decl *decl) {
         sym->state = SYM_RESOLVED;
         sym->type = type_enum(sym);
         buf_push(sorted_syms, sym);
+        Typespec *enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
         const char *prev_item_name = NULL;
         for (int i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
@@ -166,7 +167,7 @@ Sym *sym_global_decl(Decl *decl) {
             } else {
                 init = new_expr_int(item.pos, 0, 0, 0);
             }
-            sym_global_decl(new_decl_const(item.pos, item.name, NULL, init));
+            sym_global_decl(new_decl_const(item.pos, item.name, enum_typespec, init));
             prev_item_name = item.name;
         }
     }
@@ -354,7 +355,8 @@ bool cast_operand(Operand *operand, Type *type) {
 bool convert_operand(Operand *operand, Type *type) {
     if (is_convertible(operand, type)) {
         cast_operand(operand, type);
-        *operand = operand_rvalue(operand->type);
+        operand->type = unqualify_type(operand->type);
+        operand->is_lvalue = false;
         return true;
     }
     return false;
