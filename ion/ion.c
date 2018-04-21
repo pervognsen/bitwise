@@ -1,5 +1,6 @@
 const char *builtin_code =
     "#declare_note(foreign)\n"
+    "#declare_note(static_assert)\n"
     "\n"
     "enum TypeKind {\n"
     "    TYPE_NONE,\n"

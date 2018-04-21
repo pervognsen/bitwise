@@ -29,6 +29,7 @@ const char *foreign_name;
 const char *complete_name;
 const char *assert_name;
 const char *declare_note_name;
+const char *static_assert_name;
 
 #define KEYWORD(name) name##_keyword = str_intern(#name); buf_push(keywords, name##_keyword)
 
@@ -68,6 +69,7 @@ void init_keywords(void) {
     complete_name = str_intern("complete");
     assert_name = str_intern("assert");
     declare_note_name = str_intern("declare_note");
+    static_assert_name = str_intern("static_assert");
 
     inited = true;
 }

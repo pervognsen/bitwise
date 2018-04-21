@@ -1839,6 +1839,14 @@ void sym_global_decls(void) {
                     fatal_error(decl->pos, "#declare_note argument must be name");
                 }
                 map_put(&decl_note_names, arg->name, (void *)1);
+            } else if (decl->note.name == static_assert_name) {
+                if (decl->note.num_args != 1) {
+                    fatal_error(decl->pos, "#static_assert takes 1 argument");
+                }
+                Operand operand = resolve_const_expr(decl->note.args[0].expr);
+                if (!operand.val.ull) {
+                    fatal_error(decl->pos, "#static_assert failed");
+                }
             }
         } else {
             sym_global_decl(global_decls->decls[i]);
