@@ -12,6 +12,10 @@ func getchar(): int;
 @foreign
 func memcpy(dest: void*, src: void const*): void*;
 
+#static_assert('\xFF' == 255)
+
+var esc_test_str = "Hello\nworld\nHex: \xFHello\xFF";
+
 var some_array: int* = (:int[]){1, 2, 3};
 
 struct SomeIncompleteType;

@@ -453,10 +453,31 @@ char escape_to_char[256] = {
     ['0'] = 0,
 };
 
+int scan_hex_escape(void) {
+    assert(*stream == 'x');
+    stream++;
+    int val = char_to_digit[(unsigned char)*stream];
+    if (!val) {
+        error_here("\\x needs at least 1 hex digit");
+    }
+    stream++;
+    int digit = char_to_digit[(unsigned char)*stream];
+    if (digit) {
+        val *= 16;
+        val += digit;
+        if (val > 0xFF) {
+            error_here("\\x argument out of range");
+            val = 0xFF;
+        }
+        stream++;
+    }
+    return val;
+}
+
 void scan_char(void) {
     assert(*stream == '\'');
     stream++;
-    char val = 0;
+    int val = 0;
     if (*stream == '\'') {
         error_here("Char literal cannot be empty");
         stream++;
@@ -464,11 +485,15 @@ void scan_char(void) {
         error_here("Char literal cannot contain newline");
     } else if (*stream == '\\') {
         stream++;
-        val = escape_to_char[(unsigned char)*stream];
-        if (val == 0 && *stream != '0') {
-            error_here("Invalid char literal escape '\\%c'", *stream);
+        if (*stream == 'x') {
+            val = scan_hex_escape();
+        } else {
+            val = escape_to_char[(unsigned char)*stream];
+            if (val == 0 && *stream != '0') {
+                error_here("Invalid char literal escape '\\%c'", *stream);
+            }
+            stream++;
         }
-        stream++;
     } else {
         val = *stream;
         stream++;
@@ -515,13 +540,19 @@ void scan_str(void) {
                 break;
             } else if (val == '\\') {
                 stream++;
-                val = escape_to_char[(unsigned char)*stream];
-                if (val == 0 && *stream != '0') {
-                    error_here("Invalid string literal escape '\\%c'", *stream);
+                if (*stream == 'x') {
+                    val = scan_hex_escape();
+                } else {
+                    val = escape_to_char[(unsigned char)*stream];
+                    if (val == 0 && *stream != '0') {
+                        error_here("Invalid string literal escape '\\%c'", *stream);
+                    }
+                    stream++;
                 }
+            } else {
+                stream++;
             }
             buf_push(str, val);
-            stream++;
         }
         if (*stream) {
             assert(*stream == '"');
