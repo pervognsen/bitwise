@@ -342,7 +342,11 @@ func test_ops() {
     b = n & 1;
     b = (n & ~1) ^ 1;
     b = p && pi;
+    p--;
+    x := *p++;
+    #assert(x == *--p);
     (*p)++;
+    (*p)--;
 }
 
 const IS_DEBUG = true;

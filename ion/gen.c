@@ -285,6 +285,13 @@ void gen_aggregate(Decl *decl) {
 }
 
 void gen_init_expr(Expr *expr);
+void gen_expr(Expr *expr);
+
+void gen_paren_expr(Expr *expr) {
+    genf("(");
+    gen_expr(expr);
+    genf(")");
+}
 
 void gen_expr_compound(Expr *expr, bool is_init) {
     if (is_init) {
@@ -425,6 +432,15 @@ void gen_expr(Expr *expr) {
     case EXPR_OFFSETOF:
         genf("offsetof(%s, %s)", typespec_to_cdecl(expr->offsetof_field.type, ""), expr->offsetof_field.name);
         break;
+    case EXPR_MODIFY:
+        if (!expr->modify.post) {
+            genf("%s", token_kind_name(expr->modify.op));
+        }
+        gen_paren_expr(expr->modify.expr);
+        if (expr->modify.post) {
+            genf("%s", token_kind_name(expr->modify.op));
+        }
+        break;
     default:
         assert(0);
     }
@@ -450,12 +466,6 @@ void gen_init_expr(Expr *expr) {
     }
 }
 
-void gen_paren_expr(Expr *expr) {
-    genf("(");
-    gen_expr(expr);
-    genf(")");
-}
-
 void gen_simple_stmt(Stmt *stmt) {
     switch (stmt->kind) {
     case STMT_EXPR:
@@ -479,12 +489,8 @@ void gen_simple_stmt(Stmt *stmt) {
         break;
     case STMT_ASSIGN:
         gen_paren_expr(stmt->assign.left);
-        if (stmt->assign.right) {
-            genf(" %s ", token_kind_name(stmt->assign.op));
-            gen_expr(stmt->assign.right);
-        } else {
-            genf("%s", token_kind_name(stmt->assign.op));
-        }
+        genf(" %s ", token_kind_name(stmt->assign.op));
+        gen_expr(stmt->assign.right);
         break;
     default:
         assert(0);

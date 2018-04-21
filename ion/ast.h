@@ -139,6 +139,7 @@ typedef enum ExprKind {
     EXPR_UNARY,
     EXPR_BINARY,
     EXPR_TERNARY,
+    EXPR_MODIFY,
     EXPR_SIZEOF_EXPR,
     EXPR_SIZEOF_TYPE,
     EXPR_TYPEOF_EXPR,
@@ -201,6 +202,11 @@ struct Expr {
             Typespec *type;
             Expr *expr;            
         } cast;
+        struct {
+            TokenKind op;
+            bool post;
+            Expr *expr;
+        } modify;
         struct {
             TokenKind op;
             Expr *expr;

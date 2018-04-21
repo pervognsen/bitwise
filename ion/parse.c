@@ -212,7 +212,7 @@ Expr *parse_expr_operand(void) {
 
 Expr *parse_expr_base(void) {
     Expr *expr = parse_expr_operand();
-    while (is_token(TOKEN_LPAREN) || is_token(TOKEN_LBRACKET) || is_token(TOKEN_DOT)) {
+    while (is_token(TOKEN_LPAREN) || is_token(TOKEN_LBRACKET) || is_token(TOKEN_DOT) || is_token(TOKEN_INC) || is_token(TOKEN_DEC)) {
         SrcPos pos = token.pos;
         if (match_token(TOKEN_LPAREN)) {
             Expr **args = NULL;
@@ -228,12 +228,16 @@ Expr *parse_expr_base(void) {
             Expr *index = parse_expr();
             expect_token(TOKEN_RBRACKET);
             expr = new_expr_index(pos, expr, index);
-        } else {
-            assert(is_token(TOKEN_DOT));
+        } else if (is_token(TOKEN_DOT)) {
             next_token();
             const char *field = token.name;
             expect_token(TOKEN_NAME);
             expr = new_expr_field(pos, expr, field);
+        } else {
+            assert(is_token(TOKEN_INC) || is_token(TOKEN_DEC));
+            TokenKind op = token.kind;
+            next_token();
+            expr = new_expr_modify(pos, op, true, expr);
         }
     }
     return expr;
@@ -246,7 +250,9 @@ bool is_unary_op(void) {
         is_token(TOKEN_MUL) ||
         is_token(TOKEN_AND) ||
         is_token(TOKEN_NEG) ||
-        is_token(TOKEN_NOT);
+        is_token(TOKEN_NOT) ||
+        is_token(TOKEN_INC) ||
+        is_token(TOKEN_DEC);
 }
 
 Expr *parse_expr_unary(void) {
@@ -254,7 +260,11 @@ Expr *parse_expr_unary(void) {
         SrcPos pos = token.pos;
         TokenKind op = token.kind;
         next_token();
-        return new_expr_unary(pos, op, parse_expr_unary());
+        if (op == TOKEN_INC || op == TOKEN_DEC) {
+            return new_expr_modify(pos, op, false, parse_expr_unary());
+        } else {
+            return new_expr_unary(pos, op, parse_expr_unary());
+        }
     } else {
         return parse_expr_base();
     }
@@ -420,10 +430,6 @@ Stmt *parse_simple_stmt(void) {
         TokenKind op = token.kind;
         next_token();
         stmt = new_stmt_assign(pos, op, expr, parse_expr());
-    } else if (is_token(TOKEN_INC) || is_token(TOKEN_DEC)) {
-        TokenKind op = token.kind;
-        next_token();
-        stmt = new_stmt_assign(pos, op, expr, NULL);
     } else {
         stmt = new_stmt_expr(pos, expr);
     }
