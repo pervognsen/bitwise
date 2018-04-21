@@ -429,8 +429,11 @@ func test_const() {
     i = int(ullong(p));
 }
 
+#static_assert(sizeof(int) == 4)
+
 func test_init() {
     x := (:int const)0;
+    #static_assert(sizeof(x) == 4);
     y: int;
     y = 0;
     z: int = 42;
