@@ -73,7 +73,7 @@ void gen_char(char c) {
     } else if (isprint(c)) {
         genf("'%c'", c);
     } else {
-        genf("'\\x%x'", (unsigned char)c);
+        genf("'\\x%X'", (unsigned char)c);
     }
 }
 
@@ -100,7 +100,7 @@ void gen_str(const char *str, bool multiline) {
                 }
             } else {
                 assert(!isprint(*str));
-                genf("\\x%x", (unsigned char)*str);
+                genf("\\x%X", (unsigned char)*str);
             }
             str++;
         }
