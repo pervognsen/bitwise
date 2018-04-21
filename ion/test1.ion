@@ -12,6 +12,8 @@ func getchar(): int;
 @foreign
 func memcpy(dest: void*, src: void const*): void*;
 
+var some_array: int* = (:int[]){1, 2, 3};
+
 struct SomeIncompleteType;
 
 var incomplete_ptr: SomeIncompleteType*;
@@ -567,6 +569,7 @@ struct Ints {
 }
 
 func test_compound_literals() {
+    a := (:int[]){1, 2, 3};
     i := 42;
     x: Any const = {&i, typeof(i)};
     y := (:Any const){&i, typeof(i)};

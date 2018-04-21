@@ -430,18 +430,14 @@ void set_resolved_type(void *ptr, Type *type) {
     map_put(&resolved_type_map, ptr, type);
 }
 
-Map resolved_field_index_map;
+Map resolved_expected_type_map;
 
-int get_resolved_field_index(void *ptr) {
-    int val = (int)(uintptr_t)map_get(&resolved_field_index_map, ptr);
-    if (!val) {
-        return -1;
-    }
-    return val - 1;
+Type *get_resolved_expected_type(Expr *expr) {
+    return map_get(&resolved_expected_type_map, expr);
 }
 
-void set_resolved_field_index(void *ptr, int index) {
-    map_put(&resolved_field_index_map, ptr, (void *)(uintptr_t)(index + 1));
+void set_resolved_expected_type(Expr *expr, Type *type) {
+    map_put(&resolved_expected_type_map, expr, type);
 }
 
 Sym *resolve_name(const char *name);
@@ -585,6 +581,7 @@ Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
             return NULL;
         }
     }
+    set_resolved_expected_type(expr, operand.type);
     return operand.type;
 }
 
@@ -601,6 +598,7 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
     } else {
         assert(expr);
         type = unqualify_type(resolve_expr(expr).type);
+        set_resolved_expected_type(expr, type);
     }
     complete_type(type);
     if (type->size == 0) {
@@ -1343,7 +1341,6 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (index >= type->aggregate.num_fields) {
                 fatal_error(field.pos, "Field initializer in struct/union compound literal out of range");
             }
-            set_resolved_field_index(&expr->compound.fields[i], index);
             Type *field_type = type->aggregate.fields[index].type;
             if (!resolve_typed_init(field.pos, field_type, field.init)) {
                 fatal_error(field.pos, "Invalid type in compound literal initializer for aggregate type");

@@ -284,7 +284,6 @@ void gen_aggregate(Decl *decl) {
     genlnf("};");
 }
 
-void gen_init_expr(Expr *expr);
 void gen_expr(Expr *expr);
 
 void gen_paren_expr(Expr *expr) {
@@ -293,15 +292,15 @@ void gen_paren_expr(Expr *expr) {
     genf(")");
 }
 
-void gen_expr_compound(Expr *expr, bool is_init) {
-    if (is_init) {
+void gen_expr_compound(Expr *expr) {
+    Type *expected_type = get_resolved_expected_type(expr);
+    if (expected_type && !is_ptr_type(expected_type)) {
         genf("{");
     } else if (expr->compound.type) {
         genf("(%s){", typespec_to_cdecl(expr->compound.type, ""));
     } else {
         genf("(%s){", type_to_cdecl(get_resolved_type(expr), ""));
     }
-    Type *type = unqualify_type(get_resolved_type(expr));
     for (size_t i = 0; i < expr->compound.num_fields; i++) {
         if (i != 0) {
             genf(", ");
@@ -314,13 +313,7 @@ void gen_expr_compound(Expr *expr, bool is_init) {
             gen_expr(field.index);
             genf("] = ");
         }
-        int field_index = get_resolved_field_index(&expr->compound.fields[i]);
-        if (field_index >= 0 && is_ptr_type(unqualify_type(type->aggregate.fields[field_index].type))) {
-            // Need to generate compound literals rather than naked initializers for pointer fields.
-            gen_expr(field.init);
-        } else {
-            gen_init_expr(field.init);
-        }
+        gen_expr(field.init);
     }
     if (expr->compound.num_fields == 0) {
         genf("0");
@@ -387,7 +380,7 @@ void gen_expr(Expr *expr) {
         genf("%s%s", get_resolved_type(expr->field.expr)->kind == TYPE_PTR ? "->" : ".", expr->field.name);
         break;
     case EXPR_COMPOUND:
-        gen_expr_compound(expr, false);
+        gen_expr_compound(expr);
         break;
     case EXPR_UNARY:
         genf("%s(", token_kind_name(expr->unary.op));
@@ -465,14 +458,6 @@ void gen_stmt_block(StmtList block) {
     genlnf("}");
 }
 
-void gen_init_expr(Expr *expr) {
-    if (expr->kind == EXPR_COMPOUND) {
-        gen_expr_compound(expr, true);
-    } else {
-        gen_expr(expr);
-    }
-}
-
 void gen_simple_stmt(Stmt *stmt) {
     switch (stmt->kind) {
     case STMT_EXPR:
@@ -487,11 +472,11 @@ void gen_simple_stmt(Stmt *stmt) {
             }
             if (stmt->init.expr) {
                 genf(" = ");
-                gen_init_expr(stmt->init.expr);
+                gen_expr(stmt->init.expr);
             }
         } else {
             genf("%s = ", type_to_cdecl(unqualify_type(get_resolved_type(stmt->init.expr)), stmt->init.name));
-            gen_init_expr(stmt->init.expr);
+            gen_expr(stmt->init.expr);
         }
         break;
     case STMT_ASSIGN:
@@ -725,7 +710,7 @@ void gen_defs(void) {
             }
             if (decl->var.expr) {
                 genf(" = ");
-                gen_init_expr(decl->var.expr);
+                gen_expr(decl->var.expr);
             }
             genf(";");
         }
