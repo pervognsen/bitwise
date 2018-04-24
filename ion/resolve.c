@@ -71,6 +71,7 @@ void leave_package(Package *old_package) {
     current_package = old_package;
 }
 
+Sym **reachable_syms;
 Sym **sorted_syms;
 Sym local_syms[MAX_LOCAL_SYMS];
 Sym *local_syms_end = local_syms;
@@ -988,7 +989,10 @@ void resolve_func_body(Sym *sym) {
 }
 
 void resolve_sym(Sym *sym) {
-    sym->reachable = true;
+    if (!sym->reachable) {
+        buf_push(reachable_syms, sym);
+        sym->reachable = true;
+    }
     if (sym->state == SYM_RESOLVED) {
         return;
     } else if (sym->state == SYM_RESOLVING) {
@@ -1025,16 +1029,15 @@ void resolve_sym(Sym *sym) {
     if (decl->is_incomplete || (decl->kind != DECL_STRUCT && decl->kind != DECL_UNION)) {
         buf_push(sorted_syms, sym);
     }
-    if (sym->kind == SYM_FUNC) {
-        resolve_func_body(sym);
-    }
 }
 
 void finalize_sym(Sym *sym) {
     Package *old_package = enter_package(sym->package);
-    if (sym->kind == SYM_TYPE) {
-        if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
+    if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
+        if (sym->kind == SYM_TYPE) {
             complete_type(sym->type);
+        } else if (sym->kind == SYM_FUNC) {
+            resolve_func_body(sym);
         }
     }
     leave_package(old_package);
@@ -2107,7 +2110,12 @@ void resolve_package_syms(Package *package) {
     Package *old_package = enter_package(package);
     for (int i = 0; i < buf_len(package->syms); i++) {
         resolve_sym(package->syms[i]);
-        finalize_sym(package->syms[i]);
     }
     leave_package(old_package);
+}
+
+void finalize_reachable_syms(void) {
+    for (int i = 0; i < buf_len(reachable_syms); i++) {
+        finalize_sym(reachable_syms[i]);
+    }
 }

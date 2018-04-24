@@ -140,7 +140,7 @@ typedef struct BufHdr {
 
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
     assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
-    size_t new_cap = CLAMP_MIN(1 + 2*buf_cap(buf), CLAMP_MIN(new_len, 16));
+    size_t new_cap = CLAMP_MIN(2*buf_cap(buf), MAX(new_len, 16));
     assert(new_len <= new_cap);
     assert(new_cap <= (SIZE_MAX - offsetof(BufHdr, buf))/elem_size);
     size_t new_size = offsetof(BufHdr, buf) + new_cap*elem_size;
