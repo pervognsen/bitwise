@@ -1239,7 +1239,11 @@ Operand resolve_name_operand(SrcPos pos, const char *name) {
         fatal_error(pos, "Unresolved name '%s'", name);
     }
     if (sym->kind == SYM_VAR) {
-        return operand_lvalue(sym->type);
+        Operand operand = operand_lvalue(sym->type);
+        if (is_array_type(operand.type)) {
+            operand = operand_decay(operand);
+        }
+        return operand;
     } else if (sym->kind == SYM_CONST) {
         return operand_const(sym->type, sym->val);
     } else if (sym->kind == SYM_FUNC) {

@@ -87,6 +87,7 @@ func test_arrays() {
     a: int[] = {1, 2, 3};
     // a = a;
     f10(a);
+    b := a;
 }
 
 func test_loops() {
