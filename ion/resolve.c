@@ -2110,7 +2110,9 @@ bool compile_package(Package *package) {
 void resolve_package_syms(Package *package) {
     Package *old_package = enter_package(package);
     for (int i = 0; i < buf_len(package->syms); i++) {
-        resolve_sym(package->syms[i]);
+        if (package->syms[i]->package == package) {
+            resolve_sym(package->syms[i]);
+        }
     }
     leave_package(old_package);
 }
@@ -2121,14 +2123,14 @@ void finalize_reachable_syms(void) {
     int num_reachable = (int)buf_len(reachable_syms);
     for (int i = 0; i < num_reachable; i++) {
         finalize_sym(reachable_syms[i]);
-        num_reachable = (int)buf_len(reachable_syms);
-        if (prev_num_reachable != num_reachable) {
+        if (i == num_reachable-1) {
             printf("New reachable symbols:");
             for (int k = prev_num_reachable; k < num_reachable; k++) {
                 printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
             }
             printf("\n");
             prev_num_reachable = num_reachable;
+            num_reachable = (int)buf_len(reachable_syms);
         }
     }
 }

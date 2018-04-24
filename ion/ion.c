@@ -78,6 +78,7 @@ int ion_main(int argc, char **argv) {
     resolve_package_syms(builtin_package);
     resolve_package_syms(main_package);
     finalize_reachable_syms();
+    printf("Compiled %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
     char c_path[MAX_PATH];
     if (argc >= 3) {
         path_copy(c_path, argv[2]);
