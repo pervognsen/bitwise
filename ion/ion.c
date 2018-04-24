@@ -10,7 +10,7 @@ void add_package_search_path(const char *path) {
 
 void add_package_search_path_range(const char *start, const char *end) {
     char path[MAX_PATH];
-    strncpy(path, start, CLAMP_MAX(end - start, MAX_PATH - 1));
+    strncpy(path, start, CLAMP_MAX(end - start, MAX_PATH));
     path[MAX_PATH - 1] = 0;
     add_package_search_path(path);
 }
