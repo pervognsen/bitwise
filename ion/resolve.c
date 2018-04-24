@@ -2117,16 +2117,18 @@ void resolve_package_syms(Package *package) {
 
 void finalize_reachable_syms(void) {
     printf("Finalizing reachable symbols\n");
+    int prev_num_reachable = 0;
     int num_reachable = (int)buf_len(reachable_syms);
-    for (int i = 0; i < buf_len(reachable_syms); i++) {
+    for (int i = 0; i < num_reachable; i++) {
         finalize_sym(reachable_syms[i]);
-        if (num_reachable != buf_len(reachable_syms)) {
+        num_reachable = (int)buf_len(reachable_syms);
+        if (prev_num_reachable != num_reachable) {
             printf("New reachable symbols:");
-            for (int k = num_reachable; k < buf_len(reachable_syms); k++) {
+            for (int k = prev_num_reachable; k < num_reachable; k++) {
                 printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
             }
             printf("\n");
-            num_reachable = (int)buf_len(reachable_syms);
+            prev_num_reachable = num_reachable;
         }
     }
 }
