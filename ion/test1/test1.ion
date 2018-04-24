@@ -1,5 +1,5 @@
 import libc {printf}
-import .subtest1 {...}
+import .subtest1 {subtest1_func1 = func1}
 import libc {gc = getchar}
 
 #static_assert('\xFF' == 255)
@@ -55,7 +55,7 @@ struct S2 {
 }
 
 func test_packages() {
-    subtest1_func();
+    subtest1_func1();
 }
 
 func test_modify() {

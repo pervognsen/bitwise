@@ -989,7 +989,7 @@ void resolve_func_body(Sym *sym) {
 }
 
 void resolve_sym(Sym *sym) {
-    if (!sym->reachable) {
+    if (!sym->reachable && !is_local_sym(sym)) {
         buf_push(reachable_syms, sym);
         sym->reachable = true;
     }
@@ -1032,6 +1032,7 @@ void resolve_sym(Sym *sym) {
 }
 
 void finalize_sym(Sym *sym) {
+    assert(sym->state == SYM_RESOLVED);
     Package *old_package = enter_package(sym->package);
     if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
         if (sym->kind == SYM_TYPE) {
@@ -2069,7 +2070,7 @@ bool parse_package(Package *package) {
     Decl **decls = NULL;
     DirListIter iter;
     for (dir_list(&iter, package->full_path); iter.valid; dir_list_next(&iter)) {
-        if (iter.is_dir || strcmp(get_ext(iter.name), "ion") != 0 || iter.name[0] == '_' || iter.name[0] == '.') {
+        if (iter.is_dir || strcmp(path_ext(iter.name), "ion") != 0 || iter.name[0] == '_' || iter.name[0] == '.') {
             continue;
         }
         char path[MAX_PATH];
@@ -2081,7 +2082,7 @@ bool parse_package(Package *package) {
             fatal_error((SrcPos){.name = path}, "Failed to read source file");
             continue;
         }
-        init_stream(strdup(path), code);
+        init_stream(str_intern(path), code);
         Decls *file_decls = parse_decls();
         for (int i = 0; i < file_decls->num_decls; i++) {
             buf_push(decls, file_decls->decls[i]);
@@ -2115,7 +2116,17 @@ void resolve_package_syms(Package *package) {
 }
 
 void finalize_reachable_syms(void) {
+    printf("Finalizing reachable symbols\n");
+    int num_reachable = (int)buf_len(reachable_syms);
     for (int i = 0; i < buf_len(reachable_syms); i++) {
         finalize_sym(reachable_syms[i]);
+        if (num_reachable != buf_len(reachable_syms)) {
+            printf("New reachable symbols:");
+            for (int k = num_reachable; k < buf_len(reachable_syms); k++) {
+                printf(" %s", reachable_syms[k]->name);
+            }
+            printf("\n");
+            num_reachable = (int)buf_len(reachable_syms);
+        }
     }
 }

@@ -5,7 +5,7 @@ int num_package_search_paths;
 
 void add_package_search_path(const char *path) {
     printf("Adding package search path %s\n", path);
-    package_search_paths[num_package_search_paths++] = strdup(path);
+    package_search_paths[num_package_search_paths++] = str_intern(path);
 }
 
 void add_package_search_path_range(const char *start, const char *end) {
@@ -84,6 +84,7 @@ int ion_main(int argc, char **argv) {
     } else {
         snprintf(c_path, sizeof(c_path), "out_%s.c", package_name);
     }
+    printf("Generating %s\n", c_path);
     gen_all();
     const char *c_code = gen_buf;
     gen_buf = NULL;
@@ -91,7 +92,5 @@ int ion_main(int argc, char **argv) {
         printf("error: Failed to write file: %s\n", c_path);
         return 1;
     }
-
-    printf("Compiled %s\n", package_name);
     return 0;
 }

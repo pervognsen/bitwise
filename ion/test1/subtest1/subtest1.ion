@@ -1,4 +1,16 @@
-func subtest1_func(): int {
+func func3() {
+}
+
+func func4() {
+}
+
+func func2() {
+    func3();
+    func4();
+}
+
+func func1(): int {
+    func2();
     return 42;
 }
 

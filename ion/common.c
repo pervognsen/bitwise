@@ -92,31 +92,6 @@ bool write_file(const char *path, const char *buf, size_t len) {
     return n == 1;
 }
 
-const char *get_ext(const char *path) {
-    const char *ext = NULL;
-    for (; *path; path++) {
-        if (*path == '.') {
-            ext = path + 1;
-        }
-    }
-    return ext;
-}
-
-char *replace_ext(const char *path, const char *new_ext) {
-    const char *ext = get_ext(path);
-    if (!ext) {
-        return NULL;
-    }
-    size_t base_len = ext - path;
-    size_t new_ext_len = strlen(new_ext);
-    size_t new_path_len = base_len + new_ext_len;
-    char *new_path = xmalloc(new_path_len + 1);
-    memcpy(new_path, path, base_len);
-    memcpy(new_path + base_len, new_ext, new_ext_len);
-    new_path[new_path_len] = 0;
-    return new_path;
-}
-
 // Stretchy buffers, invented (?) by Sean Barrett
 
 typedef struct BufHdr {
