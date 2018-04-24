@@ -1,0 +1,4 @@
+#foreign(header = "<string.h>")
+
+@foreign
+func memcpy(dest: void*, src: void const*): void*;

@@ -1,14 +1,3 @@
-#foreign(include = "<math.h>")
-
-@foreign
-func sqrtf(f: float): float;
-
-@foreign
-func cosf(f: float): float;
-
-@foreign
-func sinf(f: float): float;
-
 struct vec2 {
     x, y: float;
 }
@@ -57,12 +46,4 @@ func rot2(a: float, b: vec2): vec2 {
     c := cosf(a);
     s := sinf(a);
     return {c*b.x - s*b.y, s*b.x + c*b.y};
-}
-
-func main(argc: int, argv: char**): int {
-    v := vec2{1, 0};
-    w := vec2{0, 1};
-    v = rot2(3.14/4, v);
-    w = add2(w, {0.1, 0.2});
-    return 0;
 }

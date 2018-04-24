@@ -202,7 +202,7 @@ Expr *parse_expr_operand(void) {
         } else {
             Expr *expr = parse_expr();
             expect_token(TOKEN_RPAREN);
-            return expr;
+            return new_expr_paren(pos, expr);
         }
     } else {
         fatal_error_here("Unexpected token %s in expression", token_info());
@@ -748,6 +748,41 @@ Decl *parse_decl_note(SrcPos pos) {
     return new_decl_note(pos, parse_note());
 }
 
+Decl *parse_decl_import(SrcPos pos) {
+    bool is_relative = false;
+    if (match_token(TOKEN_DOT)) {
+        is_relative = true;
+    }
+    const char **names = NULL;
+    buf_push(names, token.name);
+    expect_token(TOKEN_NAME);
+    while (match_token(TOKEN_DOT)) {
+        buf_push(names, token.name);
+        expect_token(TOKEN_NAME);
+    }
+    bool import_all = false;
+    ImportItem *items = NULL;
+    if (match_token(TOKEN_LBRACE)) {
+        while (!is_token(TOKEN_RBRACE)) {
+            if (match_token(TOKEN_ELLIPSIS)) {
+                import_all = true;
+            } else {
+                const char *name = parse_name();
+                if (match_token(TOKEN_ASSIGN)) {
+                    buf_push(items, (ImportItem){.name = parse_name(), .rename = name});
+                } else {
+                    buf_push(items, (ImportItem){.name = name});
+                }
+                if (!match_token(TOKEN_COMMA)) {
+                    break;
+                }
+            }
+        }
+        expect_token(TOKEN_RBRACE);
+    }
+    return new_decl_import(pos, is_relative, names, buf_len(names), import_all, items, buf_len(items));
+}
+
 Decl *parse_decl_opt(void) {
     SrcPos pos = token.pos;
     if (match_keyword(enum_keyword)) {
@@ -764,6 +799,8 @@ Decl *parse_decl_opt(void) {
         return parse_decl_func(pos);
     } else if (match_keyword(var_keyword)) {
         return parse_decl_var(pos);
+    } else if (match_keyword(import_keyword)) {
+        return parse_decl_import(pos);
     } else if (match_token(TOKEN_POUND)) {
         return parse_decl_note(pos);
     } else {

@@ -1,3 +1,4 @@
+#define MIN(x, y) ((x) <= (y) ? (x) : (y))
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
 #define IS_POW2(x) (((x) != 0) && ((x) & ((x)-1)) == 0)
 #define ALIGN_DOWN(n, a) ((n) & ~((a) - 1))

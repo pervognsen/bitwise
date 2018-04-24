@@ -1,16 +1,6 @@
-#foreign(include = "<stdio.h>")
-
-@foreign
-func printf(fmt: char const*, ...): int;
-
-@foreign
-func puts(str: char const*): int;
-
-@foreign
-func getchar(): int;
-
-@foreign
-func memcpy(dest: void*, src: void const*): void*;
+import libc {printf}
+import .subtest1 {...}
+import libc {gc = getchar}
 
 #static_assert('\xFF' == 255)
 
@@ -64,9 +54,15 @@ struct S2 {
     s1: S1;
 }
 
+func test_packages() {
+    subtest1_func();
+}
+
 func test_modify() {
     i := 42;
+    #static_assert(typeof(i) == typeof(int));
     p := &i;
+    #static_assert(typeof(p) == typeof(:int*));
     p--;
     x := *p++;
     #assert(x == *--p);
@@ -487,7 +483,8 @@ func println_any(any: Any) {
 }
 
 func print_typeid(type: typeid) {
-    printf("typeid(%d)", type);
+    index := typeid_index(type);
+    printf("typeid(%d)", index);
 }
 
 func print_type(type: typeid) {
@@ -677,6 +674,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_packages();
     test_if();
     test_modify();
     test_lvalue();
@@ -696,6 +694,6 @@ func main(argc: int, argv: char const**): int {
     test_bool();
     test_ops();
     test_typeinfo();
-    getchar();
+    gc();
     return 0;
 }

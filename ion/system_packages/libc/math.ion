@@ -1,0 +1,13 @@
+#foreign(header = "<math.h>")
+
+@foreign
+func sqrtf(f: float): float;
+
+@foreign
+func cosf(f: float): float;
+
+@foreign
+func sinf(f: float): float;
+
+@foreign
+func fmodf(x: float, y: float): float;

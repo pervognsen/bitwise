@@ -159,10 +159,27 @@ Decl *new_decl_note(SrcPos pos, Note note) {
     return d;
 }
 
+Decl *new_decl_import(SrcPos pos, bool is_relative, const char **names, size_t num_names, bool import_all, ImportItem *items, size_t num_items) {
+    Decl *d = new_decl(DECL_IMPORT, pos, NULL);
+    d->import.is_relative = is_relative;
+    d->import.names = AST_DUP(names);
+    d->import.num_names = num_names;
+    d->import.import_all = import_all;
+    d->import.items = AST_DUP(items);
+    d->import.num_items = num_items;
+    return d;
+}
+
 Expr *new_expr(ExprKind kind, SrcPos pos) {
     Expr *e = ast_alloc(sizeof(Expr));
     e->kind = kind;
     e->pos = pos;
+    return e;
+}
+
+Expr *new_expr_paren(SrcPos pos, Expr *expr) {
+    Expr *e = new_expr(EXPR_PAREN, pos);
+    e->paren.expr = expr;
     return e;
 }
 

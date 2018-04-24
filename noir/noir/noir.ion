@@ -1,3 +1,7 @@
+#foreign(header = "SDL.h", source = "noir_impl.c")
+
+import libc {sprintf, printf, fmodf, cosf}
+
 struct int2 {
     x, y: int;
 }
@@ -106,6 +110,7 @@ struct Audio {
     sdl_device: int;
 }
 
+@foreign
 struct SDL_Window;
 
 struct Window {
@@ -218,26 +223,19 @@ func update_combination_keys() {
     update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
 }
 
+func push_event(kind: EventKind, data: EventData) {
+    if (app.num_events == MAX_EVENTS) {
+        app.error = "Event queue overflow";
+        return;
+    }
+    app.events[app.num_events++] = Event{kind = kind, data = data};
+}
+
 func app_init(): bool;
 
 func app_update(): bool;
 
 // Test program
-
-#foreign(include = "<stdio.h>")
-#foreign(include = "<math.h>")
-
-@foreign
-func printf(fmt: char const*, ...): int;
-
-@foreign
-func sprintf(dest: char*, fmt: char const*, ...): int;
-
-@foreign
-func cosf(x: float): float;
-
-@foreign
-func fmodf(x: float, y: float): float;
 
 const PI = 3.14159265358979323846264338327950288;
 const PI2 = PI + PI;

@@ -400,6 +400,10 @@ Type *type_enum(Sym *sym) {
 }
 
 void init_types(void) {
+    static bool init;
+    if (!init) {
+        return;
+    }
     register_typeid(type_void);
     register_typeid(type_bool);
     register_typeid(type_char);
@@ -415,6 +419,7 @@ void init_types(void) {
     register_typeid(type_ullong);
     register_typeid(type_float);
     register_typeid(type_double);
+    init = true;
 }
 
 int aggregate_field_index(Type *type, const char *name) {

@@ -1,0 +1,5 @@
+func subtest1_func(): int {
+    return 42;
+}
+
+import libc {printf}

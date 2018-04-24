@@ -71,6 +71,11 @@ typedef struct EnumItem {
     Expr *init;
 } EnumItem;
 
+typedef struct ImportItem {
+    const char *name;
+    const char *rename;
+} ImportItem;
+
 typedef enum DeclKind {
     DECL_NONE,
     DECL_ENUM,
@@ -81,6 +86,7 @@ typedef enum DeclKind {
     DECL_TYPEDEF,
     DECL_FUNC,
     DECL_NOTE,
+    DECL_IMPORT,
 } DeclKind;
 
 struct Decl {
@@ -117,6 +123,14 @@ struct Decl {
             Typespec *type;
             Expr *expr;
         } const_decl;
+        struct {
+            bool is_relative;
+            const char **names;
+            size_t num_names;
+            bool import_all;
+            ImportItem *items;
+            size_t num_items;
+        } import;
     };
 };
 
@@ -127,6 +141,7 @@ typedef struct Decls {
 
 typedef enum ExprKind {
     EXPR_NONE,
+    EXPR_PAREN,
     EXPR_INT,
     EXPR_FLOAT,
     EXPR_STR,
@@ -169,6 +184,9 @@ struct Expr {
     ExprKind kind;
     SrcPos pos;
     union {
+        struct {
+            Expr *expr;
+        } paren;
         struct {
             unsigned long long val;
             TokenMod mod;

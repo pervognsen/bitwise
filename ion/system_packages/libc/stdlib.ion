@@ -1,0 +1,8 @@
+#foreign(header = "<stdlib.h>")
+
+@foreign
+func malloc(size: usize): void*;
+
+@foreign
+func free(ptr: void*);
+

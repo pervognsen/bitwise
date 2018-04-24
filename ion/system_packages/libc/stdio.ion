@@ -1,0 +1,13 @@
+#foreign(header = "<stdio.h>")
+
+@foreign
+func printf(fmt: char const*, ...): int;
+
+@foreign
+func sprintf(dest: char*, fmt: char const*, ...): int;
+
+@foreign
+func puts(str: char const*): int;
+
+@foreign
+func getchar(): int;

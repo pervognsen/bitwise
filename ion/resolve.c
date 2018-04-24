@@ -12,31 +12,80 @@ typedef enum SymState {
     SYM_RESOLVED,
 } SymState;
 
+struct Package;
+
 typedef struct Sym {
     const char *name;
+    struct Package *package;
     SymKind kind;
     SymState state;
+    bool reachable;
     Decl *decl;
     Type *type;
     Val val;
+    const char *external_name;
 } Sym;
+
+typedef struct Package {
+    const char *path;
+    char full_path[MAX_PATH];
+    Decl **decls;
+    int num_decls;
+    Map syms_map;
+    Sym **syms;
+    const char *external_name;
+} Package;
+
 
 enum {
     MAX_LOCAL_SYMS = 1024
 };
 
-Decls *global_decls;
+Package *current_package;
+Package *builtin_package;
+Map package_map;
+Package **package_list;
+
+void set_resolved_sym(const void *ptr, Sym *sym);
+
+Sym *get_package_sym(Package *package, const char *name) {
+    return map_get(&package->syms_map, name);
+}
+
+void add_package(Package *package) {
+    Package *old_package = map_get(&package_map, package->path);
+    if (old_package != package) {
+        assert(!old_package);
+        map_put(&package_map, package->path, package);
+        buf_push(package_list, package);
+    }
+}
+
+Package *enter_package(Package *new_package) {
+    Package *old_package = current_package;
+    current_package = new_package;
+    return old_package;
+}
+
+void leave_package(Package *old_package) {
+    current_package = old_package;
+}
+
 Sym **sorted_syms;
-Map global_syms_map;
-Sym **global_syms_buf;
 Sym local_syms[MAX_LOCAL_SYMS];
 Sym *local_syms_end = local_syms;
+
+bool is_local_sym(Sym *sym) {
+    return local_syms <= sym && sym < local_syms_end;
+}
 
 Sym *sym_new(SymKind kind, const char *name, Decl *decl) {
     Sym *sym = xcalloc(1, sizeof(Sym));
     sym->kind = kind;
     sym->name = name;
     sym->decl = decl;
+    sym->package = current_package;
+    set_resolved_sym(sym, sym);
     return sym;
 }
 
@@ -63,9 +112,23 @@ Sym *sym_decl(Decl *decl) {
         break;
     }
     Sym *sym = sym_new(kind, decl->name, decl);
-    if (decl->kind == DECL_STRUCT || decl->kind == DECL_UNION) {
-        sym->state = SYM_RESOLVED;
-        sym->type = type_incomplete(sym);
+    set_resolved_sym(decl, sym);
+    Note *foreign_note = get_decl_note(decl, foreign_name);
+    if (foreign_note) {
+        if (foreign_note->num_args > 1) {
+            fatal_error(decl->pos, "@foreign takes 0 or 1 argument");
+        }
+        const char *external_name;
+        if (foreign_note->num_args == 0) {
+            external_name = sym->name;
+        } else {
+            Expr *arg = foreign_note->args[0].expr;
+            if (arg->kind != EXPR_STR) {
+                fatal_error(decl->pos, "@foreign argument 1 must be a string literal");
+            }
+            external_name = arg->str_lit.val;
+        }
+        sym->external_name = external_name;
     }
     return sym;
 }
@@ -82,7 +145,7 @@ Sym *sym_get_local(const char *name) {
 
 Sym *sym_get(const char *name) {
     Sym *sym = sym_get_local(name);
-    return sym ? sym : map_get(&global_syms_map, (void *)name);
+    return sym ? sym : get_package_sym(current_package, name);
 }
 
 bool sym_push_var(const char *name, Type *type) {
@@ -109,52 +172,68 @@ void sym_leave(Sym *sym) {
     local_syms_end = sym;
 }
 
-void sym_global_put(Sym *sym) {
-    if (map_get(&global_syms_map, sym->name)) {
+void sym_global_put(const char *name, Sym *sym) {
+    Sym *old_sym = map_get(&current_package->syms_map, name);
+    if (old_sym) {
+        if (sym == old_sym) {
+            return;
+        }
         SrcPos pos = sym->decl ? sym->decl->pos : pos_builtin;
-        fatal_error(pos, "Duplicate definition of global symbol");
+        if (old_sym->decl) {
+            warning(old_sym->decl->pos, "Previous definition of '%s'", name);
+        }
+        fatal_error(pos, "Duplicate definition of global symbol '%s'.", name);
     }
-    map_put(&global_syms_map, (void *)sym->name, sym);
-    buf_push(global_syms_buf, sym);
+    map_put(&current_package->syms_map, name, sym);
+    buf_push(current_package->syms, sym);
 }
 
-void sym_global_type(const char *name, Type *type) {
-    Sym *sym = sym_new(SYM_TYPE, str_intern(name), NULL);
+Sym *sym_global_type(const char *name, Type *type) {
+    name = str_intern(name);
+    Sym *sym = sym_new(SYM_TYPE, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
-    sym_global_put(sym);
+    sym->external_name = name;
+    sym_global_put(name, sym);
+    return sym;
 }
 
-void sym_global_typedef(const char *name, Type *type) {
-    Sym *sym = sym_new(SYM_TYPE, str_intern(name), new_decl_typedef(pos_builtin, name, new_typespec_name(pos_builtin, name)));
+Sym *sym_global_typedef(const char *name, Type *type) {
+    name = str_intern(name);
+    Sym *sym = sym_new(SYM_TYPE, name, new_decl_typedef(pos_builtin, name, new_typespec_name(pos_builtin, name)));
     sym->state = SYM_RESOLVED;
     sym->type = type;
-    sym_global_put(sym);
+    sym->external_name = name;
+    sym_global_put(name, sym);
+    return sym;
 }
 
-void sym_global_const(const char *name, Type *type, Val val) {
-    Sym *sym = sym_new(SYM_CONST, str_intern(name), NULL);
+Sym *sym_global_const(const char *name, Type *type, Val val) {
+    name = str_intern(name);
+    Sym *sym = sym_new(SYM_CONST, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
     sym->val = val;
-    sym_global_put(sym);
+    sym->external_name = name;
+    sym_global_put(name, sym);
+    return sym;
 }
 
-void sym_global_func(const char *name, Type *type) {
+Sym *sym_global_func(const char *name, Type *type) {
     assert(type->kind == TYPE_FUNC);
-    Sym *sym = sym_new(SYM_FUNC, str_intern(name), NULL);
+    name = str_intern(name);
+    Sym *sym = sym_new(SYM_FUNC, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
-    sym_global_put(sym);
+    sym->external_name = name;
+    sym_global_put(name, sym);
+    return sym;
 }
 
 Sym *sym_global_decl(Decl *decl) {
     Sym *sym = sym_decl(decl);
-    sym_global_put(sym);
+    sym_global_put(sym->name, sym);
     if (decl->kind == DECL_ENUM) {
-        sym->state = SYM_RESOLVED;
-        sym->type = type_enum(sym);
-        buf_push(sorted_syms, sym);
         Typespec *enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
         const char *prev_item_name = NULL;
         for (int i = 0; i < decl->enum_decl.num_items; i++) {
@@ -439,6 +518,18 @@ void set_resolved_type(void *ptr, Type *type) {
     map_put(&resolved_type_map, ptr, type);
 }
 
+Map resolved_sym_map;
+
+Sym *get_resolved_sym(const void *ptr) {
+    return map_get(&resolved_sym_map, ptr);
+}
+
+void set_resolved_sym(const void *ptr, Sym *sym) {
+    if (!is_local_sym(sym)) {
+        map_put(&resolved_sym_map, ptr, sym);
+    }
+}
+
 Map resolved_expected_type_map;
 
 Type *get_resolved_expected_type(Expr *expr) {
@@ -480,6 +571,7 @@ Type *resolve_typespec(Typespec *typespec) {
             fatal_error(typespec->pos, "%s must denote a type", typespec->name);
             return NULL;
         }
+        set_resolved_sym(typespec, sym);
         result = sym->type;
         break;
     }
@@ -570,11 +662,6 @@ void complete_type(Type *type) {
         type_complete_union(type, fields, buf_len(fields));
     }
     buf_push(sorted_syms, type->sym);
-}
-
-Type *resolve_decl_type(Decl *decl) {
-    assert(decl->kind == DECL_TYPEDEF);
-    return resolve_typespec(decl->typedef_decl.type);
 }
 
 Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
@@ -901,6 +988,7 @@ void resolve_func_body(Sym *sym) {
 }
 
 void resolve_sym(Sym *sym) {
+    sym->reachable = true;
     if (sym->state == SYM_RESOLVED) {
         return;
     } else if (sym->state == SYM_RESOLVING) {
@@ -909,37 +997,47 @@ void resolve_sym(Sym *sym) {
     }
     assert(sym->state == SYM_UNRESOLVED);
     sym->state = SYM_RESOLVING;
+    Decl *decl = sym->decl;
     switch (sym->kind) {
     case SYM_TYPE:
-        sym->type = resolve_decl_type(sym->decl);
+        if (decl && decl->kind == DECL_TYPEDEF) {
+            sym->type = resolve_typespec(decl->typedef_decl.type);
+        } else if (decl->kind == DECL_ENUM) {
+            sym->type = type_enum(sym);
+        } else {
+            sym->type = type_incomplete(sym);
+        }
         break;
     case SYM_VAR:
-        sym->type = resolve_decl_var(sym->decl);
+        sym->type = resolve_decl_var(decl);
         break;
     case SYM_CONST:
-        sym->type = resolve_decl_const(sym->decl, &sym->val);
+        sym->type = resolve_decl_const(decl, &sym->val);
         break;
     case SYM_FUNC:
-        sym->type = resolve_decl_func(sym->decl);
+        sym->type = resolve_decl_func(decl);
         break;
     default:
         assert(0);
         break;
     }
     sym->state = SYM_RESOLVED;
-    buf_push(sorted_syms, sym);
+    if (decl->is_incomplete || (decl->kind != DECL_STRUCT && decl->kind != DECL_UNION)) {
+        buf_push(sorted_syms, sym);
+    }
+    if (sym->kind == SYM_FUNC) {
+        resolve_func_body(sym);
+    }
 }
 
 void finalize_sym(Sym *sym) {
-    resolve_sym(sym);
+    Package *old_package = enter_package(sym->package);
     if (sym->kind == SYM_TYPE) {
-        if (sym->decl && sym->decl->is_incomplete) {
-            return;
+        if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
+            complete_type(sym->type);
         }
-        complete_type(sym->type);
-    } else if (sym->kind == SYM_FUNC) {
-        resolve_func_body(sym);
     }
+    leave_package(old_package);
 }
 
 Sym *resolve_name(const char *name) {
@@ -1446,6 +1544,7 @@ Operand resolve_expr_call(Expr *expr) {
             if (!cast_operand(&operand, sym->type)) {
                 fatal_error(expr->pos, "Invalid type cast");
             }
+            set_resolved_sym(expr->call.expr, sym);
             return operand;
         }
     }
@@ -1660,6 +1759,9 @@ Operand resolve_expr_modify(Expr *expr) {
 Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     Operand result;
     switch (expr->kind) {
+    case EXPR_PAREN:
+        result = resolve_expected_expr(expr->paren.expr, expected_type);
+        break;
     case EXPR_INT:
         result = resolve_expr_int(expr);
         break;  
@@ -1670,7 +1772,9 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_rvalue(type_ptr(type_char));
         break;
     case EXPR_NAME:
+        // HACK
         result = resolve_expr_name(expr);
+        set_resolved_sym(expr, resolve_name(expr->name));
         break;
     case EXPR_CAST:
         result = resolve_expr_cast(expr);
@@ -1703,6 +1807,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
                 complete_type(sym->type);
                 result = operand_const(type_usize, (Val){.ull = type_sizeof(sym->type)});
                 set_resolved_type(expr->sizeof_expr, sym->type);
+                set_resolved_sym(expr->sizeof_expr, sym);
                 break;
             }
         }
@@ -1724,6 +1829,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
                 complete_type(sym->type);
                 result = operand_const(type_usize, (Val){.ull = type_alignof(sym->type)});
                 set_resolved_type(expr->alignof_expr, sym->type);
+                set_resolved_sym(expr->alignof_expr, sym);
                 break;
             }
         }
@@ -1740,24 +1846,26 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
     }
     case EXPR_TYPEOF_TYPE: {
         Type *type = resolve_typespec(expr->typeof_type);
-        result = operand_const(type_int, (Val){.i = type->typeid});
+        result = operand_const(type_ullong, (Val){.ull = type->typeid});
         break;
     }
     case EXPR_TYPEOF_EXPR: {
         if (expr->typeof_expr->kind == EXPR_NAME) {
             Sym *sym = resolve_name(expr->typeof_expr->name);
             if (sym && sym->kind == SYM_TYPE) {
-                result = operand_const(type_int, (Val){.i = sym->type->typeid});
+                result = operand_const(type_ullong, (Val){.ull = sym->type->typeid});
                 set_resolved_type(expr->typeof_expr, sym->type);
+                set_resolved_sym(expr->typeof_expr, sym);
                 break;
             }
         }
         Type *type = resolve_expr(expr->typeof_expr).type;
-        result = operand_const(type_int, (Val){.i = type->typeid});
+        result = operand_const(type_ullong, (Val){.ull = type->typeid});
         break;
     }
     case EXPR_OFFSETOF: {
         Type *type = resolve_typespec(expr->offsetof_field.type);
+        complete_type(type);
         if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
             fatal_error(expr->pos, "offsetof can only be used with struct/union types");
         }
@@ -1790,13 +1898,9 @@ Operand resolve_const_expr(Expr *expr) {
 
 Map decl_note_names;
 
-void init_builtins(void) {
-    static bool is_init;
-    if (is_init) {
-        return;
-    }
-
-    map_put(&decl_note_names, declare_note_name, (void *)1);
+void init_builtin_syms() {
+    assert(builtin_package);
+    Package *old_package = enter_package(builtin_package);
 
     sym_global_type("void", type_void);
     sym_global_type("bool", type_bool);
@@ -1832,12 +1936,12 @@ void init_builtins(void) {
     sym_global_const("false", type_bool, (Val){.b = false});
     sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});
 
-    is_init = true;
+    leave_package(old_package);
 }
 
-void sym_global_decls(void) {
-    for (size_t i = 0; i < global_decls->num_decls; i++) {
-        Decl *decl = global_decls->decls[i];
+void add_package_decls(Package *package) {
+    for (int i = 0; i < package->num_decls; i++) {
+        Decl *decl = package->decls[i];
         if (decl->kind == DECL_NOTE) {
             if (!map_get(&decl_note_names, decl->note.name)) {
                 warning(decl->pos, "Unknown declaration #directive '%s'", decl->note.name);
@@ -1852,19 +1956,154 @@ void sym_global_decls(void) {
                 }
                 map_put(&decl_note_names, arg->name, (void *)1);
             } else if (decl->note.name == static_assert_name) {
-                resolve_static_assert(decl->note);
+//                resolve_static_assert(decl->note);
             }
+        } else if (decl->kind == DECL_IMPORT) {
+            // Add to list of imports
         } else {
-            sym_global_decl(global_decls->decls[i]);
+            sym_global_decl(decl);
         }
     }
 }
 
-void finalize_syms(void) {
-    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
-        Sym *sym = *it;
-        if (sym->decl) {
-            finalize_sym(sym);
+bool compile_package(Package *package);
+
+extern const char **package_search_paths;
+extern int num_package_search_paths;
+
+bool is_package_dir(const char *search_path, const char *package_path) {
+    char path[MAX_PATH];
+    path_copy(path, search_path);
+    path_join(path, package_path);
+    DirListIter iter;
+    for (dir_list(&iter, path); iter.valid; dir_list_next(&iter)) {
+        const char *ext = path_ext(iter.name);
+        if (ext != iter.name && strcmp(ext, "ion") == 0) {
+            dir_list_free(&iter);
+            return true;
         }
     }
+    return false;
+}
+
+bool copy_package_full_path(char dest[MAX_PATH], const char *package_path) {
+    for (int i = 0; i < num_package_search_paths; i++) {
+        if (is_package_dir(package_search_paths[i], package_path)) {
+            path_copy(dest, package_search_paths[i]);
+            path_join(dest, package_path);
+            return true;
+        }
+    }
+    return false;
+}
+
+Package *import_package(const char *package_path) {
+    package_path = str_intern(package_path);
+    Package *package = map_get(&package_map, package_path);
+    if (!package) {
+        package = xcalloc(1, sizeof(Package));
+        package->path = package_path;
+        printf("Importing %s\n", package_path);
+        char full_path[MAX_PATH];
+        if (!copy_package_full_path(full_path, package_path)) {
+            return NULL;
+        }
+        strcpy(package->full_path, full_path);
+        add_package(package);
+        compile_package(package);
+    }
+    return package;
+}
+
+void import_all_package_symbols(Package *package) {
+    for (int i = 0; i < buf_len(package->syms); i++) {
+        if (package->syms[i]->package == package) {
+            sym_global_put(package->syms[i]->name, package->syms[i]);
+        }
+    }
+}
+
+void import_package_symbols(Decl *decl, Package *package) {
+    for (int i = 0; i < decl->import.num_items; i++) {
+        ImportItem item = decl->import.items[i];
+        Sym *sym = get_package_sym(package, item.name);
+        if (!sym) {
+            fatal_error(decl->pos, "Symbol '%s' does not exist in package '%s'", item.name, package->path);
+        }
+        sym_global_put(item.rename ? item.rename : item.name, sym);
+    }
+}
+
+void process_package_imports(Package *package) {
+    for (int i = 0; i < package->num_decls; i++) {
+        Decl *decl = package->decls[i];
+        if (decl->kind == DECL_IMPORT) {
+            char *path_buf = NULL;
+            if (decl->import.is_relative) {
+                buf_printf(path_buf, "%s/", package->path);
+            }
+            for (int k = 0; k < decl->import.num_names; k++) {
+                buf_printf(path_buf, "%s%s", k == 0 ? "" : "/", decl->import.names[k]);
+            }
+            Package *imported_package = import_package(path_buf);
+            if (!imported_package) {
+                fatal_error(decl->pos, "Failed to import package '%s'", path_buf);
+            }
+            buf_free(path_buf);
+            import_package_symbols(decl, imported_package);
+            if (decl->import.import_all) {
+                import_all_package_symbols(imported_package);
+            }
+        }
+    }
+}
+
+bool parse_package(Package *package) {
+    Decl **decls = NULL;
+    DirListIter iter;
+    for (dir_list(&iter, package->full_path); iter.valid; dir_list_next(&iter)) {
+        if (iter.is_dir || strcmp(get_ext(iter.name), "ion") != 0 || iter.name[0] == '_' || iter.name[0] == '.') {
+            continue;
+        }
+        char path[MAX_PATH];
+        path_copy(path, iter.base);
+        path_join(path, iter.name);
+        path_absolute(path);
+        const char *code = read_file(path);
+        if (!code) {
+            fatal_error((SrcPos){.name = path}, "Failed to read source file");
+            continue;
+        }
+        init_stream(strdup(path), code);
+        Decls *file_decls = parse_decls();
+        for (int i = 0; i < file_decls->num_decls; i++) {
+            buf_push(decls, file_decls->decls[i]);
+        }
+    }
+    package->decls = decls;
+    package->num_decls = (int)buf_len(decls);
+    return package;
+}
+
+bool compile_package(Package *package) {
+    if (!parse_package(package)) {
+        return false;
+    }
+    Package *old_package = enter_package(package);
+    if (builtin_package) {
+        import_all_package_symbols(builtin_package);
+    }
+    add_package_decls(package);
+    process_package_imports(package);
+    leave_package(old_package);
+    return true;
+}
+
+void resolve_package_syms(Package *package) {
+    Package *old_package = enter_package(package);
+    for (int i = 0; i < buf_len(package->syms); i++) {
+        resolve_sym(package->syms[i]);
+        finalize_sym(package->syms[i]);
+    }
+    leave_package(old_package);
 }

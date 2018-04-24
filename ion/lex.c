@@ -20,6 +20,7 @@ const char *for_keyword;
 const char *switch_keyword;
 const char *case_keyword;
 const char *default_keyword;
+const char *import_keyword;
 
 const char *first_keyword;
 const char *last_keyword;
@@ -46,6 +47,7 @@ void init_keywords(void) {
     KEYWORD(const);
     KEYWORD(var);
     KEYWORD(func);
+    KEYWORD(import);
     KEYWORD(sizeof);
     KEYWORD(alignof);
     KEYWORD(typeof);

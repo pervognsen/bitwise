@@ -159,6 +159,7 @@ void gen_cdecl_test(void) {
 }
 
 void resolve_test(void) {
+    #if 0
     Type *int_ptr = type_ptr(type_int);
     assert(type_ptr(type_int) == int_ptr);
     Type *float_ptr = type_ptr(type_float);
@@ -254,7 +255,7 @@ void resolve_test(void) {
         Decl *decl = parse_decl();
         sym_global_decl(decl);
     }
-    finalize_syms();
+    finalize_global_syms();
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         if (sym->decl) {
@@ -264,13 +265,14 @@ void resolve_test(void) {
         }
         printf("\n");
     }
+    #endif
 }
 
 void main_test(void) {
-    common_test();
+    // common_test();
     // lex_test();
     // print_test();
     // parse_test();
-    resolve_test();
+    // resolve_test();
     // ion_test();
 }

@@ -10,6 +10,13 @@ const char **gen_headers_buf;
 
 const char *gen_preamble =
     "// Preamble\n"
+    "#define _CRT_SECURE_NO_WARNINGS\n"
+    "#if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L\n"
+    "// Visual Studio 2015 supports enough C99/C11 features for us.\n"
+    "#else\n"
+    "#error \"C11 support required or Visual Studio 2015 or later\"\n"
+    "#endif\n"
+    "\n"
     "#include <stdbool.h>\n"
     "#include <stdint.h>\n"
     "#include <stddef.h>\n"
@@ -35,7 +42,7 @@ const char *gen_preamble =
     "typedef uintptr_t uintptr;\n"
     "typedef size_t usize;\n"
     "typedef ptrdiff_t ssize;\n"
-    "typedef int typeid;\n"
+    "typedef ullong typeid;\n"
     "\n"
     "#ifdef _MSC_VER\n"
     "#define alignof(x) __alignof(x)\n"
@@ -66,6 +73,8 @@ char char_to_escape[256] = {
     ['"'] = '"',
     ['\''] = '\'',
 };
+
+const char *get_gen_name(const void *ptr);
 
 void gen_char(char c) {
     if (char_to_escape[(unsigned char)c]) {
@@ -132,7 +141,7 @@ const char *cdecl_name(Type *type) {
         return type_name;
     } else {
         assert(type->sym);
-        return type->sym->name;
+        return get_gen_name(type->sym);
     }
 }
 
@@ -150,7 +159,7 @@ char *type_to_cdecl(Type *type, const char *str) {
         }
     case TYPE_FUNC: {
         char *result = NULL;
-        buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
+        buf_printf(result, "(*%s)(", str);
         if (type->func.num_params == 0) {
             buf_printf(result, "void");
         } else {
@@ -180,13 +189,40 @@ const char *gen_expr_str(Expr *expr) {
     return result;
 }
 
+Map gen_name_map;
+
+const char *get_gen_name_or_default(const void *ptr, const char *default_name) {
+    const char *name = map_get(&gen_name_map, ptr);
+    if (!name) {
+        Sym *sym = get_resolved_sym(ptr);
+        if (sym) {
+            if (sym->external_name) {
+                name = sym->external_name;
+            } else if (sym->package->external_name) {
+                name = strf("%s%s", sym->package->external_name, sym->name);
+            } else {
+                name = sym->name;
+            }
+        } else {
+            assert(default_name);
+            name = default_name;
+        }
+        map_put(&gen_name_map, ptr, (void *)name);
+    }
+    return name;
+}
+
+const char *get_gen_name(const void *ptr) {
+    return get_gen_name_or_default(ptr, "ERROR");
+}
+
 char *typespec_to_cdecl(Typespec *typespec, const char *str) {
     if (!typespec) {
         return strf("void%s%s", *str ? " " : "", str);
     }
     switch (typespec->kind) {
     case TYPESPEC_NAME:
-        return strf("%s%s%s", typespec->name, *str ? " " : "", str);
+        return strf("%s%s%s", get_gen_name_or_default(typespec, typespec->name), *str ? " " : "", str);
     case TYPESPEC_PTR:
         return typespec_to_cdecl(typespec->base, cdecl_paren(strf("*%s", str), *str));
     case TYPESPEC_CONST:
@@ -199,7 +235,7 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
         }
     case TYPESPEC_FUNC: {
         char *result = NULL;
-        buf_printf(result, "%s(", cdecl_paren(strf("*%s", str), *str));
+        buf_printf(result, "(*%s)(", str);
         if (typespec->func.num_args == 0) {
             buf_printf(result, "void");
         } else {
@@ -222,7 +258,7 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
 void gen_func_decl(Decl *decl) {
     assert(decl->kind == DECL_FUNC);
     char *result = NULL;
-    buf_printf(result, "%s(", decl->name);
+    buf_printf(result, "%s(", get_gen_name(decl));
     if (decl->func.num_params == 0) {
         buf_printf(result, "void");
     } else {
@@ -247,7 +283,7 @@ void gen_func_decl(Decl *decl) {
 }
 
 void gen_forward_decls(void) {
-    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
+    for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
         if (!decl) {
@@ -258,11 +294,11 @@ void gen_forward_decls(void) {
         }
         switch (decl->kind) {
         case DECL_STRUCT:
-            genlnf("typedef struct %s %s;", sym->name, sym->name);
+        case DECL_UNION: {
+            const char *name = get_gen_name(sym);
+            genlnf("typedef %s %s %s;", decl->kind == DECL_STRUCT ? "struct" : "union", name, name);
             break;
-        case DECL_UNION:
-            genlnf("typedef union %s %s;", sym->name, sym->name);
-            break;
+        }
         default:
             // Do nothing.
             break;
@@ -272,7 +308,10 @@ void gen_forward_decls(void) {
 
 void gen_aggregate(Decl *decl) {
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
-    genlnf("%s %s {", decl->kind == DECL_STRUCT ? "struct" : "union", decl->name);
+    if (decl->is_incomplete) {
+        return;
+    }
+    genlnf("%s %s {", decl->kind == DECL_STRUCT ? "struct" : "union", get_gen_name(decl));
     gen_indent++;
     for (size_t i = 0; i < decl->aggregate.num_items; i++) {
         AggregateItem item = decl->aggregate.items[i];
@@ -322,8 +361,57 @@ void gen_expr_compound(Expr *expr) {
     genf("}");
 }
 
+
+const char *typeid_kind_names[NUM_TYPE_KINDS] = {
+    [TYPE_NONE] = "TYPE_NONE",
+    [TYPE_VOID] = "TYPE_VOID",
+    [TYPE_BOOL] = "TYPE_BOOL",
+    [TYPE_CHAR] = "TYPE_CHAR",
+    [TYPE_UCHAR] = "TYPE_UCHAR",
+    [TYPE_SCHAR] = "TYPE_SCHAR",
+    [TYPE_SHORT] = "TYPE_SHORT",
+    [TYPE_USHORT] = "TYPE_USHORT",
+    [TYPE_INT] =  "TYPE_INT",
+    [TYPE_UINT] = "TYPE_UINT",
+    [TYPE_LONG] = "TYPE_LONG",
+    [TYPE_ULONG] = "TYPE_ULONG",
+    [TYPE_LLONG] = "TYPE_LLONG",
+    [TYPE_ULLONG] = "TYPE_ULLONG",
+    [TYPE_FLOAT] = "TYPE_FLOAT",
+    [TYPE_DOUBLE] = "TYPE_DOUBLE",
+    [TYPE_CONST] = "TYPE_CONST",
+    [TYPE_PTR] = "TYPE_PTR",
+    [TYPE_ARRAY] = "TYPE_ARRAY",
+    [TYPE_STRUCT] = "TYPE_STRUCT",
+    [TYPE_UNION] = "TYPE_UNION",
+    [TYPE_FUNC] = "TYPE_FUNC",
+};
+
+const char *typeid_kind_name(Type *type) {
+    if (type->kind < NUM_TYPE_KINDS) {
+        const char *name = typeid_kind_names[type->kind];
+        if (name) {
+            return name;
+        }
+    }
+    return "TYPE_NONE";
+}
+
+void gen_typeid(Type *type) {
+    if (type->size == 0) {
+        genf("TYPEID0(%d, %s)", type->typeid, typeid_kind_name(type));
+    } else {
+        genf("TYPEID(%d, %s, %s)", type->typeid, typeid_kind_name(type), type_to_cdecl(type, ""));
+    }
+}
+
 void gen_expr(Expr *expr) {
     switch (expr->kind) {
+    case EXPR_PAREN:
+        genf("(");
+        gen_expr(expr->paren.expr);
+        genf(")");
+        break;
     case EXPR_INT: {
         const char *suffix_name = token_suffix_names[expr->int_lit.suffix];
         switch (expr->int_lit.mod) {
@@ -350,7 +438,7 @@ void gen_expr(Expr *expr) {
         gen_str(expr->str_lit.val, expr->str_lit.mod == MOD_MULTILINE);
         break;
     case EXPR_NAME:
-        genf("%s", expr->name);
+        genf("%s", get_gen_name_or_default(expr, expr->name));
         break;
     case EXPR_CAST:
         genf("(%s)(", type_to_cdecl(get_resolved_type(expr->cast.type), ""));
@@ -421,13 +509,13 @@ void gen_expr(Expr *expr) {
     case EXPR_TYPEOF_EXPR: {
         Type *type = get_resolved_type(expr->typeof_expr);
         assert(type->typeid);
-        genf("%d", type->typeid);
+        gen_typeid(type);
         break;
     }
     case EXPR_TYPEOF_TYPE: {
         Type *type = get_resolved_type(expr->typeof_type);
         assert(type->typeid);
-        genf("%d", type->typeid);
+        gen_typeid(type);
         break;
     }
     case EXPR_OFFSETOF:
@@ -648,7 +736,7 @@ void gen_decl(Sym *sym) {
     gen_sync_pos(decl->pos);
     switch (decl->kind) {
     case DECL_CONST:
-        genlnf("#define %s (", sym->name);
+        genlnf("#define %s (", get_gen_name(sym));
         if (decl->const_decl.type) {
             genf("(%s)(", typespec_to_cdecl(decl->const_decl.type, ""));
         }
@@ -661,9 +749,9 @@ void gen_decl(Sym *sym) {
     case DECL_VAR:
         genlnf("extern ");
         if (decl->var.type && !is_incomplete_array_typespec(decl->var.type)) {
-            genf("%s", typespec_to_cdecl(decl->var.type, sym->name));
+            genf("%s", typespec_to_cdecl(decl->var.type, get_gen_name(sym)));
         } else {
-            genf("%s", type_to_cdecl(sym->type, sym->name));
+            genf("%s", type_to_cdecl(sym->type, get_gen_name(sym)));
         }
         genf(";");
         break;
@@ -676,10 +764,10 @@ void gen_decl(Sym *sym) {
         gen_aggregate(decl);
         break;
     case DECL_TYPEDEF:
-        genlnf("typedef %s;", typespec_to_cdecl(decl->typedef_decl.type, sym->name));
+        genlnf("typedef %s;", typespec_to_cdecl(decl->typedef_decl.type, get_gen_name(sym)));
         break;
     case DECL_ENUM:
-        genlnf("typedef int %s;", decl->name);
+        genlnf("typedef int %s;", get_gen_name(decl));
         break;
     default:
         assert(0);
@@ -695,10 +783,10 @@ void gen_sorted_decls(void) {
 }
 
 void gen_defs(void) {
-    for (Sym **it = global_syms_buf; it != buf_end(global_syms_buf); it++) {
+    for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (!decl || is_decl_foreign(decl) || decl->is_incomplete) {
+        if (sym->state != SYM_RESOLVED || !decl || is_decl_foreign(decl) || decl->is_incomplete) {
             continue;
         }
         if (decl->kind == DECL_FUNC) {
@@ -708,9 +796,9 @@ void gen_defs(void) {
             genln();
         } else if (decl->kind == DECL_VAR) {
             if (decl->var.type && !is_incomplete_array_typespec(decl->var.type)) {
-                genlnf("%s", typespec_to_cdecl(decl->var.type, sym->name));
+                genlnf("%s", typespec_to_cdecl(decl->var.type, get_gen_name(sym)));
             } else {
-                genlnf("%s", type_to_cdecl(sym->type, sym->name));
+                genlnf("%s", type_to_cdecl(sym->type, get_gen_name(sym)));
             }
             if (decl->var.expr) {
                 genf(" = ");
@@ -721,41 +809,81 @@ void gen_defs(void) {
     }
 }
 
-void gen_headers(void) {
-    const char *include_name = str_intern("include");
-    for (size_t i = 0; i < global_decls->num_decls; i++) {
-        Decl *decl = global_decls->decls[i];
+void gen_package_headers(Package *package) {
+    const char *header_arg_name = str_intern("header");
+    for (size_t i = 0; i < package->num_decls; i++) {
+        Decl *decl = package->decls[i];
         if (decl->kind != DECL_NOTE) {
             continue;
         }
         Note note = decl->note;
         if (note.name == foreign_name) {
             for (size_t i = 0; i < note.num_args; i++) {
-                if (note.args[i].name != include_name) {
+                if (note.args[i].name != header_arg_name) {
                     continue;
                 }
                 Expr *expr = note.args[i].expr;
                 if (expr->kind != EXPR_STR) {
-                    fatal_error(decl->pos, "#foreign_include's argument must be a quoted string");
+                    fatal_error(decl->pos, "#foreign's header argument must be a quoted string");
                 }
-                const char *header_name = expr->name;
+                const char *header = expr->str_lit.val;
                 bool found = false;
                 for (const char **it = gen_headers_buf; it != buf_end(gen_headers_buf); it++) {
-                    if (*it == header_name) {
+                    if (*it == header) {
                         found = true;
                     }
                 }
                 if (!found) {
-                    buf_push(gen_headers_buf, header_name);
+                    buf_push(gen_headers_buf, header);
                     genlnf("#include ");
-                    if (*header_name == '<') {
-                        genf("%s", header_name);
+                    if (*header == '<') {
+                        genf("%s", header);
                     } else {
-                        gen_str(header_name, false);
+                        gen_str(header, false);
                     }
                 }
             }
         }
+    }
+}
+
+void gen_package_sources(Package *package) {
+    const char *source_arg_name = str_intern("source");
+    for (size_t i = 0; i < package->num_decls; i++) {
+        Decl *decl = package->decls[i];
+        if (decl->kind != DECL_NOTE) {
+            continue;
+        }
+        Note note = decl->note;
+        if (note.name == foreign_name) {
+            for (size_t i = 0; i < note.num_args; i++) {
+                if (note.args[i].name != source_arg_name ) {
+                    continue;
+                }
+                Expr *expr = note.args[i].expr;
+                if (expr->kind != EXPR_STR) {
+                    fatal_error(decl->pos, "#foreign's source argument must be a quoted string");
+                }
+                char source_path[MAX_PATH];
+                path_copy(source_path, package->full_path);
+                path_join(source_path, expr->str_lit.val);
+                path_absolute(source_path);
+                genlnf("#include ");
+                gen_str(source_path, false);
+            }
+        }
+    }
+}
+
+void gen_foreign_headers(void) {
+    for (int i = 0; i < buf_len(package_list); i++) {
+        gen_package_headers(package_list[i]);
+    }
+}
+
+void gen_foreign_sources(void) {
+    for (int i = 0; i < buf_len(package_list); i++) {
+        gen_package_sources(package_list[i]);
     }
 }
 
@@ -774,7 +902,9 @@ void gen_typeinfo_fields(Type *type) {
         TypeField field = type->aggregate.fields[i];
         genlnf("{");
         gen_str(field.name, false);
-        genf(", .type = %d, .offset = offsetof(%s, %s)},", field.type->typeid, type->sym->name, field.name);
+        genf(", .type = ");
+        gen_typeid(field.type);
+        genf(", .offset = offsetof(%s, %s)},", get_gen_name(type->sym), field.name);
     }
     gen_indent--;
 }
@@ -806,25 +936,31 @@ void gen_typeinfo(Type *type) {
         genf("&(TypeInfo){TYPE_VOID, .name = \"void\", .size = 0, .align = 0},");
         break;
     case TYPE_PTR:
-        genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = alignof(void *), .base = %d},", type->base->typeid);
+        genf("&(TypeInfo){TYPE_PTR, .size = sizeof(void *), .align = alignof(void *), .base = ");
+        gen_typeid(type->base);
+        genf("},");
         break;
     case TYPE_CONST:
         gen_typeinfo_header("TYPE_CONST", type);
-        genf(", .base = %d},", type->base->typeid);
+        genf(", .base = ");
+        gen_typeid(type->base);
+        genf("},");
         break;
     case TYPE_ARRAY:
         if (is_incomplete_array_type(type)) {
             genf("NULL, // Incomplete array type");
         } else {
             gen_typeinfo_header("TYPE_ARRAY", type);
-            genf(", .base = %d, .count = %d},", type->base->typeid, type->num_elems);
+            genf(", .base = ");
+            gen_typeid(type->base);
+            genf(", .count = %d},", type->num_elems);
         }
         break;
     case TYPE_STRUCT:
     case TYPE_UNION:
         gen_typeinfo_header(type->kind == TYPE_STRUCT ? "TYPE_STRUCT" : "TYPE_UNION", type);
         genf(", .name = ");
-        gen_str(type->sym->name, false);
+        gen_str(get_gen_name(type->sym), false);
         genf(", .num_fields = %d, .fields = (TypeFieldInfo[]) {", type->aggregate.num_fields);
         gen_typeinfo_fields(type);
         genlnf("}},");
@@ -836,7 +972,7 @@ void gen_typeinfo(Type *type) {
         genf("NULL, // Enum");
         break;
     case TYPE_INCOMPLETE:
-        genf("NULL, // Incomplete: %s", type->sym->name);
+        genf("NULL, // Incomplete: %s", get_gen_name(type->sym));
         break;
     default:
         genf("NULL, // Unhandled");
@@ -847,6 +983,9 @@ void gen_typeinfo(Type *type) {
 #undef CASE
 
 void gen_typeinfos(void) {
+    genlnf("#define TYPEID0(index, kind) ((ullong)(index) | ((kind) << 24ull))");
+    genlnf("#define TYPEID(index, kind, ...) ((ullong)(index) | (sizeof(__VA_ARGS__) << 32ull) | ((kind) << 24ull))");
+    genln();
     int num_typeinfos = next_typeid;
     genlnf("const TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
     gen_indent++;
@@ -866,19 +1005,40 @@ void gen_typeinfos(void) {
     genlnf("const TypeInfo **typeinfos = (const TypeInfo **)typeinfo_table;");
 }
 
+void gen_package_external_names(void) {
+    for (int i = 0; i < buf_len(package_list); i++) {
+        Package *package = package_list[i];
+        if (!package->external_name) {
+            char *external_name = NULL;
+            for (const char *ptr = package->path; *ptr; ptr++) {
+                buf_printf(external_name, "%c", *ptr == '/' ? '_' : *ptr);
+            }
+            buf_printf(external_name, "_");
+            package->external_name = str_intern(external_name);
+        }
+    }
+}
+
 void gen_all(void) {
     gen_buf = NULL;
-    genf("// Foreign includes");
-    gen_headers();
-    genln();
     genlnf("%s", gen_preamble);
+    genln();
+    gen_package_external_names();
+    genf("// Foreign header files");
+    gen_foreign_headers();
+    genln();
     genf("// Forward declarations");
     gen_forward_decls();
     genln();
     genlnf("// Sorted declarations");
     gen_sorted_decls();
+    genln();
     genf("// Typeinfo");
     gen_typeinfos();
+    genln();
     genlnf("// Definitions");
     gen_defs();
+    genlnf("// Foreign source files");
+    gen_foreign_sources();
+    genln();
 }
