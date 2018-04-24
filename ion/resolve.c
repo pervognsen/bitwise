@@ -2123,7 +2123,7 @@ void finalize_reachable_syms(void) {
         if (num_reachable != buf_len(reachable_syms)) {
             printf("New reachable symbols:");
             for (int k = num_reachable; k < buf_len(reachable_syms); k++) {
-                printf(" %s", reachable_syms[k]->name);
+                printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
             }
             printf("\n");
             num_reachable = (int)buf_len(reachable_syms);
