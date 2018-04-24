@@ -10,12 +10,12 @@ void add_package_search_path(const char *path) {
 
 void add_package_search_path_range(const char *start, const char *end) {
     char path[MAX_PATH];
-    strncpy(path, start, MIN(end - start, MAX_PATH - 1));
+    strncpy(path, start, CLAMP_MAX(end - start, MAX_PATH - 1));
     path[MAX_PATH - 1] = 0;
     add_package_search_path(path);
 }
 
-void init_search_paths(void) {
+void init_package_search_paths(void) {
     const char *ionhome_var = getenv("IONHOME");
     if (!ionhome_var) {
         printf("error: Set the environment variable IONHOME to the Ion home directory (where system_packages is located)\n");
@@ -29,21 +29,20 @@ void init_search_paths(void) {
     const char *ionpath_var = getenv("IONPATH");
     if (ionpath_var) {
         const char *start = ionpath_var;
-        const char *ptr;
-        for (ptr = ionpath_var; *ptr; ptr++) {
+        for (const char *ptr = ionpath_var; *ptr; ptr++) {
             if (*ptr == ';') {
                 add_package_search_path_range(start, ptr);
                 start = ptr + 1;
             }
         }
-        if (start != ptr) {
-            add_package_search_path_range(start, ptr);
+        if (*start) {
+            add_package_search_path(start);
         }
     }
 }
 
 void init_compiler(void) {
-    init_search_paths();
+    init_package_search_paths();
     init_keywords();
     init_types();
     map_put(&decl_note_names, declare_note_name, (void *)1);

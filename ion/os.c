@@ -22,7 +22,7 @@ void path_normalize(char *path) {
 
 bool path_copy(char path[MAX_PATH], const char *src) {
     size_t src_len = strlen(src);
-    size_t copy_len = MIN(src_len, MAX_PATH - 1);
+    size_t copy_len = CLAMP_MAX(src_len, MAX_PATH - 1);
     memcpy(path, src, copy_len);
     path[copy_len] = 0;
     path_normalize(path);

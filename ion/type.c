@@ -422,6 +422,7 @@ void init_types(void) {
     init = true;
 }
 
+
 int aggregate_field_index(Type *type, const char *name) {
     assert(is_aggregate_type(type));
     for (int i = 0; i < type->aggregate.num_fields; i++) {
