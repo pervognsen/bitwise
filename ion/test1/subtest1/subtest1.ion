@@ -1,4 +1,12 @@
+import libc {printf}
+
+func bogus_func() {
+    asdf;
+    "asdf" << 42;
+}
+
 func func3() {
+    printf("func3\n");
 }
 
 func func4() {
@@ -13,5 +21,3 @@ func func1(): int {
     func2();
     return 42;
 }
-
-import libc {printf}

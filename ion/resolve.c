@@ -36,7 +36,6 @@ typedef struct Package {
     const char *external_name;
 } Package;
 
-
 enum {
     MAX_LOCAL_SYMS = 1024
 };
@@ -188,6 +187,8 @@ void sym_global_put(const char *name, Sym *sym) {
     map_put(&current_package->syms_map, name, sym);
     buf_push(current_package->syms, sym);
 }
+
+void resolve_sym(Sym *sym);
 
 Sym *sym_global_type(const char *name, Type *type) {
     name = str_intern(name);

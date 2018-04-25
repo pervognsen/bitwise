@@ -44,7 +44,7 @@ void init_package_search_paths(void) {
 void init_compiler(void) {
     init_package_search_paths();
     init_keywords();
-    init_types();
+    init_builtin_types();
     map_put(&decl_note_names, declare_note_name, (void *)1);
 }
 
@@ -69,7 +69,7 @@ int ion_main(int argc, char **argv) {
         return 1;
     }
     const char *main_name = str_intern("main");
-    Sym *main_sym = get_package_sym(main_package , main_name);
+    Sym *main_sym = get_package_sym(main_package, main_name);
     if (!main_sym) {
         printf("error: No 'main' entry point defined in package '%s'\n", package_name);
         return 1;
@@ -77,6 +77,9 @@ int ion_main(int argc, char **argv) {
     main_sym->external_name = main_name;
     resolve_package_syms(builtin_package);
     resolve_package_syms(main_package);
+    // for (int i = 0; i < buf_len(package_list); i++) {
+    //     resolve_package_syms(package_list[i]);
+    // }
     finalize_reachable_syms();
     printf("Compiled %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
     char c_path[MAX_PATH];

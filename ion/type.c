@@ -399,11 +399,7 @@ Type *type_enum(Sym *sym) {
     return type;
 }
 
-void init_types(void) {
-    static bool init;
-    if (!init) {
-        return;
-    }
+void init_builtin_types(void) {
     register_typeid(type_void);
     register_typeid(type_bool);
     register_typeid(type_char);
@@ -419,7 +415,6 @@ void init_types(void) {
     register_typeid(type_ullong);
     register_typeid(type_float);
     register_typeid(type_double);
-    init = true;
 }
 
 
