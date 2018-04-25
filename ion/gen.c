@@ -10,7 +10,9 @@ const char **gen_headers_buf;
 
 const char *gen_preamble =
     "// Preamble\n"
+    "#ifndef _CRT_SECURE_NO_WARNINGS\n"
     "#define _CRT_SECURE_NO_WARNINGS\n"
+    "#endif\n"
     "#if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L\n"
     "// Visual Studio 2015 supports enough C99/C11 features for us.\n"
     "#else\n"
