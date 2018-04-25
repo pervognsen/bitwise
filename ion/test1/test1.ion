@@ -1,4 +1,3 @@
-import libc
 import .subtest1 {subtest1_func1 = func1}
 import libc {gc = getchar, printf}
 

@@ -559,9 +559,11 @@ void gen_simple_stmt(Stmt *stmt) {
             } else {
                 genf("%s", typespec_to_cdecl(stmt->init.type, stmt->init.name));
             }
+            genf(" = ");
             if (stmt->init.expr) {
-                genf(" = ");
                 gen_expr(stmt->init.expr);
+            } else {
+                genf("{0}");
             }
         } else {
             genf("%s = ", type_to_cdecl(unqualify_type(get_resolved_type(stmt->init.expr)), stmt->init.name));

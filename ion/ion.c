@@ -21,10 +21,10 @@ void init_package_search_paths(void) {
         printf("error: Set the environment variable IONHOME to the Ion home directory (where system_packages is located)\n");
         exit(1);
     }
-    char sys_path[MAX_PATH];
-    path_copy(sys_path, ionhome_var);
-    path_join(sys_path, "system_packages");
-    add_package_search_path(sys_path);
+    char path[MAX_PATH];
+    path_copy(path, ionhome_var);
+    path_join(path, "system_packages");
+    add_package_search_path(path);
     add_package_search_path(".");
     const char *ionpath_var = getenv("IONPATH");
     if (ionpath_var) {
