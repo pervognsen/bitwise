@@ -139,9 +139,9 @@ void print_flags_usage(void) {
     }
 }
 
-const char *parse_flags(int *argcp, const char ***argvp) {
-    int argc = *argcp;
-    const char **argv = *argvp;
+const char *parse_flags(int *argc_ptr, const char ***argv_ptr) {
+    int argc = *argc_ptr;
+    const char **argv = *argv_ptr;
     int i;
     for (i = 1; i < argc; i++) {
         const char *arg = argv[i];
@@ -167,9 +167,7 @@ const char *parse_flags(int *argcp, const char ***argvp) {
             break;
         }
     }
-    char *program_name = strdup(argv[0]);
-    program_name = path_file(program_name);
-    *argcp = argc - i;
-    *argvp = argv + i;
-    return program_name;
+    *argc_ptr = argc - i;
+    *argv_ptr = argv + i;
+    return path_file(strdup(argv[0]));
 }

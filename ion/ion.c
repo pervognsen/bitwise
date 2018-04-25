@@ -56,7 +56,7 @@ int ion_main(int argc, const char **argv) {
     add_flag_bool("lazy", &flag_lazy, "Only type check and compile what's reachable from the main package");
     const char *program_name = parse_flags(&argc, &argv);
     if (!(1 <= argc && argc <= 2)) {
-        printf("Usage: %s [flags] [<main-package> [<output-c-file>]\n", program_name);
+        printf("Usage: %s [flags] <main-package> [output-c-file]\n", program_name);
         print_flags_usage();
         return 1;
     }
