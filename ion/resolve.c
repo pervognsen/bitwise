@@ -1274,44 +1274,35 @@ Operand resolve_unary_op(TokenKind op, Operand operand) {
 }
 
 Operand resolve_expr_unary(Expr *expr) {
-    assert(expr->kind == EXPR_UNARY);
-    if (expr->unary.op == TOKEN_AND) {
-        Operand operand = resolve_expr(expr->unary.expr);
-        if (!operand.is_lvalue) {
-            fatal_error(expr->pos, "Cannot take address of non-lvalue");
+    Operand operand = resolve_expr_rvalue(expr->unary.expr);
+    Type *type = operand.type;
+    switch (expr->unary.op) {
+    case TOKEN_MUL:
+        if (!is_ptr_type(type)) {
+            fatal_error(expr->pos, "Cannot deref non-ptr type");
         }
-        return operand_rvalue(type_ptr(operand.type));
-    } else {
-        Operand operand = resolve_expr_rvalue(expr->unary.expr);
-        Type *type = operand.type;
-        switch (expr->unary.op) {
-        case TOKEN_MUL:
-            if (!is_ptr_type(type)) {
-                fatal_error(expr->pos, "Cannot deref non-ptr type");
-            }
-            return operand_lvalue(type->base);
-        case TOKEN_ADD:
-        case TOKEN_SUB:
-            if (!is_arithmetic_type(type)) {
-                fatal_error(expr->pos, "Can only use unary %s with arithmetic types", token_kind_name(expr->unary.op));
-            }
-            return resolve_unary_op(expr->unary.op, operand);
-        case TOKEN_NEG:
-            if (!is_integer_type(type)) {
-                fatal_error(expr->pos, "Can only use ~ with integer types");
-            }
-            return resolve_unary_op(expr->unary.op, operand);
-        case TOKEN_NOT:
-            if (!is_scalar_type(type)) {
-                fatal_error(expr->pos," Can only use ! with scalar types");
-            }
-            return resolve_unary_op(expr->unary.op, operand);
-        default:
-            assert(0);
-            break;
+        return operand_lvalue(type->base);
+    case TOKEN_ADD:
+    case TOKEN_SUB:
+        if (!is_arithmetic_type(type)) {
+            fatal_error(expr->pos, "Can only use unary %s with arithmetic types", token_kind_name(expr->unary.op));
         }
-        return (Operand){0};
+        return resolve_unary_op(expr->unary.op, operand);
+    case TOKEN_NEG:
+        if (!is_integer_type(type)) {
+            fatal_error(expr->pos, "Can only use ~ with integer types");
+        }
+        return resolve_unary_op(expr->unary.op, operand);
+    case TOKEN_NOT:
+        if (!is_scalar_type(type)) {
+            fatal_error(expr->pos," Can only use ! with scalar types");
+        }
+        return resolve_unary_op(expr->unary.op, operand);
+    default:
+        assert(0);
+        break;
     }
+    return (Operand){0};
 }
 
 Operand resolve_binary_op(TokenKind op, Operand left, Operand right) {
@@ -1801,7 +1792,20 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = resolve_expr_compound(expr, expected_type);
         break;
     case EXPR_UNARY:
-        result = resolve_expr_unary(expr);
+        if (expr->unary.op == TOKEN_AND) {
+            Operand operand;
+            if (expected_type && is_ptr_type(expected_type)) {
+                operand = resolve_expected_expr(expr->unary.expr, expected_type->base);
+            } else {
+                operand = resolve_expr(expr->unary.expr);
+            }
+            if (!operand.is_lvalue) {
+                fatal_error(expr->pos, "Cannot take address of non-lvalue");
+            }
+            result = operand_rvalue(type_ptr(operand.type));
+        } else {
+            result = resolve_expr_unary(expr);
+        }
         break;
     case EXPR_BINARY:
         result = resolve_expr_binary(expr);
@@ -1965,7 +1969,8 @@ void add_package_decls(Package *package) {
                 }
                 map_put(&decl_note_names, arg->name, (void *)1);
             } else if (decl->note.name == static_assert_name) {
-//                resolve_static_assert(decl->note);
+                // TODO: decide how to handle top-level static asserts wrt laziness/tree shaking
+                // resolve_static_assert(decl->note);
             }
         } else if (decl->kind == DECL_IMPORT) {
             // Add to list of imports
@@ -2124,7 +2129,7 @@ void finalize_reachable_syms(void) {
     int num_reachable = (int)buf_len(reachable_syms);
     for (int i = 0; i < num_reachable; i++) {
         finalize_sym(reachable_syms[i]);
-        if (i == num_reachable-1) {
+        if (i == num_reachable - 1) {
             printf("New reachable symbols:");
             for (int k = prev_num_reachable; k < num_reachable; k++) {
                 printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);

@@ -106,7 +106,7 @@ func test_loops() {
     while (0) {
     }
     for (i := 0; i < 10; i++) {
-    }
+    }   
     for (;;) {
         break;
     }
@@ -573,6 +573,8 @@ struct Ints {
 }
 
 func test_compound_literals() {
+    w: Vector*;
+    w = &{1, 2};
     a := (:int[]){1, 2, 3};
     i := 42;
     x: Any const = {&i, typeof(i)};
