@@ -4,7 +4,9 @@ const char **package_search_paths = static_package_search_paths;
 int num_package_search_paths;
 
 void add_package_search_path(const char *path) {
-    printf("Adding package search path %s\n", path);
+    if (flag_verbose) {
+        printf("Adding package search path %s\n", path);
+    }
     package_search_paths[num_package_search_paths++] = str_intern(path);
 }
 
@@ -49,12 +51,18 @@ void init_compiler(void) {
     map_put(&decl_note_names, declare_note_name, (void *)1);
 }
 
-int ion_main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: %s <package> [<output-c-file>]\n", argv[0]);
+int ion_main(int argc, const char **argv) {
+    add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
+    add_flag_bool("lazy", &flag_lazy, "Only type check and compile what's reachable from the main package");
+    const char *program_name = parse_flags(&argc, &argv);
+    if (!(1 <= argc && argc <= 2)) {
+        printf("Usage: %s [flags] [<main-package> [<output-c-file>]\n", program_name);
+        print_flags_usage();
         return 1;
     }
-    const char *package_name = argv[1];
+    const char *package_name = argv[0];
+    const char *output_name = argc >= 2 ? argv[1] : NULL;
+
     init_compiler();
 
     builtin_package = import_package("builtin");
@@ -78,14 +86,16 @@ int ion_main(int argc, char **argv) {
     main_sym->external_name = main_name;
     resolve_package_syms(builtin_package);
     resolve_package_syms(main_package);
-    // for (int i = 0; i < buf_len(package_list); i++) {
-    //     resolve_package_syms(package_list[i]);
-    // }
+    if (!flag_lazy) {
+        for (int i = 0; i < buf_len(package_list); i++) {
+            resolve_package_syms(package_list[i]);
+        }
+    }
     finalize_reachable_syms();
     printf("Compiled %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
     char c_path[MAX_PATH];
-    if (argc >= 3) {
-        path_copy(c_path, argv[2]);
+    if (output_name) {
+        path_copy(c_path, output_name);
     } else {
         snprintf(c_path, sizeof(c_path), "out_%s.c", package_name);
     }

@@ -370,5 +370,3 @@ typedef union Val {
     unsigned long long ull;
     uintptr_t p;
 } Val;
-
-

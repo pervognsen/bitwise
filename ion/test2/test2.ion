@@ -27,7 +27,7 @@ func dot2(a: vec2, b: vec2): float {
 }
 
 func len2(a: vec2): float {
-    return sqrtf(dot2(a, a));
+    return sqrt(dot2(a, a));
 }
 
 func unit2(a: vec2): vec2 {
@@ -43,7 +43,7 @@ func dir2(a: vec2, b: vec2): vec2 {
 }
 
 func rot2(a: float, b: vec2): vec2 {
-    c := cosf(a);
-    s := sinf(a);
+    c := cos(a);
+    s := sin(a);
     return {c*b.x - s*b.y, s*b.x + c*b.y};
 }

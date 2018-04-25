@@ -100,3 +100,76 @@ const char **dir_list_buf(const char *filespec) {
     }
     return buf;
 }
+
+
+// Command line flag parsing
+
+typedef enum FlagKind {
+    FLAG_BOOL,
+} FlagKind;
+
+typedef struct FlagDef {
+    const char *name;
+    FlagKind kind;
+    const char *help;
+    struct {
+        bool *b;
+    } ptr;
+} FlagDef;
+
+FlagDef *flag_defs;
+
+void add_flag_bool(const char *name, bool *ptr, const char *help) {
+    buf_push(flag_defs, (FlagDef){.name = name, .help = help, .ptr.b = ptr});
+}
+
+FlagDef *get_flag_def(const char *name) {
+    for (int i = 0; i < buf_len(flag_defs); i++) {
+        if (strcmp(flag_defs[i].name, name) == 0) {
+            return &flag_defs[i];
+        }
+    }
+    return NULL;
+}
+
+void print_flags_usage(void) {
+    printf("Flags:\n");
+    for (int i = 0; i < buf_len(flag_defs); i++) {
+        printf(" -%-16s %s\n", flag_defs[i].name, flag_defs[i].help ? flag_defs[i].help : "");
+    }
+}
+
+const char *parse_flags(int *argcp, const char ***argvp) {
+    int argc = *argcp;
+    const char **argv = *argvp;
+    int i;
+    for (i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (*arg == '-') {
+            arg++;
+            if (*arg == '-') {
+                arg++;
+            }
+            FlagDef *def = get_flag_def(arg);
+            if (!def) {
+                printf("Unknown flag: %s\n", arg);
+                continue;
+            }
+            switch (def->kind) {
+            case FLAG_BOOL:
+                *def->ptr.b = true;
+                break;
+            default:
+                printf("Unhandled flag kind\n");
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    char *program_name = strdup(argv[0]);
+    program_name = path_file(program_name);
+    *argcp = argc - i;
+    *argvp = argv + i;
+    return program_name;
+}

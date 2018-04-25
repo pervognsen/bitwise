@@ -1,13 +1,25 @@
 #foreign(header = "<math.h>")
 
-@foreign
-func sqrtf(f: float): float;
+@foreign("sqrtf")
+func sqrt(x: float): float;
 
-@foreign
-func cosf(f: float): float;
+@foreign("cosf")
+func cos(x: float): float;
 
-@foreign
-func sinf(f: float): float;
+@foreign("sinf")
+func sin(x: float): float;
 
-@foreign
-func fmodf(x: float, y: float): float;
+@foreign("fmodf")
+func fmod(x: float, y: float): float;
+
+@foreign("sqrt")
+func sqrtd(x: double): double;
+
+@foreign("cos")
+func cosd(x: double): double;
+
+@foreign("sin")
+func sind(x: double): double;
+
+@foreign("fmod")
+func fmodd(x: double, y: double): double;

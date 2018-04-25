@@ -2017,7 +2017,9 @@ Package *import_package(const char *package_path) {
     if (!package) {
         package = xcalloc(1, sizeof(Package));
         package->path = package_path;
-        printf("Importing %s\n", package_path);
+        if (flag_verbose) {
+            printf("Importing %s\n", package_path);
+        }
         char full_path[MAX_PATH];
         if (!copy_package_full_path(full_path, package_path)) {
             return NULL;
@@ -2124,17 +2126,21 @@ void resolve_package_syms(Package *package) {
 }
 
 void finalize_reachable_syms(void) {
-    printf("Finalizing reachable symbols\n");
+    if (flag_verbose) {
+        printf("Finalizing reachable symbols\n");
+    }
     int prev_num_reachable = 0;
     int num_reachable = (int)buf_len(reachable_syms);
     for (int i = 0; i < num_reachable; i++) {
         finalize_sym(reachable_syms[i]);
         if (i == num_reachable - 1) {
-            printf("New reachable symbols:");
-            for (int k = prev_num_reachable; k < num_reachable; k++) {
-                printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
+            if (flag_verbose) {
+                printf("New reachable symbols:");
+                for (int k = prev_num_reachable; k < num_reachable; k++) {
+                    printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
+                }
+                printf("\n");
             }
-            printf("\n");
             prev_num_reachable = num_reachable;
             num_reachable = (int)buf_len(reachable_syms);
         }

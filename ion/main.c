@@ -18,6 +18,9 @@
 #include <limits.h>
 #include <assert.h>
 
+bool flag_verbose;
+bool flag_lazy;
+
 #include "common.c"
 #include "os.c"
 #include "lex.c"
@@ -31,7 +34,7 @@
 #include "ion.c"
 #include "test.c"
 
-int main(int argc, char **argv) {
+int main(int argc, const char **argv) {
 //    main_test();
     return ion_main(argc, argv);
 }

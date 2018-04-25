@@ -1,8 +1,8 @@
 import libc {printf}
 
 func bogus_func() {
-    asdf;
-    "asdf" << 42;
+//    asdf;
+//    "asdf" << 42;
 }
 
 func func3() {
