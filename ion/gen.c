@@ -429,7 +429,7 @@ void gen_expr(Expr *expr) {
         genf("%s", get_gen_name_or_default(expr, expr->name));
         break;
     case EXPR_CAST:
-        genf("(%s)(", type_to_cdecl(get_resolved_type(expr->cast.type), ""));
+        genf("(%s)(", typespec_to_cdecl(expr->cast.type, ""));
         gen_expr(expr->cast.expr);
         genf(")");
         break;
@@ -486,13 +486,13 @@ void gen_expr(Expr *expr) {
         genf(")");
         break;
     case EXPR_SIZEOF_TYPE:
-        genf("sizeof(%s)", type_to_cdecl(get_resolved_type(expr->sizeof_type), ""));
+        genf("sizeof(%s)", typespec_to_cdecl(expr->sizeof_type, ""));
         break;
     case EXPR_ALIGNOF_EXPR:
         genf("alignof(%s)", type_to_cdecl(get_resolved_type(expr->alignof_expr), ""));
         break;
     case EXPR_ALIGNOF_TYPE:
-        genf("alignof(%s)", type_to_cdecl(get_resolved_type(expr->alignof_type), ""));
+        genf("alignof(%s)", typespec_to_cdecl(expr->alignof_type, ""));
         break;
     case EXPR_TYPEOF_EXPR: {
         Type *type = get_resolved_type(expr->typeof_expr);
@@ -542,12 +542,12 @@ void gen_simple_stmt(Stmt *stmt) {
         break;
     case STMT_INIT:
         if (stmt->init.type) {
+            Typespec *init_typespec = stmt->init.type;
             if (is_incomplete_array_typespec(stmt->init.type)) {
-                genf("%s", type_to_cdecl(get_resolved_type(stmt->init.expr), stmt->init.name));
-            } else {
-                genf("%s", typespec_to_cdecl(stmt->init.type, stmt->init.name));
+                Expr *size = new_expr_int(init_typespec->pos, get_resolved_type(stmt->init.expr)->num_elems, 0, 0);
+                init_typespec = new_typespec_array(init_typespec->pos, init_typespec->base, size);
             }
-            genf(" = ");
+            genf("%s = ", typespec_to_cdecl(stmt->init.type, stmt->init.name));
             if (stmt->init.expr) {
                 gen_expr(stmt->init.expr);
             } else {

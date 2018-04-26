@@ -82,15 +82,17 @@ func test_modify() {
     #assert(sp == stk);
 }
 
-func f10(a: int[3]) {
+func f10(a: wchar[3]) {
     a[1] = 42;
 }
 
 func test_arrays() {
-    a: int[] = {1, 2, 3};
+    a: wchar[] = {1, 2, 3};
     // a = a;
     f10(a);
     b := a;
+    w1: wchar;
+    w2 := w1;
 }
 
 func test_loops() {
