@@ -1,3 +1,3 @@
-func main(argc: int, argv: char const**): int {
+func main(argc: int, argv: char**): int {
     return 0;
 }

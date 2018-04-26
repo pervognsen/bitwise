@@ -231,7 +231,7 @@ struct SDL_MouseButtonEvent {
 }
 
 @foreign
-struct SDL_Event {
+union SDL_Event {
     type: uint32;
     key: SDL_KeyboardEvent;
     text: SDL_TextInputEvent;
