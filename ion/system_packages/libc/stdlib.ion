@@ -54,13 +54,13 @@ func strtoull(nptr: char const*, endptr: char**, base: int): ullong;
 func rand(): int;
 
 @foreign
-func srand(seed: uint): void;
+func srand(seed: uint)
 
 @foreign
 func calloc(nmemb: usize, size: usize): void*;
 
 @foreign
-func free(ptr: void*): void;
+func free(ptr: void*);
 
 @foreign
 func malloc(size: usize): void*;
@@ -69,16 +69,16 @@ func malloc(size: usize): void*;
 func realloc(ptr: void*, size: usize): void*;
 
 @foreign
-func abort(): void;
+func abort();
 
 @foreign
-func atexit(fn: func (): void): int;
+func atexit(fn: func()): int;
 
 @foreign
-func exit(status: int): void;
+func exit(status: int);
 
 @foreign
-func _Exit(status: int): void;
+func _Exit(status: int);
 
 @foreign
 func getenv(name: char const*): char*;
@@ -87,10 +87,10 @@ func getenv(name: char const*): char*;
 func system(string: char const*): int;
 
 @foreign
-func bsearch(key: void const*, base: void const*, nmemb: usize, size: usize, compar: func (void const*, void const*): int): void*;
+func bsearch(key: void const*, base: void const*, nmemb: usize, size: usize, compar: func(void const*, void const*): int): void*;
 
 @foreign
-func qsort(base: void*, nmemb: usize, size: usize, compar: func (void const*, void const*): int): void;
+func qsort(base: void*, nmemb: usize, size: usize, compar: func(void const*, void const*): int);
 
 @foreign
 func abs(j: int): int;

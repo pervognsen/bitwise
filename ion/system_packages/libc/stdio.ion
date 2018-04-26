@@ -34,7 +34,7 @@ func fopen(filename: char const*, mode: char const*): FILE*;
 func freopen(filename: char const*, mode: char const*, stream: FILE*): FILE*;
 
 @foreign
-func setbuf(stream: FILE*, buf: char*): void;
+func setbuf(stream: FILE*, buf: char*);
 
 @foreign
 func setvbuf(stream: FILE*, buf: char*, mode: int, size: usize): int;
@@ -133,10 +133,10 @@ func fsetpos(stream: FILE*, pos: fpos_t*): int;
 func ftell(stream: FILE*): long;
 
 @foreign
-func rewind(stream: FILE*): void;
+func rewind(stream: FILE*);
 
 @foreign
-func clearerr(stream: FILE*): void;
+func clearerr(stream: FILE*);
 
 @foreign
 func feof(stream: FILE*): int;
@@ -145,5 +145,5 @@ func feof(stream: FILE*): int;
 func ferror(stream: FILE*): int;
 
 @foreign
-func perror(s: char const*): void;
+func perror(s: char const*);
 
