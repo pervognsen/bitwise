@@ -68,23 +68,23 @@ typedef struct TypeMetrics {
 
 TypeMetrics *type_metrics;
 
-Type *type_void = &(Type){TYPE_VOID, .size = 0, .align = 0, .typeid = 1};
-Type *type_bool = &(Type){TYPE_BOOL, .size = 1, .align = 1, .typeid = 2};
-Type *type_char = &(Type){TYPE_CHAR, .size = 1, .align = 1, .typeid = 3};
-Type *type_uchar = &(Type){TYPE_UCHAR, .size = 1, .align = 1, .typeid = 4};
-Type *type_schar = &(Type){TYPE_SCHAR, .size = 1, .align = 1, .typeid = 5};
-Type *type_short = &(Type){TYPE_SHORT, .size = 2, .align = 2, .typeid = 6};
-Type *type_ushort = &(Type){TYPE_USHORT, .size = 2, .align = 2, .typeid = 7};
-Type *type_int = &(Type){TYPE_INT, .size = 4, .align = 4, .typeid = 8};
-Type *type_uint = &(Type){TYPE_UINT, .size = 4, .align = 4, .typeid = 9};
-Type *type_long = &(Type){TYPE_LONG, .size = 4, .align = 4, .typeid = 10}; // 4 on 64-bit windows, 8 on 64-bit linux, probably factor this out to the backend
-Type *type_ulong = &(Type){TYPE_ULONG, .size = 4, .align = 4, .typeid = 11};
-Type *type_llong = &(Type){TYPE_LLONG, .size = 8, .align = 8, .typeid = 12};
-Type *type_ullong = &(Type){TYPE_ULLONG, .size = 8, .align = 8, .typeid = 13};
-Type *type_float = &(Type){TYPE_FLOAT, .size = 4, .align = 4, .typeid = 14};
-Type *type_double = &(Type){TYPE_DOUBLE, .size = 8, .align = 8, .typeid = 15};
+Type *type_void = &(Type){TYPE_VOID};
+Type *type_bool = &(Type){TYPE_BOOL};
+Type *type_char = &(Type){TYPE_CHAR};
+Type *type_uchar = &(Type){TYPE_UCHAR};
+Type *type_schar = &(Type){TYPE_SCHAR};
+Type *type_short = &(Type){TYPE_SHORT};
+Type *type_ushort = &(Type){TYPE_USHORT};
+Type *type_int = &(Type){TYPE_INT};
+Type *type_uint = &(Type){TYPE_UINT};
+Type *type_long = &(Type){TYPE_LONG};
+Type *type_ulong = &(Type){TYPE_ULONG};
+Type *type_llong = &(Type){TYPE_LLONG};
+Type *type_ullong = &(Type){TYPE_ULLONG};
+Type *type_float = &(Type){TYPE_FLOAT};
+Type *type_double = &(Type){TYPE_DOUBLE};
 
-int next_typeid = 16;
+int next_typeid = 1;
 
 Type *type_uintptr;
 Type *type_usize;
@@ -407,7 +407,8 @@ Type *type_enum(Sym *sym) {
 }
 
 void init_builtin_type(Type *type) {
-    register_typeid(type_void);
+    type->typeid = next_typeid++;
+    register_typeid(type);
     type->size = type_metrics[type->kind].size;
     type->align = type_metrics[type->kind].align;
 }

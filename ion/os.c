@@ -115,6 +115,7 @@ typedef struct FlagDef {
     const char *name;
     const char *help;
     const char **options;
+    const char *arg_name;
     int num_options;
     struct {
         int *i;
@@ -129,8 +130,8 @@ void add_flag_bool(const char *name, bool *ptr, const char *help) {
     buf_push(flag_defs, (FlagDef){.kind = FLAG_BOOL, .name = name, .help = help, .ptr.b = ptr});
 }
 
-void add_flag_str(const char *name, const char **ptr, const char *help) {
-    buf_push(flag_defs, (FlagDef){.kind = FLAG_STR, .name = name, .help = help, .ptr.s = ptr});
+void add_flag_str(const char *name, const char **ptr, const char *arg_name, const char *help) {
+    buf_push(flag_defs, (FlagDef){.kind = FLAG_STR, .name = name, .help = help, .arg_name = arg_name, .ptr.s = ptr});
 }
 
 void add_flag_enum(const char *name, int *ptr, const char *help, const char **options, int num_options) {
@@ -150,17 +151,24 @@ void print_flags_usage(void) {
     printf("Flags:\n");
     for (int i = 0; i < buf_len(flag_defs); i++) {
         FlagDef flag = flag_defs[i];
+        char note[256] = {0};
         char format[256];
         switch (flag.kind) {
         case FLAG_STR:
-            snprintf(format, sizeof(format), "%s <value>", flag.name);
+            snprintf(format, sizeof(format), "%s <%s>", flag.name, flag.arg_name ? flag.arg_name : "value");
+            if (*flag.ptr.s) {
+                snprintf(note, sizeof(note), "(default: %s)", *flag.ptr.s);
+            }
             break;
         case FLAG_ENUM: {
             char *end = format + sizeof(format);
             char *ptr = format;
             ptr += snprintf(ptr, end - ptr, "%s <", flag.name);
             for (int k = 0; k < flag.num_options; k++) {
-                ptr += snprintf(ptr, end - ptr, "%s%s%s", k == 0 ? "" : "|", flag.options[k], *flag.ptr.i == k ? "(*)" : "");
+                ptr += snprintf(ptr, end - ptr, "%s%s", k == 0 ? "" : "|", flag.options[k]);
+                if (k == *flag.ptr.i) {
+                    snprintf(note, sizeof(note), " (default: %s)", flag.options[k]);
+                }
             }
             snprintf(ptr, end - ptr, ">");
             break;
@@ -170,7 +178,7 @@ void print_flags_usage(void) {
             snprintf(format, sizeof(format), "%s", flag.name);
             break;
         }
-        printf(" -%-32s %s\n", format, flag.help ? flag.help : "");
+        printf(" -%-32s %s%s\n", format, flag.help ? flag.help : "", note);
     }
 }
 
