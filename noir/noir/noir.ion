@@ -1,5 +1,3 @@
-#foreign(header = "SDL.h")
-
 import sdl {...}
 import libc {...}
 
