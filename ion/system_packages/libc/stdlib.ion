@@ -1,22 +1,19 @@
 #foreign(header = "<stdlib.h>")
 
 @foreign
-struct div_t
-{
+struct div_t {
     quot: int;
     rem: int;
 }
 
 @foreign
-struct ldiv_t
-{
+struct ldiv_t {
     quot: long;
     rem: long;
 }
 
 @foreign
-struct lldiv_t
-{
+struct lldiv_t {
     quot: llong;
     rem: llong;
 }
@@ -75,7 +72,7 @@ func realloc(ptr: void*, size: usize): void*;
 func abort(): void;
 
 @foreign
-func atexit(fn: (func (): void)*): int;
+func atexit(fn: func (): void): int;
 
 @foreign
 func exit(status: int): void;
@@ -90,10 +87,10 @@ func getenv(name: char const*): char*;
 func system(string: char const*): int;
 
 @foreign
-func bsearch(key: void const*, base: void const*, nmemb: usize, size: usize, compar: (func (void const*, void const*): int)*): void*;
+func bsearch(key: void const*, base: void const*, nmemb: usize, size: usize, compar: func (void const*, void const*): int): void*;
 
 @foreign
-func qsort(base: void*, nmemb: usize, size: usize, compar: (func (void const*, void const*): int)*): void;
+func qsort(base: void*, nmemb: usize, size: usize, compar: func (void const*, void const*): int): void;
 
 @foreign
 func abs(j: int): int;
