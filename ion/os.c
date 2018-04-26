@@ -106,21 +106,35 @@ const char **dir_list_buf(const char *filespec) {
 
 typedef enum FlagKind {
     FLAG_BOOL,
+    FLAG_STR,
+    FLAG_ENUM,
 } FlagKind;
 
 typedef struct FlagDef {
-    const char *name;
     FlagKind kind;
+    const char *name;
     const char *help;
+    const char **options;
+    int num_options;
     struct {
+        int *i;
         bool *b;
+        const char **s;
     } ptr;
 } FlagDef;
 
 FlagDef *flag_defs;
 
 void add_flag_bool(const char *name, bool *ptr, const char *help) {
-    buf_push(flag_defs, (FlagDef){.name = name, .help = help, .ptr.b = ptr});
+    buf_push(flag_defs, (FlagDef){.kind = FLAG_BOOL, .name = name, .help = help, .ptr.b = ptr});
+}
+
+void add_flag_str(const char *name, const char **ptr, const char *help) {
+    buf_push(flag_defs, (FlagDef){.kind = FLAG_STR, .name = name, .help = help, .ptr.s = ptr});
+}
+
+void add_flag_enum(const char *name, int *ptr, const char *help, const char **options, int num_options) {
+    buf_push(flag_defs, (FlagDef){.kind = FLAG_ENUM, .name = name, .help = help, .ptr.i = ptr, .options = options, .num_options = num_options});
 }
 
 FlagDef *get_flag_def(const char *name) {
@@ -135,7 +149,28 @@ FlagDef *get_flag_def(const char *name) {
 void print_flags_usage(void) {
     printf("Flags:\n");
     for (int i = 0; i < buf_len(flag_defs); i++) {
-        printf(" -%-16s %s\n", flag_defs[i].name, flag_defs[i].help ? flag_defs[i].help : "");
+        FlagDef flag = flag_defs[i];
+        char format[256];
+        switch (flag.kind) {
+        case FLAG_STR:
+            snprintf(format, sizeof(format), "%s <value>", flag.name);
+            break;
+        case FLAG_ENUM: {
+            char *end = format + sizeof(format);
+            char *ptr = format;
+            ptr += snprintf(ptr, end - ptr, "%s <", flag.name);
+            for (int k = 0; k < flag.num_options; k++) {
+                ptr += snprintf(ptr, end - ptr, "%s%s", k == 0 ? "" : "|", flag.options[k]);
+            }
+            snprintf(ptr, end - ptr, ">");
+            break;
+        }
+        case FLAG_BOOL:
+        default:
+            snprintf(format, sizeof(format), "%s", flag.name);
+            break;
+        }
+        printf(" -%-32s %s\n", format, flag.help ? flag.help : "");
     }
 }
 
@@ -145,20 +180,51 @@ const char *parse_flags(int *argc_ptr, const char ***argv_ptr) {
     int i;
     for (i = 1; i < argc; i++) {
         const char *arg = argv[i];
-        if (*arg == '-') {
-            arg++;
-            if (*arg == '-') {
-                arg++;
+        const char *name = arg;
+        if (*name== '-') {
+            name++;
+            if (*name== '-') {
+                name++;
             }
-            FlagDef *def = get_flag_def(arg);
-            if (!def) {
-                printf("Unknown flag: %s\n", arg);
+            FlagDef *flag = get_flag_def(name);
+            if (!flag) {
+                printf("Unknown flag %s\n", arg);
                 continue;
             }
-            switch (def->kind) {
+            switch (flag->kind) {
             case FLAG_BOOL:
-                *def->ptr.b = true;
+                *flag->ptr.b = true;
                 break;
+            case FLAG_STR:
+                if (i + 1 < argc) {
+                    i++;
+                    *flag->ptr.s = argv[i];
+                } else {
+                    printf("No value argument after -%s\n", arg);
+                }
+                break;
+            case FLAG_ENUM: {
+                const char *option;
+                if (i + 1 < argc) {
+                    i++;
+                    option = argv[i];
+                } else {
+                    printf("No value after %s\n", arg);
+                    break;
+                }
+                bool found = false;
+                for (int k = 0; k < flag->num_options; k++) {
+                    if (strcmp(flag->options[k], option) == 0) {
+                        *flag->ptr.i = k;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    printf("Invalid value '%s' for %s\n", option, arg);
+                }
+                break;
+            }
             default:
                 printf("Unhandled flag kind\n");
                 break;

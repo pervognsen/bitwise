@@ -1622,48 +1622,52 @@ Operand resolve_expr_cast(Expr *expr) {
 
 Operand resolve_expr_int(Expr *expr) {
     assert(expr->kind == EXPR_INT);
+    unsigned long long int_max = type_metrics[TYPE_INT].max;
+    unsigned long long uint_max = type_metrics[TYPE_UINT].max;
+    unsigned long long long_max = type_metrics[TYPE_LONG].max;
+    unsigned long long ulong_max = type_metrics[TYPE_ULONG].max;
+    unsigned long long llong_max = type_metrics[TYPE_LLONG].max;
     unsigned long long val = expr->int_lit.val;
     Operand operand = operand_const(type_ullong, (Val){.ull = val});
     Type *type = type_ullong;
     if (expr->int_lit.mod == MOD_NONE) {
-        bool overflow = false;  
+        bool overflow = false;
         switch (expr->int_lit.suffix) {
         case SUFFIX_NONE:
             type = type_int;
-            // TODO: MAX constants should be sourced from the backend target table, not from the host compiler's header files.
-            if (val > INT_MAX) {
+            if (val > int_max) {
                 type = type_long;
-                if (val > LONG_MAX) {
+                if (val > long_max) {
                     type = type_llong;
-                    overflow = val > LLONG_MAX;
+                    overflow = val > llong_max;
                 }
             }
             break;
         case SUFFIX_U:
             type = type_uint;
-            if (val > UINT_MAX) {
+            if (val > uint_max) {
                 type = type_ulong;
-                if (val > ULONG_MAX) {
+                if (val > ulong_max) {
                     type = type_ullong;
                 }
             }
             break;
         case SUFFIX_L:
             type = type_long;
-            if (val > LONG_MAX) {
+            if (val > long_max) {
                 type = type_llong;
-                overflow = val > LLONG_MAX;
+                overflow = val > llong_max;
             }
             break;
         case SUFFIX_UL:
             type = type_ulong;
-            if (val > ULONG_MAX) {
+            if (val > ulong_max) {
                 type = type_ullong;
             }
             break;
         case SUFFIX_LL:
             type = type_llong;
-            overflow = val > LLONG_MAX;
+            overflow = val > llong_max;
             break;
         case SUFFIX_ULL:
             type = type_ullong;
@@ -1679,15 +1683,15 @@ Operand resolve_expr_int(Expr *expr) {
         switch (expr->int_lit.suffix) {
         case SUFFIX_NONE:
             type = type_int;
-            if (val > INT_MAX) {
+            if (val > int_max) {
                 type = type_uint;
-                if (val > UINT_MAX) {
+                if (val > uint_max) {
                     type = type_long;
-                    if (val > LONG_MAX) {
+                    if (val > long_max) {
                         type = type_ulong;
-                        if (val > ULONG_MAX) {
+                        if (val > ulong_max) {
                             type = type_llong;
-                            if (val > LLONG_MAX) {
+                            if (val > llong_max) {
                                 type = type_ullong;
                             }
                         }
@@ -1697,20 +1701,20 @@ Operand resolve_expr_int(Expr *expr) {
             break;
         case SUFFIX_U:
             type = type_uint;
-            if (val > UINT_MAX) {
+            if (val > uint_max) {
                 type = type_ulong;
-                if (val > ULONG_MAX) {
+                if (val > ulong_max) {
                     type = type_ullong;
                 }
             }
             break;
         case SUFFIX_L:
             type = type_long;
-            if (val > LONG_MAX) {
+            if (val > long_max) {
                 type = type_ulong;
-                if (val > ULONG_MAX) {
+                if (val > ulong_max) {
                     type = type_llong;
-                    if (val > LLONG_MAX) {
+                    if (val > llong_max) {
                         type = type_ullong;
                     }
                 }
@@ -1718,13 +1722,13 @@ Operand resolve_expr_int(Expr *expr) {
             break;
         case SUFFIX_UL:
             type = type_ulong;
-            if (val > ULONG_MAX) {
+            if (val > ulong_max) {
                 type = type_ullong;
             }
             break;
         case SUFFIX_LL:
             type = type_llong;
-            if (val > LLONG_MAX) {
+            if (val > llong_max) {
                 type = type_ullong;
             }
             break;
@@ -1970,7 +1974,9 @@ void add_package_decls(Package *package) {
                 map_put(&decl_note_names, arg->name, (void *)1);
             } else if (decl->note.name == static_assert_name) {
                 // TODO: decide how to handle top-level static asserts wrt laziness/tree shaking
-                // resolve_static_assert(decl->note);
+                if (!flag_lazy) {
+                    resolve_static_assert(decl->note);
+                }
             }
         } else if (decl->kind == DECL_IMPORT) {
             // Add to list of imports
@@ -2078,7 +2084,17 @@ bool parse_package(Package *package) {
     Decl **decls = NULL;
     DirListIter iter;
     for (dir_list(&iter, package->full_path); iter.valid; dir_list_next(&iter)) {
-        if (iter.is_dir || strcmp(path_ext(iter.name), "ion") != 0 || iter.name[0] == '_' || iter.name[0] == '.') {
+        if (iter.is_dir || iter.name[0] == '_' || iter.name[0] == '.') {
+            continue;
+        }
+        char name[MAX_PATH];
+        path_copy(name, iter.name);
+        char *ext = path_ext(name);
+        if (ext == name || strcmp(ext, "ion") != 0) {
+            continue;
+        }
+        ext[-1] = 0;
+        if (is_excluded_target_filename(name)) {
             continue;
         }
         char path[MAX_PATH];
@@ -2088,7 +2104,6 @@ bool parse_package(Package *package) {
         const char *code = read_file(path);
         if (!code) {
             fatal_error((SrcPos){.name = path}, "Failed to read source file");
-            continue;
         }
         init_stream(str_intern(path), code);
         Decls *file_decls = parse_decls();

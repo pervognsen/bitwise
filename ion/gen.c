@@ -13,6 +13,7 @@ const char *gen_preamble =
     "#ifndef _CRT_SECURE_NO_WARNINGS\n"
     "#define _CRT_SECURE_NO_WARNINGS\n"
     "#endif\n"
+    "\n"
     "#if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L\n"
     "// Visual Studio 2015 supports enough C99/C11 features for us.\n"
     "#else\n"
@@ -51,7 +52,6 @@ const char *gen_preamble =
     "#else\n"
     "#define alignof(x) __alignof__(x)\n"
     "#endif\n"
-    "\n"
     ;
 
 void genln(void) {
@@ -1023,21 +1023,30 @@ void gen_package_external_names(void) {
     }
 }
 
+void gen_target_preamble(void) {
+    genlnf("const char *ION_OS = ");
+    gen_str(os_names[target_os], false);
+    genf(";");
+    genlnf("const char *ION_ARCH = ");
+    gen_str(arch_names[target_arch], false);
+    genf(";");
+}
+
 void gen_all(void) {
     gen_buf = NULL;
-    genlnf("%s", gen_preamble);
+    genf("%s", gen_preamble);
+    gen_target_preamble();
     genln();
     gen_package_external_names();
-    genf("// Foreign header files");
+    genlnf("// Foreign header files");
     gen_foreign_headers();
     genln();
-    genf("// Forward declarations");
+    genlnf("// Forward declarations");
     gen_forward_decls();
     genln();
     genlnf("// Sorted declarations");
     gen_sorted_decls();
-    genln();
-    genf("// Typeinfo");
+    genlnf("// Typeinfo");
     gen_typeinfos();
     genln();
     genlnf("// Definitions");

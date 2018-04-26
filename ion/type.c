@@ -59,6 +59,15 @@ struct Type {
     };
 };
 
+typedef struct TypeMetrics {
+    size_t size;
+    size_t align;
+    bool sign;
+    unsigned long long max;
+} TypeMetrics;
+
+TypeMetrics *type_metrics;
+
 Type *type_void = &(Type){TYPE_VOID, .size = 0, .align = 0, .typeid = 1};
 Type *type_bool = &(Type){TYPE_BOOL, .size = 1, .align = 1, .typeid = 2};
 Type *type_char = &(Type){TYPE_CHAR, .size = 1, .align = 1, .typeid = 3};
@@ -77,12 +86,9 @@ Type *type_double = &(Type){TYPE_DOUBLE, .size = 8, .align = 8, .typeid = 15};
 
 int next_typeid = 16;
 
-#define type_uintptr type_ullong
-#define type_usize type_ullong
-#define type_ssize type_llong
-
-const size_t PTR_SIZE = 8;
-const size_t PTR_ALIGN = 8;
+Type *type_uintptr;
+Type *type_usize;
+Type *type_ssize;
 
 void complete_type(Type *type);
 
@@ -145,7 +151,8 @@ bool is_aggregate_type(Type *type) {
 
 bool is_signed_type(Type *type) {
     switch (type->kind) {
-        // TODO: TYPE_CHAR signedness is platform independent, needs to factor into backend
+    case TYPE_CHAR:
+        return type_metrics[TYPE_CHAR].sign;
     case TYPE_SCHAR:
     case TYPE_SHORT:
     case TYPE_INT:
@@ -238,8 +245,8 @@ Type *type_ptr(Type *base) {
     Type *type = map_get(&cached_ptr_types, base);
     if (!type) {
         type = type_alloc(TYPE_PTR);
-        type->size = PTR_SIZE;
-        type->align = PTR_ALIGN;
+        type->size = type_metrics[TYPE_PTR].size;
+        type->align = type_metrics[TYPE_PTR].align;
         type->base = base;
         map_put(&cached_ptr_types, base, type);
     }
@@ -325,8 +332,8 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
         }
     }
     Type *type = type_alloc(TYPE_FUNC);
-    type->size = PTR_SIZE;
-    type->align = PTR_ALIGN;
+    type->size = type_metrics[TYPE_PTR].size;
+    type->align = type_metrics[TYPE_PTR].align;
     type->func.params = memdup(params, params_size);
     type->func.num_params = num_params;
     type->func.has_varargs = has_varargs;
@@ -416,7 +423,6 @@ void init_builtin_types(void) {
     register_typeid(type_float);
     register_typeid(type_double);
 }
-
 
 int aggregate_field_index(Type *type, const char *name) {
     assert(is_aggregate_type(type));

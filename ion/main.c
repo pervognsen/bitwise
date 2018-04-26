@@ -29,6 +29,7 @@ bool flag_lazy;
 #include "ast.c"
 #include "print.c"
 #include "parse.c"
+#include "targets.c"
 #include "resolve.c"
 #include "gen.c"
 #include "ion.c"

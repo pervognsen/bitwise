@@ -45,6 +45,7 @@ void init_package_search_paths(void) {
 }
 
 void init_compiler(void) {
+    init_target();
     init_package_search_paths();
     init_keywords();
     init_builtin_types();
@@ -52,8 +53,10 @@ void init_compiler(void) {
 }
 
 int ion_main(int argc, const char **argv) {
+    add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
     add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
-    add_flag_bool("lazy", &flag_lazy, "Only type check and compile what's reachable from the main package");
+    add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);
+    add_flag_enum("arch", &target_arch, "Target machine architecture", arch_names, NUM_ARCHES);
     const char *program_name = parse_flags(&argc, &argv);
     if (!(1 <= argc && argc <= 2)) {
         printf("Usage: %s [flags] <main-package> [output-c-file]\n", program_name);
@@ -62,9 +65,11 @@ int ion_main(int argc, const char **argv) {
     }
     const char *package_name = argv[0];
     const char *output_name = argc >= 2 ? argv[1] : NULL;
-
+    if (flag_verbose) {
+        printf("Target operating system: %s\n", os_names[target_os]);
+        printf("Target architecture: %s\n", arch_names[target_arch]);
+    }
     init_compiler();
-
     builtin_package = import_package("builtin");
     if (!builtin_package) {
         printf("error: Failed to compile package 'builtin'.\n");
@@ -99,7 +104,6 @@ int ion_main(int argc, const char **argv) {
     } else {
         snprintf(c_path, sizeof(c_path), "out_%s.c", package_name);
     }
-    printf("Generating %s\n", c_path);
     gen_all();
     const char *c_code = gen_buf;
     gen_buf = NULL;
@@ -107,5 +111,6 @@ int ion_main(int argc, const char **argv) {
         printf("error: Failed to write file: %s\n", c_path);
         return 1;
     }
+    printf("Generated %s\n", c_path);
     return 0;
 }
