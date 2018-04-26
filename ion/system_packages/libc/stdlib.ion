@@ -54,7 +54,7 @@ func strtoull(nptr: char const*, endptr: char**, base: int): ullong;
 func rand(): int;
 
 @foreign
-func srand(seed: uint)
+func srand(seed: uint);
 
 @foreign
 func calloc(nmemb: usize, size: usize): void*;
