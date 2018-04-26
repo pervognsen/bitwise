@@ -584,11 +584,11 @@ func test_va_list(fmt: char const*, ...) {
     args: va_list;
     va_copy(&args, &init_args);
     c: char;
-    va_arg(&args, &c, typeof(c));
+    va_arg(&args, {&c, typeof(c)});
     i: int;
-    va_arg(&args, &i, typeof(i));
+    va_arg(&args, {&i, typeof(i)});
     ll: llong;
-    va_arg(&args, &ll, typeof(ll));
+    va_arg(&args, {&ll, typeof(ll)});
     printf("c=%d i=%d ll=%lld\n", c, i, ll);
     va_end(&args);
 }
