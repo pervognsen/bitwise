@@ -1009,20 +1009,9 @@ void gen_package_external_names(void) {
     }
 }
 
-void gen_target_preamble(void) {
-    genlnf("const char *ION_OS = ");
-    gen_str(os_names[target_os], false);
-    genf(";");
-    genlnf("const char *ION_ARCH = ");
-    gen_str(arch_names[target_arch], false);
-    genf(";");
-}
-
 void gen_all(void) {
     gen_buf = NULL;
     genf("%s", gen_preamble);
-    gen_target_preamble();
-    genln();
     gen_package_external_names();
     genlnf("// Foreign header files");
     gen_foreign_headers();

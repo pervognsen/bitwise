@@ -680,10 +680,16 @@ func test_reachable() {
 //    bogus_func();
 }
 
+func test_os_arch() {
+    printf("Target operating system: %s\n", IONOS);
+    printf("Target machine architecture: %s\n", IONARCH);
+}
+
 func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_os_arch();
     test_packages();
     test_if();
     test_modify();
