@@ -1,5 +1,5 @@
 import .subtest1 {subtest1_func1 = func1}
-import libc {gc = getchar, printf}
+import libc {gc = getchar, ...}
 
 #static_assert('\xFF' == 255)
 
@@ -578,6 +578,19 @@ struct Ints {
     int_arr: int[3];
 }
 
+func test_va_list(fmt: char const*, ...) {
+    args: va_list;
+    va_start_ptr(&args, &fmt);
+    c: char;
+    va_arg_ptr(&args, &c, sizeof(c));
+    i: int;
+    va_arg_ptr(&args, &i, sizeof(i));
+    ll: llong;
+    va_arg_ptr(&args, &ll, sizeof(ll));
+    printf("c=%d i=%d ll=%lld\n", c, i, ll);
+    va_end_ptr(&args);
+}
+
 func test_compound_literals() {
     w: Vector*;
     w = &{1, 2};
@@ -691,6 +704,7 @@ func main(argc: int, argv: char const**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_va_list("whatever", char(123), int(123123), llong(123123123123));
     test_os_arch();
     test_packages();
     test_if();

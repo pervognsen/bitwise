@@ -23,6 +23,7 @@ const char *gen_preamble =
     "#include <stdbool.h>\n"
     "#include <stdint.h>\n"
     "#include <stddef.h>\n"
+    "#include <stdarg.h>\n"
     "#include <assert.h>\n"
     "\n"
     "typedef unsigned char uchar;\n"
@@ -38,6 +39,31 @@ const char *gen_preamble =
     "#else\n"
     "#define alignof(x) __alignof__(x)\n"
     "#endif\n"
+    "\n"
+    "#define va_start_ptr(args, arg) (va_start(*(args), *(arg)))\n"
+    "#define va_copy_ptr(dest, src) (va_copy(*(dest), *(src)))\n"
+    "#define va_arg_ptr(args, dest, dest_size) (va_arg_ptr_func(args, dest, dest_size))\n"
+    "#define va_end_ptr(args) (va_end(*(args)))\n"
+    "\n"
+    "void va_arg_ptr_func(va_list *args, void *dest, size_t dest_size) {\n"
+    "    switch (dest_size) {\n"
+    "    case 1:\n"
+    "        *(uint8_t *)dest = va_arg(*args, uint32_t);\n"
+    "        break;\n"
+    "    case 2:\n"
+    "        *(uint16_t *)dest = va_arg(*args, uint32_t);\n"
+    "        break;\n"
+    "    case 4:\n"
+    "        *(uint32_t *)dest = va_arg(*args, uint32_t);\n"
+    "        break;\n"
+    "    case 8:\n"
+    "        *(uint64_t *)dest = va_arg(*args, uint64_t);\n"
+    "        break;\n"
+    "    default:\n"
+    "        assert(0 && \"this hack only works for primitive type sizes\");\n"
+    "        break;\n"
+    "    }\n"
+    "}\n"
     ;
 
 void genln(void) {
@@ -433,10 +459,13 @@ void gen_expr(Expr *expr) {
         gen_expr(expr->cast.expr);
         genf(")");
         break;
-    case EXPR_CALL:
-        genf("(");
-        gen_expr(expr->call.expr);
-        genf(")");
+    case EXPR_CALL: {
+        Sym *sym = get_resolved_sym(expr->call.expr);
+        if (sym && sym->kind == SYM_TYPE) {
+            genf("(%s)", get_gen_name(sym));
+        } else {
+            gen_expr(expr->call.expr);
+        }
         genf("(");
         for (size_t i = 0; i < expr->call.num_args; i++) {
             if (i != 0) {
@@ -446,6 +475,7 @@ void gen_expr(Expr *expr) {
         }
         genf(")");
         break;
+    }
     case EXPR_INDEX:
         gen_expr(expr->index.expr);
         genf("[");
