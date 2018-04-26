@@ -579,16 +579,18 @@ struct Ints {
 }
 
 func test_va_list(fmt: char const*, ...) {
+    init_args: va_list;
+    va_start(&init_args, &fmt);
     args: va_list;
-    va_start_ptr(&args, &fmt);
+    va_copy(&args, &init_args);
     c: char;
-    va_arg_ptr(&args, &c, typeof(c));
+    va_arg(&args, &c, typeof(c));
     i: int;
-    va_arg_ptr(&args, &i, typeof(i));
+    va_arg(&args, &i, typeof(i));
     ll: llong;
-    va_arg_ptr(&args, &ll, typeof(ll));
+    va_arg(&args, &ll, typeof(ll));
     printf("c=%d i=%d ll=%lld\n", c, i, ll);
-    va_end_ptr(&args);
+    va_end(&args);
 }
 
 func test_compound_literals() {
