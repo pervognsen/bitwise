@@ -1,17 +1,20 @@
 #foreign(header = "<stdlib.h>")
 
+@foreign
 struct div_t
 {
     quot: int;
     rem: int;
 }
 
+@foreign
 struct ldiv_t
 {
     quot: long;
     rem: long;
 }
 
+@foreign
 struct lldiv_t
 {
     quot: llong;
