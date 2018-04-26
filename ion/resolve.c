@@ -1916,9 +1916,7 @@ Operand resolve_const_expr(Expr *expr) {
 Map decl_note_names;
 
 void init_builtin_syms() {
-    assert(builtin_package);
-    Package *old_package = enter_package(builtin_package);
-
+    assert(current_package);
     sym_global_type("void", type_void);
     sym_global_type("bool", type_bool);
     sym_global_type("char", type_char);
@@ -1952,8 +1950,6 @@ void init_builtin_syms() {
     sym_global_const("true", type_bool, (Val){.b = true});
     sym_global_const("false", type_bool, (Val){.b = false});
     sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});
-
-    leave_package(old_package);
 }
 
 void add_package_decls(Package *package) {
@@ -2121,6 +2117,9 @@ bool compile_package(Package *package) {
         return false;
     }
     Package *old_package = enter_package(package);
+    if (buf_len(package_list) == 1) {
+        init_builtin_syms();
+    }
     if (builtin_package) {
         import_all_package_symbols(builtin_package);
     }

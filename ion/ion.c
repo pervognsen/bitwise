@@ -76,7 +76,6 @@ int ion_main(int argc, const char **argv) {
         return 1;
     }
     builtin_package->external_name = str_intern("");
-    init_builtin_syms();
     Package *main_package = import_package(package_name);
     if (!main_package) {
         printf("error: Failed to compile package '%s'\n", package_name);

@@ -406,22 +406,28 @@ Type *type_enum(Sym *sym) {
     return type;
 }
 
-void init_builtin_types(void) {
+void init_builtin_type(Type *type) {
     register_typeid(type_void);
-    register_typeid(type_bool);
-    register_typeid(type_char);
-    register_typeid(type_uchar);
-    register_typeid(type_schar);
-    register_typeid(type_short);
-    register_typeid(type_ushort);
-    register_typeid(type_int);
-    register_typeid(type_uint);
-    register_typeid(type_long);
-    register_typeid(type_ulong);
-    register_typeid(type_llong);
-    register_typeid(type_ullong);
-    register_typeid(type_float);
-    register_typeid(type_double);
+    type->size = type_metrics[type->kind].size;
+    type->size = type_metrics[type->kind].align;
+}
+
+void init_builtin_types(void) {
+    init_builtin_type(type_void);
+    init_builtin_type(type_bool);
+    init_builtin_type(type_char);
+    init_builtin_type(type_uchar);
+    init_builtin_type(type_schar);
+    init_builtin_type(type_short);
+    init_builtin_type(type_ushort);
+    init_builtin_type(type_int);
+    init_builtin_type(type_uint);
+    init_builtin_type(type_long);
+    init_builtin_type(type_ulong);
+    init_builtin_type(type_llong);
+    init_builtin_type(type_ullong);
+    init_builtin_type(type_float);
+    init_builtin_type(type_double);
 }
 
 int aggregate_field_index(Type *type, const char *name) {

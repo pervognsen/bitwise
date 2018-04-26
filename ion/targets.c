@@ -155,6 +155,7 @@ bool is_excluded_target_filename(const char *name) {
     } else {
         memcpy(str1, ptr1, end - ptr1);
         str1[end - ptr1] = 0;
+        ptr1--;
     }
 
     const char *ptr2 = ptr1;
