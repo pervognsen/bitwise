@@ -1,0 +1,48 @@
+#static_assert(sizeof(bool) == 1)
+#static_assert(sizeof(char) == 1)
+#static_assert(sizeof(uchar) == 1)
+#static_assert(sizeof(schar) == 1)
+#static_assert(sizeof(short) == 2)
+#static_assert(sizeof(ushort) == 2)
+#static_assert(sizeof(int) == 4)
+#static_assert(sizeof(uint) == 4)
+#static_assert(sizeof(ullong) == 8)
+#static_assert(sizeof(llong) == 8)
+#static_assert(sizeof(float) == 4)
+#static_assert(sizeof(double) == 8)
+
+#static_assert(alignof(bool) == sizeof(bool))
+#static_assert(alignof(char) == sizeof(char))
+#static_assert(alignof(uchar) == sizeof(uchar))
+#static_assert(alignof(schar) == sizeof(schar))
+#static_assert(alignof(short) == sizeof(short))
+#static_assert(alignof(ushort) == sizeof(ushort))
+#static_assert(alignof(int) == sizeof(int))
+#static_assert(alignof(uint) == sizeof(uint))
+#static_assert(alignof(long) == sizeof(long))
+#static_assert(alignof(ulong) == sizeof(ulong))
+#static_assert(alignof(llong) == sizeof(llong))
+#static_assert(alignof(ullong) == sizeof(ullong))
+#static_assert(alignof(float) == sizeof(float))
+#static_assert(alignof(double) == sizeof(double))
+
+typedef int8 = schar;
+typedef uint8 = uchar;
+typedef int16 = short;
+typedef uint16 = ushort;
+typedef int32 = int;
+typedef uint32 = uint;
+typedef int64 = llong;
+typedef uint64 = ullong;
+
+@foreign
+typedef typeid = int;
+
+@foreign
+const NULL = (:void*)0;
+
+@foreign
+const false = bool(0);
+
+@foreign
+const true = bool(1);

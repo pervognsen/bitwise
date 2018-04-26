@@ -1,1 +1,5 @@
 #static_assert(sizeof(:void*) == 4)
+
+typedef usize = uint32;
+typedef ssize = int32;
+typedef uintptr = uint32;

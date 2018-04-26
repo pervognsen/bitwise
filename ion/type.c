@@ -409,7 +409,7 @@ Type *type_enum(Sym *sym) {
 void init_builtin_type(Type *type) {
     register_typeid(type_void);
     type->size = type_metrics[type->kind].size;
-    type->size = type_metrics[type->kind].align;
+    type->align = type_metrics[type->kind].align;
 }
 
 void init_builtin_types(void) {

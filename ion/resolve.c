@@ -1932,24 +1932,6 @@ void init_builtin_syms() {
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
     sym_global_type("double", type_double);
-
-    sym_global_typedef("uint8", type_uchar);
-    sym_global_typedef("int8", type_schar);
-    sym_global_typedef("uint16", type_ushort);
-    sym_global_typedef("int16", type_short);
-    sym_global_typedef("uint32", type_uint);
-    sym_global_typedef("int32", type_int);
-    sym_global_typedef("uint64", type_ullong);
-    sym_global_typedef("int64", type_llong);
-
-    sym_global_typedef("usize", type_usize);
-    sym_global_typedef("ssize", type_ssize);
-    sym_global_typedef("uintptr", type_uintptr);
-    sym_global_typedef("typeid", type_int);
-
-    sym_global_const("true", type_bool, (Val){.b = true});
-    sym_global_const("false", type_bool, (Val){.b = false});
-    sym_global_const("NULL", type_ptr(type_void), (Val){.p = 0});
 }
 
 void add_package_decls(Package *package) {
