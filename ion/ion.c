@@ -52,7 +52,29 @@ void init_compiler(void) {
     map_put(&decl_note_names, declare_note_name, (void *)1);
 }
 
+void parse_env_vars(void) {
+    const char *ionos_var = getenv("IONOS");
+    if (ionos_var) {
+        int os = get_os(ionos_var);
+        if (os == -1) {
+            printf("Unknown target operating system in IONOS environment variable: %s\n", ionos_var);
+        } else {
+            target_os = os;
+        }
+    }
+    const char *ionarch_var = getenv("IONARCH");
+    if (ionarch_var) {
+        int arch = get_arch(ionarch_var);
+        if (arch == -1) {
+            printf("Unknown target architecture in IONARCH environment variable: %s\n", ionarch_var);
+        } else {
+            target_arch = arch;
+        }
+    }
+}
+
 int ion_main(int argc, const char **argv) {
+    parse_env_vars();
     add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
     add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
     add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);

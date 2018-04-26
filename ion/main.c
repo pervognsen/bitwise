@@ -17,6 +17,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <assert.h>
+#include <stdlib.h>
 
 bool flag_verbose;
 bool flag_lazy;

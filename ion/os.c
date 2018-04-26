@@ -160,7 +160,7 @@ void print_flags_usage(void) {
             char *ptr = format;
             ptr += snprintf(ptr, end - ptr, "%s <", flag.name);
             for (int k = 0; k < flag.num_options; k++) {
-                ptr += snprintf(ptr, end - ptr, "%s%s", k == 0 ? "" : "|", flag.options[k]);
+                ptr += snprintf(ptr, end - ptr, "%s%s%s", k == 0 ? "" : "|", flag.options[k], *flag.ptr.i == k ? "(*)" : "");
             }
             snprintf(ptr, end - ptr, ">");
             break;
