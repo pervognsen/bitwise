@@ -582,11 +582,11 @@ func test_va_list(fmt: char const*, ...) {
     args: va_list;
     va_start_ptr(&args, &fmt);
     c: char;
-    va_arg_ptr(&args, &c, sizeof(c));
+    va_arg_ptr(&args, &c, typeof(c));
     i: int;
-    va_arg_ptr(&args, &i, sizeof(i));
+    va_arg_ptr(&args, &i, typeof(i));
     ll: llong;
-    va_arg_ptr(&args, &ll, sizeof(ll));
+    va_arg_ptr(&args, &ll, typeof(ll));
     printf("c=%d i=%d ll=%lld\n", c, i, ll);
     va_end_ptr(&args);
 }
@@ -700,7 +700,7 @@ func test_os_arch() {
     printf("Target machine architecture: %s\n", IONARCH);
 }
 
-func main(argc: int, argv: char const**): int {
+func main(argc: int, argv: char**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }

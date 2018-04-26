@@ -2,7 +2,7 @@
 func va_start_ptr(args: va_list*, arg: void const*);
 
 @foreign
-func va_arg_ptr(args: va_list*, dest: void*, dest_size: usize);
+func va_arg_ptr(args: va_list*, arg: void*, type: typeid);
 
 @foreign
 func va_end_ptr(args: va_list*);
