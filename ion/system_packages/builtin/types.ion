@@ -26,32 +26,29 @@
 #static_assert(alignof(float) == sizeof(float))
 #static_assert(alignof(double) == sizeof(double))
 
-@foreign
+@foreign("int8_t")
 typedef int8 = schar;
 
-@foreign
+@foreign("uint8_t")
 typedef uint8 = uchar;
 
-@foreign
+@foreign("int16_t")
 typedef int16 = short;
 
-@foreign
+@foreign("uint16_t")
 typedef uint16 = ushort;
 
-@foreign
+@foreign("int32_t")
 typedef int32 = int;
 
-@foreign
+@foreign("uint32_t")
 typedef uint32 = uint;
 
-@foreign
+@foreign("int64_t")
 typedef int64 = llong;
 
-@foreign
+@foreign("uint64_t")
 typedef uint64 = ullong;
-
-@foreign
-typedef typeid = ullong;
 
 @foreign
 const NULL = (:void*)0;

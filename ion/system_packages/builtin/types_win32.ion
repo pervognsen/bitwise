@@ -2,4 +2,3 @@ typedef wchar = uint16;
 
 #static_assert(sizeof(long) == 4)
 #static_assert(sizeof(ulong) == 4)
-

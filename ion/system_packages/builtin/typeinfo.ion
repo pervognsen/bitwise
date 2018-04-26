@@ -1,3 +1,5 @@
+typedef typeid = ullong;
+
 enum TypeKind {
     TYPE_NONE,
     TYPE_VOID,
