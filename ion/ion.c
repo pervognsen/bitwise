@@ -75,18 +75,19 @@ void parse_env_vars(void) {
 
 int ion_main(int argc, const char **argv) {
     parse_env_vars();
-    add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
-    add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
+    const char *output_name = NULL;
+    add_flag_str("o", &output_name, "file", "Output file (default: out_<main-package>.c)");
     add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);
     add_flag_enum("arch", &target_arch, "Target machine architecture", arch_names, NUM_ARCHES);
+    add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
+    add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
     const char *program_name = parse_flags(&argc, &argv);
-    if (!(1 <= argc && argc <= 2)) {
-        printf("Usage: %s [flags] <main-package> [output-c-file]\n", program_name);
+    if (argc != 1) {
+        printf("Usage: %s [flags] <main-package>\n", program_name);
         print_flags_usage();
         return 1;
     }
     const char *package_name = argv[0];
-    const char *output_name = argc >= 2 ? argv[1] : NULL;
     if (flag_verbose) {
         printf("Target operating system: %s\n", os_names[target_os]);
         printf("Target architecture: %s\n", arch_names[target_arch]);
