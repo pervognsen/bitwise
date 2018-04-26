@@ -107,7 +107,7 @@ const SDL_RELEASED = 0;
 const SDL_PRESSED = 1;
 
 @foreign
-var SDL_WINDOWPOS_CENTERED: int;
+const SDL_WINDOWPOS_CENTERED = 0x2FFF0000u;
 
 @foreign
 func SDL_GetError(): char const*;
