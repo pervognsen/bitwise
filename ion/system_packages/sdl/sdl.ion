@@ -1,0 +1,300 @@
+#foreign(header = "SDL.h")
+
+@foreign
+const SDL_INIT_TIMER = 0x00000001u;
+
+@foreign
+const SDL_INIT_AUDIO = 0x00000010u;
+
+@foreign
+const SDL_INIT_VIDEO = 0x00000020u;
+
+@foreign
+const SDL_INIT_JOYSTICK = 0x00000200u;
+
+@foreign
+const SDL_INIT_HAPTIC = 0x00001000u;
+
+@foreign
+const SDL_INIT_GAMECONTROLLER = 0x00002000u;
+
+@foreign
+const SDL_INIT_EVENTS = 0x00004000u;
+
+@foreign
+const SDL_INIT_NOPARACHUTE = 0x00100000u;
+
+@foreign
+const SDL_INIT_EVERYTHING = SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS |
+    SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMECONTROLLER;
+
+@foreign
+const AUDIO_F32LSB = 0x8120;
+
+@foreign
+const AUDIO_F32 = AUDIO_F32LSB;
+
+@foreign
+typedef SDL_AudioFormat = uint16;
+
+@foreign
+typedef SDL_AudioCallback = func(userdata: void*, stream: uint8*, len: int);
+
+@foreign
+struct SDL_AudioSpec {
+    freq: int;
+    format: SDL_AudioFormat;
+    channels: uint8;
+    silence: uint8;
+    samples: uint16;
+    padding: uint16;
+    size: uint32;
+    callback: SDL_AudioCallback;
+    userdata: void*;
+}
+
+@foreign
+typedef SDL_AudioDeviceID = uint32;
+
+@foreign
+func SDL_OpenAudioDevice(device: char const*, iscapture: int, desired: SDL_AudioSpec const*,
+    obtained: SDL_AudioSpec*, allowed_changes: int): SDL_AudioDeviceID;
+
+@foreign
+func SDL_GetDisplayDPI(display_index: int, ddpi: float*, hdpi: float*, vdpi: float*): int;
+
+@foreign
+struct SDL_DisplayMode {
+    format: uint32;
+    w: int;
+    h: int;
+    refresh_rate: int;
+    driverdata: void*;
+}
+
+@foreign
+func SDL_GetCurrentDisplayMode(display_index: int, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetScancodeFromName(name: char const*): SDL_Scancode;
+
+@foreign
+enum SDL_Scancode {
+    SDL_SCANCODE_UNKNOWN = 0,
+    SDL_SCANCODE_RETURN = 40,
+    SDL_SCANCODE_ESCAPE = 41,
+    SDL_SCANCODE_BACKSPACE = 42,
+    SDL_SCANCODE_TAB = 43,
+    SDL_SCANCODE_SPACE = 44,
+    SDL_SCANCODE_RIGHT = 79,
+    SDL_SCANCODE_LEFT = 80,
+    SDL_SCANCODE_DOWN = 81,
+    SDL_SCANCODE_UP = 82,
+    SDL_SCANCODE_LCTRL = 224,
+    SDL_SCANCODE_LSHIFT = 225,
+    SDL_SCANCODE_LALT = 226,
+    SDL_SCANCODE_LGUI = 227,
+    SDL_SCANCODE_RCTRL = 228,
+    SDL_SCANCODE_RSHIFT = 229,
+    SDL_SCANCODE_RALT = 230,
+    SDL_NUM_SCANCODES = 512,
+}
+
+@foreign
+const SDL_RELEASED = 0;
+
+@foreign
+const SDL_PRESSED = 1;
+
+@foreign
+var SDL_WINDOWPOS_CENTERED: int;
+
+@foreign
+func SDL_GetError(): char const*;
+
+@foreign
+func SDL_GetPerformanceCounter(): uint64;
+
+@foreign
+func SDL_GetPerformanceFrequency(): uint64;
+
+@foreign
+enum SDL_WindowFlags {
+    SDL_WINDOW_FULLSCREEN = 0x00000001,
+    SDL_WINDOW_FULLSCREEN_DESKTOP = SDL_WINDOW_FULLSCREEN | 0x00001000,
+    SDL_WINDOW_SHOWN = 0x00000002,
+    SDL_WINDOW_HIDDEN = 0x00000008,
+    SDL_WINDOW_RESIZABLE = 0x00000020,
+}
+
+@foreign
+struct SDL_Window;
+
+@foreign
+func SDL_CreateWindow(title: char const*, x: int, y: int, w: int, h: int, flags: uint32): SDL_Window*;
+
+@foreign
+func SDL_CaptureMouse(enabled: bool): int;
+
+@foreign
+func SDL_WarpMouseInWindow(window: SDL_Window*, x: int, y: int);
+
+@foreign
+func SDL_GetMouseState(x: int*, y: int*): uint32;
+
+@foreign
+func SDL_WarpMouseGlobal(x: int, y: int): int;
+
+@foreign
+func SDL_GetGlobalMouseState(x: int*, y: int*): uint32;
+
+@foreign
+enum SDL_EventType {
+    SDL_QUIT = 0x100,
+    SDL_KEYDOWN = 0x300,
+    SDL_KEYUP,
+    SDL_TEXTEDITING,
+    SDL_TEXTINPUT,
+    SDL_MOUSEMOTION = 0x400,
+    SDL_MOUSEBUTTONDOWN,
+    SDL_MOUSEBUTTONUP,    
+}
+
+@foreign
+const SDL_BUTTON_LEFT = 1;
+
+@foreign
+const SDL_BUTTON_MIDDLE = 2;
+
+@foreign
+const SDL_BUTTON_RIGHT = 3;
+
+@foreign
+typedef SDL_Keycode = int32;
+
+@foreign
+struct SDL_Keysym {
+    scancode: SDL_Scancode;
+    sym: SDL_Keycode;
+    mod: uint16;
+    unused: uint32;
+}
+
+@foreign
+struct SDL_KeyboardEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    state: uint8;
+    repeat: uint8;
+    padding2: uint8;
+    padding3: uint8;
+    keysym: SDL_Keysym;
+}
+
+@foreign
+const SDL_TEXTINPUTEVENT_TEXT_SIZE = 32;
+
+@foreign
+struct SDL_TextInputEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    text: char[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+}
+
+@foreign
+struct SDL_MouseMotionEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    which: uint32;
+    state: uint32;
+    x: int32;
+    y: int32;
+    xrel: int32;
+    yrel: int32;
+}
+
+@foreign
+struct SDL_MouseButtonEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    which: uint32;
+    button: uint8;
+    state: uint8;
+    clicks: uint8;
+    padding1: uint8;
+    x: int32;
+    y: int32;
+}
+
+@foreign
+struct SDL_Event {
+    type: uint32;
+    key: SDL_KeyboardEvent;
+    text: SDL_TextInputEvent;
+    motion: SDL_MouseMotionEvent;
+    button: SDL_MouseButtonEvent;
+}
+
+@foreign
+func SDL_PollEvent(event: SDL_Event*): int;
+
+@foreign
+func SDL_SetWindowFullscreen(window: SDL_Window*, flags: uint32): int;
+
+@foreign
+func SDL_SetWindowTitle(window: SDL_Window*, title: char const*);
+
+@foreign
+func SDL_SetWindowPosition(window: SDL_Window*, x: int, y: int);
+
+@foreign
+func SDL_GetWindowPosition(window: SDL_Window*, x: int*, y: int*);
+
+@foreign
+func SDL_SetWindowSize(window: SDL_Window*, w: int, h: int);
+
+@foreign
+func SDL_GetWindowSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_SetWindowResizable(window: SDL_Window*, enabled: bool);
+
+@foreign
+func SDL_HideWindow(window: SDL_Window*);
+
+@foreign
+func SDL_ShowWindow(window: SDL_Window*);
+
+@foreign
+func SDL_SetClipboardText(text: char const*): int;
+
+@foreign
+func SDL_HasClipboardText(): bool;
+
+@foreign
+func SDL_GetClipboardText(): char*;
+
+@foreign
+func SDL_strdup(str: char const*): char*;
+
+@foreign
+func SDL_free(mem: void*);
+
+@foreign
+func SDL_PauseAudioDevice(dev: SDL_AudioDeviceID, pause_on: int);
+
+@foreign
+func SDL_Init(flags: uint32): int;
+
+@foreign
+func SDL_PumpEvents();
+
+@foreign
+func SDL_GetPlatform(): char const*;
+
+@foreign
+func SDL_ClearError();

@@ -23,4 +23,3 @@
 #static_assert(typeof(float(0) + double(0)) == typeof(double))
 #static_assert(typeof(float(0) + float(0)) == typeof(float))
 #static_assert(typeof(double(0) + double(0)) == typeof(double))
-

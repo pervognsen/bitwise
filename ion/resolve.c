@@ -248,7 +248,9 @@ Sym *sym_global_decl(Decl *decl) {
             } else {
                 init = new_expr_int(item.pos, 0, 0, 0);
             }
-            sym_global_decl(new_decl_const(item.pos, item.name, enum_typespec, init));
+            Decl *item_decl = new_decl_const(item.pos, item.name, enum_typespec, init);
+            item_decl->notes = decl->notes;
+            sym_global_decl(item_decl);
             prev_item_name = item.name;
         }
     }
@@ -539,7 +541,9 @@ Type *get_resolved_expected_type(Expr *expr) {
 }
 
 void set_resolved_expected_type(Expr *expr, Type *type) {
-    map_put(&resolved_expected_type_map, expr, type);
+    if (expr && type) {
+        map_put(&resolved_expected_type_map, expr, type);
+    }
 }
 
 Sym *resolve_name(const char *name);
@@ -696,6 +700,10 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
     } else {
         assert(expr);
         type = unqualify_type(resolve_expr(expr).type);
+        if (is_array_type(type) && expr->kind != EXPR_COMPOUND) {
+            type = type_decay(type);
+            set_resolved_type(expr, type);
+        }
         set_resolved_expected_type(expr, type);
     }
     complete_type(type);
@@ -1394,7 +1402,7 @@ Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Op
             cast_operand(&result, type_int);
             return result;
         } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
-            if (left.type->base != right.type->base) {
+            if (unqualify_type(left.type->base) != unqualify_type(right.type->base)) {
                 fatal_error(pos, "Cannot compare pointers to different types");
             }
             return operand_rvalue(type_int);
@@ -2016,8 +2024,10 @@ Package *import_package(const char *package_path) {
 }
 
 void import_all_package_symbols(Package *package) {
+    // TODO: should have a more general mechanism
+    const char *main_name = str_intern("main");
     for (int i = 0; i < buf_len(package->syms); i++) {
-        if (package->syms[i]->package == package) {
+        if (package->syms[i]->package == package && package->syms[i]->name != main_name) {
             sym_global_put(package->syms[i]->name, package->syms[i]);
         }
     }
