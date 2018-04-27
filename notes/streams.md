@@ -1,3 +1,9 @@
+# Bitwise, Day 22: RISC-V Toolchain
+- Video: https://www.youtube.com/watch?v=g6UJGcrQNY8
+- Review
+- Overview of basic toolchain components
+- Start coding
+
 # Bitwise, Day 21: Packages Demo & RISC-V Intro
 - Video: https://www.youtube.com/watch?v=dvaTa6UHR48
 - Demo packages and other compiler changes
