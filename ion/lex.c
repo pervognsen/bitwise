@@ -26,6 +26,7 @@ const char *first_keyword;
 const char *last_keyword;
 const char **keywords;
 
+const char *always_name;
 const char *foreign_name;
 const char *complete_name;
 const char *assert_name;
@@ -67,6 +68,7 @@ void init_keywords(void) {
     first_keyword = typedef_keyword;
     last_keyword = default_keyword;
 
+    always_name = str_intern("always");
     foreign_name = str_intern("foreign");
     complete_name = str_intern("complete");
     assert_name = str_intern("assert");

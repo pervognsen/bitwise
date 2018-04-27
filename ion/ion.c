@@ -114,11 +114,15 @@ int ion_main(int argc, const char **argv) {
     }
     main_sym->external_name = main_name;
     reachable_phase = REACHABLE_NATURAL;
-    resolve_package_syms(builtin_package);
-    resolve_package_syms(main_package);
+    resolve_sym(main_sym);
+    for (size_t i = 0; i < buf_len(package_list); i++) {
+        if (package_list[i]->always_resolve) {
+            resolve_package_syms(package_list[i]);
+        }
+    }
     finalize_reachable_syms();
     if (flag_verbose) {
-        printf("Reached %d symbols in %d packages from %s\n", (int)buf_len(reachable_syms), (int)buf_len(package_list), package_name);
+        printf("Reached %d symbols in %d packages from %s/main\n", (int)buf_len(reachable_syms), (int)buf_len(package_list), package_name);
     }
     if (!flag_lazy) {
         reachable_phase = REACHABLE_FORCED;

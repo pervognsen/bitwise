@@ -34,6 +34,7 @@ typedef struct Package {
     Map syms_map;
     Sym **syms;
     const char *external_name;
+    bool always_resolve;
 } Package;
 
 enum {
@@ -201,38 +202,6 @@ void resolve_sym(Sym *sym);
 Sym *sym_global_type(const char *name, Type *type) {
     name = str_intern(name);
     Sym *sym = sym_new(SYM_TYPE, name, NULL);
-    sym->state = SYM_RESOLVED;
-    sym->type = type;
-    sym->external_name = name;
-    sym_global_put(name, sym);
-    return sym;
-}
-
-Sym *sym_global_typedef(const char *name, Type *type) {
-    name = str_intern(name);
-    Sym *sym = sym_new(SYM_TYPE, name, new_decl_typedef(pos_builtin, name, new_typespec_name(pos_builtin, name)));
-    sym->state = SYM_RESOLVED;
-    sym->type = type;
-    sym->external_name = name;
-    sym_global_put(name, sym);
-    return sym;
-}
-
-Sym *sym_global_const(const char *name, Type *type, Val val) {
-    name = str_intern(name);
-    Sym *sym = sym_new(SYM_CONST, name, NULL);
-    sym->state = SYM_RESOLVED;
-    sym->type = type;
-    sym->val = val;
-    sym->external_name = name;
-    sym_global_put(name, sym);
-    return sym;
-}
-
-Sym *sym_global_func(const char *name, Type *type) {
-    assert(type->kind == TYPE_FUNC);
-    name = str_intern(name);
-    Sym *sym = sym_new(SYM_FUNC, name, NULL);
     sym->state = SYM_RESOLVED;
     sym->type = type;
     sym->external_name = name;
@@ -645,7 +614,9 @@ void complete_type(Type *type) {
     } else if (type->kind != TYPE_INCOMPLETE) {
         return;
     }
-    Decl *decl = type->sym->decl;
+    Sym *sym = type->sym;
+    Package *old_package = enter_package(sym->package);
+    Decl *decl = sym->decl;
     if (decl->is_incomplete) {
         fatal_error(decl->pos, "Trying to use incomplete type as complete type");
     }
@@ -676,6 +647,7 @@ void complete_type(Type *type) {
         type_complete_union(type, fields, buf_len(fields));
     }
     buf_push(sorted_syms, type->sym);
+    leave_package(old_package);
 }
 
 Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
@@ -987,6 +959,7 @@ void resolve_func_body(Sym *sym) {
     if (decl->is_incomplete) {
         return;
     }
+    Package *old_package = enter_package(sym->package);
     Sym *scope = sym_enter();
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];
@@ -1003,15 +976,11 @@ void resolve_func_body(Sym *sym) {
     if (ret_type != type_void && !returns) {
         fatal_error(decl->pos, "Not all control paths return values");
     }
+    leave_package(old_package);
 }
 
 
-
 void resolve_sym(Sym *sym) {
-    if (!sym->reachable && !is_local_sym(sym)) {
-        buf_push(reachable_syms, sym);
-        sym->reachable = reachable_phase;
-    }
     if (sym->state == SYM_RESOLVED) {
         return;
     } else if (sym->state == SYM_RESOLVING) {
@@ -1019,8 +988,14 @@ void resolve_sym(Sym *sym) {
         return;
     }
     assert(sym->state == SYM_UNRESOLVED);
+    assert(!sym->reachable);
+    if (!is_local_sym(sym)) {
+        buf_push(reachable_syms, sym);
+        sym->reachable = reachable_phase;
+    }
     sym->state = SYM_RESOLVING;
     Decl *decl = sym->decl;
+    Package *old_package = enter_package(sym->package);
     switch (sym->kind) {
     case SYM_TYPE:
         if (decl && decl->kind == DECL_TYPEDEF) {
@@ -1044,6 +1019,7 @@ void resolve_sym(Sym *sym) {
         assert(0);
         break;
     }
+    leave_package(old_package);
     sym->state = SYM_RESOLVED;
     if (decl->is_incomplete || (decl->kind != DECL_STRUCT && decl->kind != DECL_UNION)) {
         buf_push(sorted_syms, sym);
@@ -1052,7 +1028,6 @@ void resolve_sym(Sym *sym) {
 
 void finalize_sym(Sym *sym) {
     assert(sym->state == SYM_RESOLVED);
-    Package *old_package = enter_package(sym->package);
     if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
         if (sym->kind == SYM_TYPE) {
             complete_type(sym->type);
@@ -1060,7 +1035,6 @@ void finalize_sym(Sym *sym) {
             resolve_func_body(sym);
         }
     }
-    leave_package(old_package);
 }
 
 Sym *resolve_name(const char *name) {
@@ -2057,7 +2031,11 @@ void import_package_symbols(Decl *decl, Package *package) {
 void process_package_imports(Package *package) {
     for (size_t i = 0; i < package->num_decls; i++) {
         Decl *decl = package->decls[i];
-        if (decl->kind == DECL_IMPORT) {
+        if (decl->kind == DECL_NOTE) {
+            if (decl->note.name == always_name) {
+                package->always_resolve = true;
+            }
+        } else if (decl->kind == DECL_IMPORT) {
             char *path_buf = NULL;
             if (decl->import.is_relative) {
                 buf_printf(path_buf, "%s/", package->path);

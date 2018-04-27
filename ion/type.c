@@ -435,7 +435,7 @@ int aggregate_field_index(Type *type, const char *name) {
     assert(is_aggregate_type(type));
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         if (type->aggregate.fields[i].name == name) {
-            return i;
+            return (int)i;
         }
     }
     return -1;

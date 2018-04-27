@@ -336,11 +336,15 @@ void gen_func_decl(Decl *decl) {
     }
 }
 
+bool gen_reachable(Sym *sym) {
+    return flag_fullgen || sym->reachable == REACHABLE_NATURAL;
+}
+
 void gen_forward_decls(void) {
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (!decl || (flag_fullgen && sym->reachable != REACHABLE_NATURAL)) {
+        if (!decl || !gen_reachable(sym)) {
             continue;
         }
         if (is_decl_foreign(decl)) {
@@ -450,8 +454,12 @@ const char *typeid_kind_name(Type *type) {
     return "TYPE_NONE";
 }
 
+bool is_excluded_typeinfo(Type *type) {
+    return type->sym && !gen_reachable(type->sym);
+}
+
 void gen_typeid(Type *type) {
-    if (type->size == 0) {
+    if (type->size == 0 || is_excluded_typeinfo(type)) {
         genf("TYPEID0(%d, %s)", type->typeid, typeid_kind_name(type));
     } else {
         genf("TYPEID(%d, %s, %s)", type->typeid, typeid_kind_name(type), type_to_cdecl(type, ""));
@@ -1057,7 +1065,7 @@ void gen_typeinfos(void) {
         for (int typeid = 0; typeid < num_typeinfos; typeid++) {
             genlnf("[%d] = ", typeid);
             Type *type = get_type_from_typeid(typeid);
-            if (type) {
+            if (type && !is_excluded_typeinfo(type)) {
                 gen_typeinfo(type);
             } else {
                 genf("NULL, // No associated type");
