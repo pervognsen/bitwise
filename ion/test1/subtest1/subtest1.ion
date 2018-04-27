@@ -1,6 +1,7 @@
 import libc {printf}
 
 func bogus_func() {
+    printf("Hello, world!\n");
 //    asdf;
 //    "asdf" << 42;
 }

@@ -245,7 +245,7 @@ typedef struct Map {
     size_t cap;
 } Map;
 
-uint64_t map_get_raw(Map *map, uint64_t key) {
+uint64_t map_get_uint64_from_uint64(Map *map, uint64_t key) {
     if (map->len == 0) {
         return 0;
     }
@@ -264,7 +264,7 @@ uint64_t map_get_raw(Map *map, uint64_t key) {
     return 0;
 }
 
-void map_put_raw(Map *map, uint64_t key, uint64_t val);
+void map_put_uint64_from_uint64(Map *map, uint64_t key, uint64_t val);
 
 void map_grow(Map *map, size_t new_cap) {
     new_cap = CLAMP_MIN(new_cap, 16);
@@ -275,7 +275,7 @@ void map_grow(Map *map, size_t new_cap) {
     };
     for (size_t i = 0; i < map->cap; i++) {
         if (map->keys[i]) {
-            map_put_raw(&new_map, map->keys[i], map->vals[i]);
+            map_put_uint64_from_uint64(&new_map, map->keys[i], map->vals[i]);
         }
     }
     free((void *)map->keys);
@@ -283,7 +283,7 @@ void map_grow(Map *map, size_t new_cap) {
     *map = new_map;
 }
 
-void map_put_raw(Map *map, uint64_t key, uint64_t val) {
+void map_put_uint64_from_uint64(Map *map, uint64_t key, uint64_t val) {
     assert(key);
     assert(val);
     if (2*map->len >= map->cap) {
@@ -308,19 +308,19 @@ void map_put_raw(Map *map, uint64_t key, uint64_t val) {
 }
 
 void *map_get(Map *map, const void *key) {
-    return (void *)(uintptr_t)map_get_raw(map, (uint64_t)(uintptr_t)key);
+    return (void *)(uintptr_t)map_get_uint64_from_uint64(map, (uint64_t)(uintptr_t)key);
 }
 
 void map_put(Map *map, const void *key, void *val) {
-    map_put_raw(map, (uint64_t)(uintptr_t)key, (uint64_t)(uintptr_t)val);
+    map_put_uint64_from_uint64(map, (uint64_t)(uintptr_t)key, (uint64_t)(uintptr_t)val);
 }
 
 void *map_get_from_uint64(Map *map, uint64_t key) {
-    return (void *)(uintptr_t)map_get_raw(map, key);
+    return (void *)(uintptr_t)map_get_uint64_from_uint64(map, key);
 }
 
 void map_put_from_uint64(Map *map, uint64_t key, void *val) {
-    map_put_raw(map, key, (uint64_t)(uintptr_t)val);
+    map_put_uint64_from_uint64(map, key, (uint64_t)(uintptr_t)val);
 }
 
 void map_test(void) {

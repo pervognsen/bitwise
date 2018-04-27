@@ -80,6 +80,8 @@ int ion_main(int argc, const char **argv) {
     add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);
     add_flag_enum("arch", &target_arch, "Target machine architecture", arch_names, NUM_ARCHES);
     add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
+    add_flag_bool("notypeinfo", &flag_notypeinfo, "Don't generate any typeinfo tables");
+    add_flag_bool("fullgen", &flag_fullgen, "Force full code generation even for non-reachable symbols");
     add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
     const char *program_name = parse_flags(&argc, &argv);
     if (argc != 1) {
@@ -111,14 +113,20 @@ int ion_main(int argc, const char **argv) {
         return 1;
     }
     main_sym->external_name = main_name;
+    reachable_phase = REACHABLE_NATURAL;
     resolve_package_syms(builtin_package);
     resolve_package_syms(main_package);
+    finalize_reachable_syms();
+    if (flag_verbose) {
+        printf("Reached %d symbols in %d packages from %s\n", (int)buf_len(reachable_syms), (int)buf_len(package_list), package_name);
+    }
     if (!flag_lazy) {
+        reachable_phase = REACHABLE_FORCED;
         for (size_t i = 0; i < buf_len(package_list); i++) {
             resolve_package_syms(package_list[i]);
         }
+        finalize_reachable_syms();
     }
-    finalize_reachable_syms();
     printf("Compiled %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
     char c_path[MAX_PATH];
     if (output_name) {

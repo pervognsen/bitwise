@@ -340,7 +340,7 @@ void gen_forward_decls(void) {
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (!decl) {
+        if (!decl || (flag_fullgen && sym->reachable != REACHABLE_NATURAL)) {
             continue;
         }
         if (is_decl_foreign(decl)) {
@@ -837,7 +837,9 @@ void gen_decl(Sym *sym) {
 
 void gen_sorted_decls(void) {
     for (size_t i = 0; i < buf_len(sorted_syms); i++) {
-        gen_decl(sorted_syms[i]);
+        if (sorted_syms[i]->reachable == REACHABLE_NATURAL) {
+            gen_decl(sorted_syms[i]);
+        }
     }
 }
 
@@ -845,7 +847,7 @@ void gen_defs(void) {
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (sym->state != SYM_RESOLVED || !decl || is_decl_foreign(decl) || decl->is_incomplete) {
+        if (sym->state != SYM_RESOLVED || !decl || is_decl_foreign(decl) || decl->is_incomplete || sym->reachable != REACHABLE_NATURAL) {
             continue;
         }
         if (decl->kind == DECL_FUNC) {
@@ -1045,23 +1047,28 @@ void gen_typeinfos(void) {
     genlnf("#define TYPEID0(index, kind) ((ullong)(index) | ((ullong)(kind) << 24))");
     genlnf("#define TYPEID(index, kind, ...) ((ullong)(index) | ((ullong)sizeof(__VA_ARGS__) << 32) | ((ullong)(kind) << 24))");
     genln();
-    int num_typeinfos = next_typeid;
-    genlnf("const TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
-    gen_indent++;
-    for (int typeid = 0; typeid < num_typeinfos; typeid++) {
-        genlnf("[%d] = ", typeid);
-        Type *type = get_type_from_typeid(typeid);
-        if (type) {
-            gen_typeinfo(type);
-        } else {
-            genf("NULL, // No associated type");
+    if (flag_notypeinfo) {
+        genlnf("int num_typeinfos;");
+        genlnf("const TypeInfo **typeinfos;");
+    } else {
+        int num_typeinfos = next_typeid;
+        genlnf("const TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
+        gen_indent++;
+        for (int typeid = 0; typeid < num_typeinfos; typeid++) {
+            genlnf("[%d] = ", typeid);
+            Type *type = get_type_from_typeid(typeid);
+            if (type) {
+                gen_typeinfo(type);
+            } else {
+                genf("NULL, // No associated type");
+            }
         }
+        gen_indent--;
+        genlnf("};");
+        genln();
+        genlnf("int num_typeinfos = %d;", num_typeinfos);
+        genlnf("const TypeInfo **typeinfos = (const TypeInfo **)typeinfo_table;");
     }
-    gen_indent--;
-    genlnf("};");
-    genln();
-    genlnf("int num_typeinfos = %d;", num_typeinfos);
-    genlnf("const TypeInfo **typeinfos = (const TypeInfo **)typeinfo_table;");
 }
 
 void gen_package_external_names(void) {

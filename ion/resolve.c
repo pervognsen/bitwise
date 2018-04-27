@@ -19,7 +19,7 @@ typedef struct Sym {
     struct Package *package;
     SymKind kind;
     SymState state;
-    bool reachable;
+    uint8_t reachable;
     Decl *decl;
     Type *type;
     Val val;
@@ -44,6 +44,14 @@ Package *current_package;
 Package *builtin_package;
 Map package_map;
 Package **package_list;
+
+enum {
+    REACHABLE_NONE,
+    REACHABLE_NATURAL,
+    REACHABLE_FORCED,
+};
+
+uint8_t reachable_phase = REACHABLE_NATURAL;
 
 void set_resolved_sym(const void *ptr, Sym *sym);
 
@@ -997,10 +1005,12 @@ void resolve_func_body(Sym *sym) {
     }
 }
 
+
+
 void resolve_sym(Sym *sym) {
     if (!sym->reachable && !is_local_sym(sym)) {
         buf_push(reachable_syms, sym);
-        sym->reachable = true;
+        sym->reachable = reachable_phase;
     }
     if (sym->state == SYM_RESOLVED) {
         return;

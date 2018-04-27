@@ -21,6 +21,8 @@
 
 bool flag_verbose;
 bool flag_lazy;
+bool flag_notypeinfo;
+bool flag_fullgen;
 
 #include "common.c"
 #include "os.c"
