@@ -114,7 +114,7 @@ int ion_main(int argc, const char **argv) {
     resolve_package_syms(builtin_package);
     resolve_package_syms(main_package);
     if (!flag_lazy) {
-        for (int i = 0; i < buf_len(package_list); i++) {
+        for (size_t i = 0; i < buf_len(package_list); i++) {
             resolve_package_syms(package_list[i]);
         }
     }

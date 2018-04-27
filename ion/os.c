@@ -139,7 +139,7 @@ void add_flag_enum(const char *name, int *ptr, const char *help, const char **op
 }
 
 FlagDef *get_flag_def(const char *name) {
-    for (int i = 0; i < buf_len(flag_defs); i++) {
+    for (size_t i = 0; i < buf_len(flag_defs); i++) {
         if (strcmp(flag_defs[i].name, name) == 0) {
             return &flag_defs[i];
         }
@@ -149,7 +149,7 @@ FlagDef *get_flag_def(const char *name) {
 
 void print_flags_usage(void) {
     printf("Flags:\n");
-    for (int i = 0; i < buf_len(flag_defs); i++) {
+    for (size_t i = 0; i < buf_len(flag_defs); i++) {
         FlagDef flag = flag_defs[i];
         char note[256] = {0};
         char format[256];

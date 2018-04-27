@@ -30,7 +30,7 @@ typedef struct Package {
     const char *path;
     char full_path[MAX_PATH];
     Decl **decls;
-    int num_decls;
+    size_t num_decls;
     Map syms_map;
     Sym **syms;
     const char *external_name;
@@ -238,7 +238,7 @@ Sym *sym_global_decl(Decl *decl) {
     if (decl->kind == DECL_ENUM) {
         Typespec *enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
         const char *prev_item_name = NULL;
-        for (int i = 0; i < decl->enum_decl.num_items; i++) {
+        for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
             Expr *init;
             if (item.init) {
@@ -1484,7 +1484,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                     fatal_error(field.pos, "Named field in compound literal does not exist");
                 }
             }
-            if (index >= type->aggregate.num_fields) {
+            if (index >= (int)type->aggregate.num_fields) {
                 fatal_error(field.pos, "Field initializer in struct/union compound literal out of range");
             }
             Type *field_type = type->aggregate.fields[index].type;
@@ -1512,7 +1512,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
                 }
                 index = operand.val.i;
             }
-            if (type->num_elems && index >= type->num_elems) {
+            if (type->num_elems && index >= (int)type->num_elems) {
                 fatal_error(field.pos, "Field initializer in array compound literal out of range");
             }
             if (!resolve_typed_init(field.pos, type->base, field.init)) {
@@ -1943,7 +1943,7 @@ void init_builtin_syms() {
 }
 
 void add_package_decls(Package *package) {
-    for (int i = 0; i < package->num_decls; i++) {
+    for (size_t i = 0; i < package->num_decls; i++) {
         Decl *decl = package->decls[i];
         if (decl->kind == DECL_NOTE) {
             if (!map_get(&decl_note_names, decl->note.name)) {
@@ -2026,7 +2026,7 @@ Package *import_package(const char *package_path) {
 void import_all_package_symbols(Package *package) {
     // TODO: should have a more general mechanism
     const char *main_name = str_intern("main");
-    for (int i = 0; i < buf_len(package->syms); i++) {
+    for (size_t i = 0; i < buf_len(package->syms); i++) {
         if (package->syms[i]->package == package && package->syms[i]->name != main_name) {
             sym_global_put(package->syms[i]->name, package->syms[i]);
         }
@@ -2034,7 +2034,7 @@ void import_all_package_symbols(Package *package) {
 }
 
 void import_package_symbols(Decl *decl, Package *package) {
-    for (int i = 0; i < decl->import.num_items; i++) {
+    for (size_t i = 0; i < decl->import.num_items; i++) {
         ImportItem item = decl->import.items[i];
         Sym *sym = get_package_sym(package, item.name);
         if (!sym) {
@@ -2045,14 +2045,14 @@ void import_package_symbols(Decl *decl, Package *package) {
 }
 
 void process_package_imports(Package *package) {
-    for (int i = 0; i < package->num_decls; i++) {
+    for (size_t i = 0; i < package->num_decls; i++) {
         Decl *decl = package->decls[i];
         if (decl->kind == DECL_IMPORT) {
             char *path_buf = NULL;
             if (decl->import.is_relative) {
                 buf_printf(path_buf, "%s/", package->path);
             }
-            for (int k = 0; k < decl->import.num_names; k++) {
+            for (size_t k = 0; k < decl->import.num_names; k++) {
                 buf_printf(path_buf, "%s%s", k == 0 ? "" : "/", decl->import.names[k]);
             }
             Package *imported_package = import_package(path_buf);
@@ -2095,7 +2095,7 @@ bool parse_package(Package *package) {
         }
         init_stream(str_intern(path), code);
         Decls *file_decls = parse_decls();
-        for (int i = 0; i < file_decls->num_decls; i++) {
+        for (size_t i = 0; i < file_decls->num_decls; i++) {
             buf_push(decls, file_decls->decls[i]);
         }
     }
@@ -2123,7 +2123,7 @@ bool compile_package(Package *package) {
 
 void resolve_package_syms(Package *package) {
     Package *old_package = enter_package(package);
-    for (int i = 0; i < buf_len(package->syms); i++) {
+    for (size_t i = 0; i < buf_len(package->syms); i++) {
         if (package->syms[i]->package == package) {
             resolve_sym(package->syms[i]);
         }
@@ -2135,20 +2135,20 @@ void finalize_reachable_syms(void) {
     if (flag_verbose) {
         printf("Finalizing reachable symbols\n");
     }
-    int prev_num_reachable = 0;
-    int num_reachable = (int)buf_len(reachable_syms);
-    for (int i = 0; i < num_reachable; i++) {
+    size_t prev_num_reachable = 0;
+    size_t num_reachable = buf_len(reachable_syms);
+    for (size_t i = 0; i < num_reachable; i++) {
         finalize_sym(reachable_syms[i]);
         if (i == num_reachable - 1) {
             if (flag_verbose) {
                 printf("New reachable symbols:");
-                for (int k = prev_num_reachable; k < num_reachable; k++) {
+                for (size_t k = prev_num_reachable; k < num_reachable; k++) {
                     printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
                 }
                 printf("\n");
             }
             prev_num_reachable = num_reachable;
-            num_reachable = (int)buf_len(reachable_syms);
+            num_reachable = buf_len(reachable_syms);
         }
     }
 }

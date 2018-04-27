@@ -289,8 +289,8 @@ Map cached_array_types;
 
 Type *type_array(Type *base, size_t num_elems) {
     uint64_t hash = hash_mix(hash_ptr(base), hash_uint64(num_elems));
-    void *key = (void *)(hash ? hash : 1);
-    CachedArrayType *cached = map_get(&cached_array_types, key);
+    uint64_t key = hash ? hash : 1;
+    CachedArrayType *cached = map_get_from_uint64(&cached_array_types, key);
     for (CachedArrayType *it = cached; it; it = it->next) {
         Type *type = it->type;
         if (type->base == base && type->num_elems == num_elems) {
@@ -307,7 +307,7 @@ Type *type_array(Type *base, size_t num_elems) {
     CachedArrayType *new_cached = xmalloc(sizeof(CachedArrayType));
     new_cached->type = type;
     new_cached->next = cached;
-    map_put(&cached_array_types, key, new_cached);
+    map_put_from_uint64(&cached_array_types, key, new_cached);
     return type;
 }
 
@@ -321,8 +321,8 @@ Map cached_func_types;
 Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
     size_t params_size = num_params * sizeof(*params);
     uint64_t hash = hash_mix(hash_bytes(params, params_size), hash_ptr(ret));
-    void *key = (void *)(hash ? hash : 1);
-    CachedFuncType *cached = map_get(&cached_func_types, key);
+    uint64_t key = hash ? hash : 1;
+    CachedFuncType *cached = map_get_from_uint64(&cached_func_types, key);
     for (CachedFuncType *it = cached; it; it = it->next) {
         Type *type = it->type;
         if (type->func.num_params == num_params && type->func.ret == ret && type->func.has_varargs == has_varargs) {
@@ -341,7 +341,7 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
     CachedFuncType *new_cached = xmalloc(sizeof(CachedFuncType));
     new_cached->type = type;
     new_cached->next = cached;
-    map_put(&cached_func_types, key, new_cached);
+    map_put_from_uint64(&cached_func_types, key, new_cached);
     return type;
 }
 
@@ -433,7 +433,7 @@ void init_builtin_types(void) {
 
 int aggregate_field_index(Type *type, const char *name) {
     assert(is_aggregate_type(type));
-    for (int i = 0; i < type->aggregate.num_fields; i++) {
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         if (type->aggregate.fields[i].name == name) {
             return i;
         }
@@ -443,7 +443,7 @@ int aggregate_field_index(Type *type, const char *name) {
 
 Type *aggregate_field_type_from_index(Type *type, int index) {
     assert(is_aggregate_type(type));
-    assert(0 <= index && index < type->aggregate.num_fields);
+    assert(0 <= index && index < (int)type->aggregate.num_fields);
     return type->aggregate.fields[index].type;
 }
 

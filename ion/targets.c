@@ -86,6 +86,7 @@ TypeMetrics lp64_metrics[NUM_TYPE_KINDS] = {
 };
 
 void init_target(void) {
+    type_metrics = NULL;
     switch (target_os) {
     case OS_WIN32:
         switch (target_arch) {
@@ -96,7 +97,7 @@ void init_target(void) {
             type_metrics = win32_x64_metrics;
             break;
         default:
-            goto unsupported;
+            break;
         }
         break;
     case OS_LINUX:
@@ -108,23 +109,24 @@ void init_target(void) {
             type_metrics = lp64_metrics;
             break;
         default:
-            goto unsupported;
+            break;
         }
         break;
     case OS_OSX:
         switch (target_arch) {
-        case ARCH_X86:
-            type_metrics = ilp32_metrics;
-            break;
         case ARCH_X64:
             type_metrics = lp64_metrics;
             break;
         default:
-            goto unsupported;
+            break;
         }
         break;
     default:
-        goto unsupported;
+        break;
+    }
+    if (!type_metrics) {
+        printf("Unsupported os/arch combination: %s/%s\n", os_names[target_os], arch_names[target_arch]);
+        exit(1);
     }
     if (type_metrics[TYPE_PTR].size == 4) {
         type_uintptr = type_uint;
@@ -136,10 +138,6 @@ void init_target(void) {
         type_usize = type_ullong;
         type_ssize = type_llong;
     }
-    return;
-    unsupported:
-    printf("Unsupported os/arch combination: %s/%s\n", os_names[target_os], arch_names[target_arch]);
-    exit(1);
 }
 
 bool is_excluded_target_filename(const char *name) {

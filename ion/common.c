@@ -239,43 +239,43 @@ uint64_t hash_bytes(const void *ptr, size_t len) {
 }
 
 typedef struct Map {
-    const void **keys;
-    void **vals;
+    uint64_t *keys;
+    uint64_t *vals;
     size_t len;
     size_t cap;
 } Map;
 
-void *map_get(Map *map, const void *key) {
+uint64_t map_get_raw(Map *map, uint64_t key) {
     if (map->len == 0) {
-        return NULL;
+        return 0;
     }
     assert(IS_POW2(map->cap));
-    size_t i = (size_t)hash_ptr(key);
+    size_t i = (size_t)hash_uint64(key);
     assert(map->len < map->cap);
     for (;;) {
         i &= map->cap - 1;
         if (map->keys[i] == key) {
             return map->vals[i];
         } else if (!map->keys[i]) {
-            return NULL;
+            return 0;
         }
         i++;
     }
-    return NULL;
+    return 0;
 }
 
-void map_put(Map *map, const void *key, void *val);
+void map_put_raw(Map *map, uint64_t key, uint64_t val);
 
 void map_grow(Map *map, size_t new_cap) {
     new_cap = CLAMP_MIN(new_cap, 16);
     Map new_map = {
-        .keys = xcalloc(new_cap, sizeof(void *)),
-        .vals = xmalloc(new_cap * sizeof(void *)),
+        .keys = xcalloc(new_cap, sizeof(uint64_t)),
+        .vals = xmalloc(new_cap * sizeof(uint64_t)),
         .cap = new_cap,
     };
     for (size_t i = 0; i < map->cap; i++) {
         if (map->keys[i]) {
-            map_put(&new_map, map->keys[i], map->vals[i]);
+            map_put_raw(&new_map, map->keys[i], map->vals[i]);
         }
     }
     free((void *)map->keys);
@@ -283,7 +283,7 @@ void map_grow(Map *map, size_t new_cap) {
     *map = new_map;
 }
 
-void map_put(Map *map, const void *key, void *val) {
+void map_put_raw(Map *map, uint64_t key, uint64_t val) {
     assert(key);
     assert(val);
     if (2*map->len >= map->cap) {
@@ -291,7 +291,7 @@ void map_put(Map *map, const void *key, void *val) {
     }
     assert(2*map->len < map->cap);
     assert(IS_POW2(map->cap));
-    size_t i = (size_t)hash_ptr(key);
+    size_t i = (size_t)hash_uint64(key);
     for (;;) {
         i &= map->cap - 1;
         if (!map->keys[i]) {
@@ -305,6 +305,22 @@ void map_put(Map *map, const void *key, void *val) {
         }
         i++;
     }
+}
+
+void *map_get(Map *map, const void *key) {
+    return (void *)(uintptr_t)map_get_raw(map, (uint64_t)(uintptr_t)key);
+}
+
+void map_put(Map *map, const void *key, void *val) {
+    map_put_raw(map, (uint64_t)(uintptr_t)key, (uint64_t)(uintptr_t)val);
+}
+
+void *map_get_from_uint64(Map *map, uint64_t key) {
+    return (void *)(uintptr_t)map_get_raw(map, key);
+}
+
+void map_put_from_uint64(Map *map, uint64_t key, void *val) {
+    map_put_raw(map, key, (uint64_t)(uintptr_t)val);
 }
 
 void map_test(void) {
@@ -333,8 +349,8 @@ Map interns;
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
     uint64_t hash = hash_bytes(start, len);
-    void *key = (void *)(uintptr_t)(hash ? hash : 1);
-    Intern *intern = map_get(&interns, key);
+    uint64_t key = hash ? hash : 1;
+    Intern *intern = map_get_from_uint64(&interns, key);
     for (Intern *it = intern; it; it = it->next) {
         if (it->len == len && strncmp(it->str, start, len) == 0) {
             return it->str;
@@ -345,7 +361,7 @@ const char *str_intern_range(const char *start, const char *end) {
     new_intern->next = intern;
     memcpy(new_intern->str, start, len);
     new_intern->str[len] = 0;
-    map_put(&interns, key, new_intern);
+    map_put_from_uint64(&interns, key, new_intern);
     return new_intern->str;
 }
 

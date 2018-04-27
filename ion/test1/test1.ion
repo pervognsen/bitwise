@@ -129,6 +129,7 @@ func test_loops() {
         break;
     }
 }
+
 func test_nonmodifiable() {
     s1: S1;
     s1.a = 0;
@@ -307,8 +308,6 @@ func test_assign() {
     i ^= 0x0ff0;
     // f++;
     // f--;
-
-    
 }
 
 func benchmark(n: int) {
@@ -583,6 +582,7 @@ func test_va_list(fmt: char const*, ...) {
     va_start(&init_args, &fmt);
     args: va_list;
     va_copy(&args, &init_args);
+    va_end(&init_args);
     c: char;
     va_arg(&args, {&c, typeof(c)});
     i: int;

@@ -89,7 +89,7 @@ const char *gen_postamble =
     "        *(ullong *)any.ptr = va_arg(*args, ullong);\n"
     "        break;\n"
     "    case TYPE_FLOAT:\n"
-    "        *(float *)any.ptr = va_arg(*args, double);\n"
+    "        *(float *)any.ptr = (float)va_arg(*args, double);\n"
     "        break;\n"
     "    case TYPE_DOUBLE:\n"
     "        *(double *)any.ptr = va_arg(*args, double);\n"
@@ -104,7 +104,6 @@ const char *gen_postamble =
     "    }\n"
     "}\n"
     ;
-
 
 void genln(void) {
     genf("\n%.*s", gen_indent * 4, "                                                                  ");
@@ -175,6 +174,7 @@ void gen_str(const char *str, bool multiline) {
 }
 
 void gen_sync_pos(SrcPos pos) {
+    return;
     if (gen_pos.line != pos.line || gen_pos.name != pos.name) {
         genlnf("#line %d", pos.line);
         if (gen_pos.name != pos.name) {
@@ -414,7 +414,6 @@ void gen_expr_compound(Expr *expr) {
     }
     genf("}");
 }
-
 
 const char *typeid_kind_names[NUM_TYPE_KINDS] = {
     [TYPE_NONE] = "TYPE_NONE",
@@ -936,13 +935,13 @@ void gen_package_sources(Package *package) {
 }
 
 void gen_foreign_headers(void) {
-    for (int i = 0; i < buf_len(package_list); i++) {
+    for (size_t i = 0; i < buf_len(package_list); i++) {
         gen_package_headers(package_list[i]);
     }
 }
 
 void gen_foreign_sources(void) {
-    for (int i = 0; i < buf_len(package_list); i++) {
+    for (size_t i = 0; i < buf_len(package_list); i++) {
         gen_package_sources(package_list[i]);
     }
 }
@@ -1043,8 +1042,8 @@ void gen_typeinfo(Type *type) {
 #undef CASE
 
 void gen_typeinfos(void) {
-    genlnf("#define TYPEID0(index, kind) ((ullong)(index) | ((kind) << 24ull))");
-    genlnf("#define TYPEID(index, kind, ...) ((ullong)(index) | (sizeof(__VA_ARGS__) << 32ull) | ((kind) << 24ull))");
+    genlnf("#define TYPEID0(index, kind) ((ullong)(index) | ((ullong)(kind) << 24))");
+    genlnf("#define TYPEID(index, kind, ...) ((ullong)(index) | ((ullong)sizeof(__VA_ARGS__) << 32) | ((ullong)(kind) << 24))");
     genln();
     int num_typeinfos = next_typeid;
     genlnf("const TypeInfo *typeinfo_table[%d] = {", num_typeinfos);
@@ -1066,7 +1065,7 @@ void gen_typeinfos(void) {
 }
 
 void gen_package_external_names(void) {
-    for (int i = 0; i < buf_len(package_list); i++) {
+    for (size_t i = 0; i < buf_len(package_list); i++) {
         Package *package = package_list[i];
         if (!package->external_name) {
             char *external_name = NULL;
