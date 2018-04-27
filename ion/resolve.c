@@ -34,7 +34,7 @@ typedef struct Package {
     Map syms_map;
     Sym **syms;
     const char *external_name;
-    bool always_resolve;
+    bool always_reachable;
 } Package;
 
 enum {
@@ -2033,7 +2033,7 @@ void process_package_imports(Package *package) {
         Decl *decl = package->decls[i];
         if (decl->kind == DECL_NOTE) {
             if (decl->note.name == always_name) {
-                package->always_resolve = true;
+                package->always_reachable = true;
             }
         } else if (decl->kind == DECL_IMPORT) {
             char *path_buf = NULL;

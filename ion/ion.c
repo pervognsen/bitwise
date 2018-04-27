@@ -76,9 +76,11 @@ void parse_env_vars(void) {
 int ion_main(int argc, const char **argv) {
     parse_env_vars();
     const char *output_name = NULL;
+    bool flag_check;
     add_flag_str("o", &output_name, "file", "Output file (default: out_<main-package>.c)");
     add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);
     add_flag_enum("arch", &target_arch, "Target machine architecture", arch_names, NUM_ARCHES);
+    add_flag_bool("check", &flag_check, "Semantic checking with no code generation");
     add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
     add_flag_bool("notypeinfo", &flag_notypeinfo, "Don't generate any typeinfo tables");
     add_flag_bool("fullgen", &flag_fullgen, "Force full code generation even for non-reachable symbols");
@@ -116,7 +118,7 @@ int ion_main(int argc, const char **argv) {
     reachable_phase = REACHABLE_NATURAL;
     resolve_sym(main_sym);
     for (size_t i = 0; i < buf_len(package_list); i++) {
-        if (package_list[i]->always_resolve) {
+        if (package_list[i]->always_reachable) {
             resolve_package_syms(package_list[i]);
         }
     }
@@ -131,20 +133,22 @@ int ion_main(int argc, const char **argv) {
         }
         finalize_reachable_syms();
     }
-    printf("Compiled %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
-    char c_path[MAX_PATH];
-    if (output_name) {
-        path_copy(c_path, output_name);
-    } else {
-        snprintf(c_path, sizeof(c_path), "out_%s.c", package_name);
+    printf("Processed %d symbols in %d packages\n", (int)buf_len(reachable_syms), (int)buf_len(package_list));
+    if (!flag_check) {
+        char c_path[MAX_PATH];
+        if (output_name) {
+            path_copy(c_path, output_name);
+        } else {
+            snprintf(c_path, sizeof(c_path), "out_%s.c", package_name);
+        }
+        gen_all();
+        const char *c_code = gen_buf;
+        gen_buf = NULL;
+        if (!write_file(c_path, c_code, buf_len(c_code))) {
+            printf("error: Failed to write file: %s\n", c_path);
+            return 1;
+        }
+        printf("Generated %s\n", c_path);
     }
-    gen_all();
-    const char *c_code = gen_buf;
-    gen_buf = NULL;
-    if (!write_file(c_path, c_code, buf_len(c_code))) {
-        printf("error: Failed to write file: %s\n", c_path);
-        return 1;
-    }
-    printf("Generated %s\n", c_path);
     return 0;
 }
