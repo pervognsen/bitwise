@@ -636,7 +636,7 @@ void gen_simple_stmt(Stmt *stmt) {
         }
         break;
     case STMT_ASSIGN:
-        gen_paren_expr(stmt->assign.left);
+        gen_expr(stmt->assign.left);
         genf(" %s ", token_kind_name(stmt->assign.op));
         gen_expr(stmt->assign.right);
         break;

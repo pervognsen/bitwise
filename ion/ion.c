@@ -76,7 +76,7 @@ void parse_env_vars(void) {
 int ion_main(int argc, const char **argv) {
     parse_env_vars();
     const char *output_name = NULL;
-    bool flag_check;
+    bool flag_check = false;
     add_flag_str("o", &output_name, "file", "Output file (default: out_<main-package>.c)");
     add_flag_enum("os", &target_os, "Target operating system", os_names, NUM_OSES);
     add_flag_enum("arch", &target_arch, "Target machine architecture", arch_names, NUM_ARCHES);
