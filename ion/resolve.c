@@ -216,7 +216,10 @@ Sym *sym_global_decl(Decl *decl) {
         sym_global_put(sym->name, sym);
     }
     if (decl->kind == DECL_ENUM) {
-        Typespec *enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
+        Typespec *enum_typespec = decl->enum_decl.type;
+        if (!enum_typespec) {
+            enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
+        }
         const char *prev_item_name = NULL;
         for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
@@ -389,6 +392,13 @@ bool cast_operand(Operand *operand, Type *type) {
             if (is_floating_type(operand->type)) {
                 operand->is_const = !is_integer_type(type);
             } else {
+                if (type->kind == TYPE_ENUM) {
+                    type = type->base;
+                }
+                Type *operand_type = operand->type;
+                if (operand_type->kind == TYPE_ENUM) {
+                    operand_type = operand_type->base;
+                }
                 switch (operand->type->kind) {
                 CASE(TYPE_BOOL, b)
                 CASE(TYPE_CHAR, c)
@@ -397,7 +407,6 @@ bool cast_operand(Operand *operand, Type *type) {
                 CASE(TYPE_SHORT, s)
                 CASE(TYPE_USHORT, us)
                 CASE(TYPE_INT, i)
-                CASE(TYPE_ENUM, i)
                 CASE(TYPE_UINT, u)
                 CASE(TYPE_LONG, l)
                 CASE(TYPE_ULONG, ul)
@@ -1004,7 +1013,11 @@ void resolve_sym(Sym *sym) {
         if (decl && decl->kind == DECL_TYPEDEF) {
             sym->type = resolve_typespec(decl->typedef_decl.type);
         } else if (decl->kind == DECL_ENUM) {
-            sym->type = type_enum(sym);
+            Type *base = decl->enum_decl.type ? resolve_typespec(decl->enum_decl.type) : type_int;
+            if (!is_integer_type(base)) {
+                fatal_error(decl->pos, "Base type of enum must be integer type");
+            }
+            sym->type = type_enum(sym, base);
         } else {
             sym->type = type_incomplete(sym);
         }

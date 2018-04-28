@@ -581,6 +581,10 @@ Decl *parse_decl_enum(SrcPos pos) {
     if (is_token(TOKEN_NAME)) {
         name = parse_name();
     }
+    Typespec *type = NULL;
+    if (match_token(TOKEN_ASSIGN)) {
+        type = parse_type();
+    }
     expect_token(TOKEN_LBRACE);
     EnumItem *items = NULL;
     while (!is_token(TOKEN_RBRACE)) {
@@ -590,7 +594,7 @@ Decl *parse_decl_enum(SrcPos pos) {
         }
     }
     expect_token(TOKEN_RBRACE);
-    return new_decl_enum(pos, name, items, buf_len(items));
+    return new_decl_enum(pos, name, type, items, buf_len(items));
 }
 
 AggregateItem parse_decl_aggregate_item(void) {

@@ -98,6 +98,7 @@ struct Decl {
     union {
         Note note;
         struct {
+            Typespec *type;
             EnumItem *items;
             size_t num_items;
         } enum_decl;

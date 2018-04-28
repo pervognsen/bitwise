@@ -276,7 +276,11 @@ enum Color {
 enum {
     FOO,
     BAR,
-    BAZ
+}
+
+enum TypedEnum = int8 {
+    BAZ,
+    QUUX
 }
 
 var color_names: char const*[NUM_COLORS] = {
@@ -293,7 +297,8 @@ func test_enum() {
     i: int = a;
     a = i;
     printf("%d %d %d %d\n", COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE);
-    d := BAZ;
+    d := BAR;
+    e := QUUX;
 }
 
 func test_assign() {

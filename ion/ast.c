@@ -101,8 +101,9 @@ bool is_decl_foreign(Decl *decl) {
     return get_decl_note(decl, foreign_name) != NULL;
 }
 
-Decl *new_decl_enum(SrcPos pos, const char *name, EnumItem *items, size_t num_items) {
+Decl *new_decl_enum(SrcPos pos, const char *name, Typespec *type, EnumItem *items, size_t num_items) {
     Decl *d = new_decl(DECL_ENUM, pos, name);
+    d->enum_decl.type = type;
     d->enum_decl.items = AST_DUP(items);
     d->enum_decl.num_items = num_items;
     return d;
