@@ -252,7 +252,19 @@ const char *get_gen_name_or_default(const void *ptr, const char *default_name) {
             if (sym->external_name) {
                 name = sym->external_name;
             } else if (sym->package->external_name) {
-                name = strf("%s%s", sym->package->external_name, sym->name);
+                const char *external_name = sym->package->external_name;
+                char buf[256];
+                if (sym->kind == SYM_CONST) {
+                    char *ptr = buf;
+                    for (const char *str = external_name; *str && ptr < buf + sizeof(buf) - 1; str++, ptr++) {
+                        *ptr = toupper(*str);
+                    }
+                    *ptr = 0;
+                    if (ptr < buf + sizeof(buf)) {
+                        external_name = buf;
+                    }
+                }
+                name = strf("%s%s", external_name, sym->name);
             } else {
                 name = sym->name;
             }
