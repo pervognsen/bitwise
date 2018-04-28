@@ -216,10 +216,7 @@ Sym *sym_global_decl(Decl *decl) {
         sym_global_put(sym->name, sym);
     }
     if (decl->kind == DECL_ENUM) {
-        Typespec *enum_typespec = decl->enum_decl.type;
-        if (!enum_typespec) {
-            enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
-        }
+        Typespec *enum_typespec = enum_typespec = new_typespec_name(decl->pos, sym ? sym->name : str_intern("int"));
         const char *prev_item_name = NULL;
         for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
@@ -399,7 +396,7 @@ bool cast_operand(Operand *operand, Type *type) {
                 if (operand_type->kind == TYPE_ENUM) {
                     operand_type = operand_type->base;
                 }
-                switch (operand->type->kind) {
+                switch (operand_type->kind) {
                 CASE(TYPE_BOOL, b)
                 CASE(TYPE_CHAR, c)
                 CASE(TYPE_UCHAR, uc)

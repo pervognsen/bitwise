@@ -174,7 +174,6 @@ void gen_str(const char *str, bool multiline) {
 }
 
 void gen_sync_pos(SrcPos pos) {
-    return;
     if (gen_pos.line != pos.line || gen_pos.name != pos.name) {
         genlnf("#line %d", pos.line);
         if (gen_pos.name != pos.name) {
@@ -834,7 +833,11 @@ void gen_decl(Sym *sym) {
         genlnf("typedef %s;", typespec_to_cdecl(decl->typedef_decl.type, get_gen_name(sym)));
         break;
     case DECL_ENUM:
-        genlnf("typedef int %s;", get_gen_name(decl));
+        if (decl->enum_decl.type) {
+            genlnf("typedef %s;", typespec_to_cdecl(decl->enum_decl.type, get_gen_name(decl)));
+        } else {
+            genlnf("typedef int %s;", get_gen_name(decl));
+        }
         break;
     default:
         assert(0);

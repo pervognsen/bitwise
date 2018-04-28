@@ -299,6 +299,9 @@ func test_enum() {
     printf("%d %d %d %d\n", COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE);
     d := BAR;
     e := QUUX;
+    #static_assert(typeof(e) == typeof(TypedEnum));
+    f: TypedEnum;
+    f = BAZ;
 }
 
 func test_assign() {
