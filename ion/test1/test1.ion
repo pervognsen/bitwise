@@ -273,6 +273,12 @@ enum Color {
     NUM_COLORS,
 }
 
+enum {
+    FOO,
+    BAR,
+    BAZ
+}
+
 var color_names: char const*[NUM_COLORS] = {
     [COLOR_NONE] = "none",
     [COLOR_RED] = "red",
@@ -287,6 +293,7 @@ func test_enum() {
     i: int = a;
     a = i;
     printf("%d %d %d %d\n", COLOR_NONE, COLOR_RED, COLOR_GREEN, COLOR_BLUE);
+    d := BAZ;
 }
 
 func test_assign() {

@@ -577,7 +577,10 @@ EnumItem parse_decl_enum_item(void) {
 }
 
 Decl *parse_decl_enum(SrcPos pos) {
-    const char *name = parse_name();
+    const char *name = NULL;
+    if (is_token(TOKEN_NAME)) {
+        name = parse_name();
+    }
     expect_token(TOKEN_LBRACE);
     EnumItem *items = NULL;
     while (!is_token(TOKEN_RBRACE)) {

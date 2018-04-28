@@ -210,8 +210,11 @@ Sym *sym_global_type(const char *name, Type *type) {
 }
 
 Sym *sym_global_decl(Decl *decl) {
-    Sym *sym = sym_decl(decl);
-    sym_global_put(sym->name, sym);
+    Sym *sym = NULL;
+    if (decl->name) {
+        sym = sym_decl(decl);
+        sym_global_put(sym->name, sym);
+    }
     if (decl->kind == DECL_ENUM) {
         Typespec *enum_typespec = new_typespec_name(decl->pos, str_intern("int"));
         const char *prev_item_name = NULL;
