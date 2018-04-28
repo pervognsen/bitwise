@@ -1,3 +1,6 @@
+#foreign(header = "<limits.h>")
+#foreign(header = "<stdint.h>")
+
 #static_assert(sizeof(bool) == 1)
 #static_assert(sizeof(char) == 1)
 #static_assert(sizeof(uchar) == 1)
@@ -59,55 +62,56 @@ const false = bool(0);
 @foreign
 const true = bool(1);
 
-@foreign
-const UCHAR_MIN = 0;
+const UCHAR_MIN = uchar(0);
 
 @foreign
-const UCHAR_MAX = 0xff;
+const UCHAR_MAX = uchar(0xff);
 
 @foreign
-const SCHAR_MIN = -128;
+const SCHAR_MIN = schar(-128);
 
 @foreign
-const SCHAR_MAX = 127;
+const SCHAR_MAX = schar(127);
 
 @foreign
-const SHORT_MIN = -32768;
+const CHAR_MIN = char(SCHAR_MIN);
 
 @foreign
-const SHORT_MAX = 32767;
+const CHAR_MAX = char(SCHAR_MAX);
+
+@foreign("SHRT_MIN")
+const SHORT_MIN = short(-32768);
+
+@foreign("SHRT_MAX")
+const SHORT_MAX = short(32767);
+
+const USHORT_MIN = short(0);
+
+@foreign("USHRT_MAX")
+const USHORT_MAX = ushort(0xffff);
 
 @foreign
-const USHORT_MIN = 0;
+const INT_MIN  = int(-2147483647 - 1);
 
 @foreign
-const USHORT_MAX = 0xffff;
+const INT_MAX = int(2147483647);
+
+const UINT_MIN = uint(0);
 
 @foreign
-const INT_MIN  = -2147483647 - 1;
+const UINT_MAX = uint(0xffffffff);
 
 @foreign
-const INT_MAX = 2147483647;
+const LLONG_MIN = llong(-9223372036854775807ll - 1);
 
 @foreign
-const UINT_MIN = 0;
+const LLONG_MAX = llong(9223372036854775807ll);
+
+const ULLONG_MIN = ullong(0);
 
 @foreign
-const UINT_MAX = 0xffffffff;
+const ULLONG_MAX = ullong(0xffffffffffffffffull);
 
-@foreign
-const LLONG_MIN = -9223372036854775807ll - 1;
-
-@foreign
-const LLONG_MAX = 9223372036854775807ll;
-
-@foreign
-const ULLONG_MIN = 0;
-
-@foreign
-const ULLONG_MAX = 0xffffffffffffffffull;
-
-@foreign
 const UINT8_MIN = UCHAR_MIN;
 
 @foreign
@@ -119,7 +123,6 @@ const INT8_MIN = SCHAR_MIN;
 @foreign
 const INT8_MAX = SCHAR_MAX;
 
-@foreign
 const UINT16_MIN = USHORT_MIN;
 
 @foreign
@@ -131,7 +134,6 @@ const INT16_MIN = SHORT_MIN;
 @foreign
 const INT16_MAX = SHORT_MAX;
 
-@foreign
 const UINT32_MIN = UINT_MIN;
 
 @foreign
@@ -143,7 +145,6 @@ const INT32_MIN = INT_MIN;
 @foreign
 const INT32_MAX = INT_MAX;
 
-@foreign
 const UINT64_MIN = ULLONG_MIN;
 
 @foreign

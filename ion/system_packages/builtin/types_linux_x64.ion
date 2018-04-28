@@ -2,13 +2,12 @@
 #static_assert(sizeof(ulong) == 8)
 
 @foreign
-const LONG_MIN = INT64_MIN;
+const LONG_MIN = long(INT64_MIN);
 
 @foreign
-const LONG_MAX = INT64_MAX;
+const LONG_MAX = long(INT64_MAX);
+
+const ULONG_MIN = ulong(INT64_MIN);
 
 @foreign
-const ULONG_MIN = INT64_MIN;
-
-@foreign
-const ULONG_MAX = INT64_MAX;
+const ULONG_MAX = ulong(INT64_MAX);

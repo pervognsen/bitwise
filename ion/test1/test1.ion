@@ -654,6 +654,60 @@ func test_complete() {
     }
 }
 
+func test_limits() {
+    char_min := CHAR_MIN;
+    char_max := CHAR_MAX;
+    schar_min := SCHAR_MIN;
+    schar_max := SCHAR_MAX;
+    uchar_min := UCHAR_MIN;
+    uchar_max := UCHAR_MAX;
+    short_min := SHORT_MIN;
+    short_max := SHORT_MAX;
+    ushort_min := USHORT_MIN;
+    ushort_max := USHORT_MAX;
+    int_min := INT_MIN;
+    int_max := INT_MAX;
+    uint_min := UINT_MIN;
+    uint_max := UINT_MAX;
+    long_min := LONG_MIN;
+    long_max := LONG_MAX;
+    ulong_min := ULONG_MIN;
+    ulong_max := ULONG_MAX;
+    llong_min := LLONG_MIN;
+    llong_max := LLONG_MAX;
+    ullong_min := ULLONG_MIN;
+    ullong_max := ULLONG_MAX;
+
+    wchar_min := WCHAR_MIN;
+    wchar_max := WCHAR_MAX;
+
+    int8_min := INT8_MIN;
+    int8_max := INT8_MAX;
+    uint8_min := UINT8_MIN;
+    uint8_max := UINT8_MAX;
+    int16_min := INT16_MIN;
+    int16_max := INT16_MAX;
+    uint16_min := UINT16_MIN;
+    uint16_max := UINT16_MAX;
+    int32_min := INT32_MIN;
+    int32_max := INT32_MAX;
+    uint32_min := UINT32_MIN;
+    uint32_max := UINT32_MAX;
+    int64_min := INT64_MIN;
+    int64_max := INT64_MAX;
+    uint64_min := UINT64_MIN;
+    uint64_max := UINT64_MAX;
+
+    usize_min := USIZE_MIN;
+    usize_max := USIZE_MAX;
+    ssize_min := SSIZE_MIN;
+    ssize_max := SSIZE_MAX;
+    uintptr_min := UINTPTR_MIN;
+    uintptr_max := UINTPTR_MAX;
+    intptr_min := INTPTR_MIN;
+    intptr_max := INTPTR_MAX;
+}
+
 func test_alignof() {
     i := 42;
     n1 := alignof(i);
@@ -721,6 +775,7 @@ func main(argc: int, argv: char**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_limits();
     test_va_list("whatever", char(123), int(123123), llong(123123123123));
     test_os_arch();
     test_packages();
