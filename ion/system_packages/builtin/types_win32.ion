@@ -3,3 +3,21 @@ typedef wchar = uint16;
 
 #static_assert(sizeof(long) == 4)
 #static_assert(sizeof(ulong) == 4)
+
+@foreign
+const WCHAR_MIN = UINT16_MIN;
+
+@foreign
+const WCHAR_MAX = UINT16_MAX;
+
+@foreign
+const LONG_MIN = INT32_MIN;
+
+@foreign
+const LONG_MAX = INT32_MAX;
+
+@foreign
+const ULONG_MIN = INT32_MIN;
+
+@foreign
+const ULONG_MAX = INT32_MAX;

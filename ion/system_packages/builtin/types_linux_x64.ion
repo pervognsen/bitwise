@@ -1,2 +1,14 @@
 #static_assert(sizeof(long) == 8)
 #static_assert(sizeof(ulong) == 8)
+
+@foreign
+const LONG_MIN = INT64_MIN;
+
+@foreign
+const LONG_MAX = INT64_MAX;
+
+@foreign
+const ULONG_MIN = INT64_MIN;
+
+@foreign
+const ULONG_MAX = INT64_MAX;

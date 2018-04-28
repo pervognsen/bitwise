@@ -11,3 +11,27 @@ typedef uintptr = uint32;
 
 @foreign("intptr_t")
 typedef intptr = int32;
+
+@foreign
+const USIZE_MIN = UINT32_MIN;
+
+@foreign
+const USIZE_MAX = UINT32_MAX;
+
+@foreign
+const SSIZE_MIN = INT32_MIN;
+
+@foreign
+const SSIZE_MAX = INT32_MAX;
+
+@foreign
+const UINTPTR_MIN = UINT32_MIN;
+
+@foreign
+const UINTPTR_MAX = UINT32_MAX;
+
+@foreign
+const INTPTR_MIN = INT32_MIN;
+
+@foreign
+const INTPTR_MAX = INT32_MAX;
