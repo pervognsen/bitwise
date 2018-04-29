@@ -57,8 +57,7 @@ struct SDL_AudioSpec {
 typedef SDL_AudioDeviceID = uint32;
 
 @foreign
-struct SDL_AudioCVT
-{
+struct SDL_AudioCVT {
     needed: int;
     src_format: SDL_AudioFormat;
     dst_format: SDL_AudioFormat;
@@ -360,6 +359,7 @@ struct SDL_MouseButtonEvent {
     y: int32;
 }
 
+@fake("This only specifies the subset of fields in the real struct we currently support")
 @foreign
 union SDL_Event {
     type: uint32;
