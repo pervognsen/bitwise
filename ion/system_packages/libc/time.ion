@@ -40,4 +40,4 @@ func gmtime(timer: time_t const*): tm_t*;
 func localtime(timer: time_t const*): tm_t*;
 
 @foreign
-func strftime(s: char *, maxsize: usize, format: char const*, timeptr: tm_t const*): usize;
+func strftime(s: char*, maxsize: usize, format: char const*, timeptr: tm_t const*): usize;
