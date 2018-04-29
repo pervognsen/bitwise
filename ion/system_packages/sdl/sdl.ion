@@ -584,3 +584,43 @@ func SDL_HasSSE41(): SDL_bool;
 
 @foreign
 func SDL_HasSSE42(): SDL_bool;
+
+
+@foreign
+func SDL_Swap16(x: uint16): uint16;
+
+@foreign
+func SDL_Swap32(x: uint32): uint32;
+
+@foreign
+func SDL_Swap64(x: uint64): uint64;
+
+@foreign
+func SDL_SwapBE16(x: uint16): uint16;
+
+@foreign
+func SDL_SwapBE32(x: uint32): uint32;
+
+@foreign
+func SDL_SwapBE64(x: uint64): uint64;
+
+@foreign
+func SDL_SwapFloat(x: float): float;
+
+@foreign
+func SDL_SwapFloatBE(x: float): float;
+
+@foreign
+func SDL_SwapFloatLE(x: float): float;
+
+@foreign
+func SDL_SwapLE16(x: uint16): uint16;
+
+@foreign
+func SDL_SwapLE32(x: uint32): uint32;
+
+@foreign
+func SDL_SwapLE64(x: uint64): uint64;
+
+@foreign
+func SDL_MostSignificantBitIndex32(x: uint32): int;
