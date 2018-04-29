@@ -1,7 +1,7 @@
 #foreign(header = "<time.h>")
 #foreign(preamble = "typedef struct tm tm_t;")
 
-@fake
+@fake("This only specifies the fields mandated by the C standard")
 @foreign
 struct tm_t {
     tm_sec: int;
