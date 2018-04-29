@@ -1,4 +1,4 @@
-#foreign(header = "SDL.h")
+#foreign(header = "<SDL.h>")
 
 @foreign
 const SDL_INIT_TIMER = 0x00000001u;

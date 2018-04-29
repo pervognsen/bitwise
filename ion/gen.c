@@ -8,7 +8,7 @@ SrcPos gen_pos;
 
 const char **gen_headers_buf;
 
-const char *gen_preamble =
+const char *gen_preamble_str =
     "// Preamble\n"
     "#ifndef _CRT_SECURE_NO_WARNINGS\n"
     "#define _CRT_SECURE_NO_WARNINGS\n"
@@ -48,7 +48,7 @@ const char *gen_preamble =
     "void va_arg_ptr(va_list *args, struct Any any);\n"
     ;
 
-const char *gen_postamble =
+const char *gen_postamble_str =
     "\n"
     "void va_arg_ptr(va_list *args, Any any) {\n"
     "    switch (typeid_kind(any.type)) {\n"
@@ -893,81 +893,112 @@ void gen_defs(void) {
     }
 }
 
-void gen_package_headers(Package *package) {
-    const char *header_arg_name = str_intern("header");
-    for (size_t i = 0; i < package->num_decls; i++) {
-        Decl *decl = package->decls[i];
-        if (decl->kind != DECL_NOTE) {
-            continue;
-        }
-        Note note = decl->note;
-        if (note.name == foreign_name) {
-            for (size_t i = 0; i < note.num_args; i++) {
-                if (note.args[i].name != header_arg_name) {
-                    continue;
-                }
-                Expr *expr = note.args[i].expr;
-                if (expr->kind != EXPR_STR) {
-                    fatal_error(decl->pos, "#foreign's header argument must be a quoted string");
-                }
-                const char *header = expr->str_lit.val;
-                bool found = false;
-                for (const char **it = gen_headers_buf; it != buf_end(gen_headers_buf); it++) {
-                    if (*it == header) {
-                        found = true;
-                    }
-                }
-                if (!found) {
-                    buf_push(gen_headers_buf, header);
-                    genlnf("#include ");
-                    if (*header == '<') {
-                        genf("%s", header);
-                    } else {
-                        gen_str(header, false);
-                    }
-                }
-            }
-        }
+Map gen_foreign_headers_map;
+const char **gen_foreign_headers_buf;
+
+static void add_foreign_header(const char *name) {
+    name = str_intern(name);
+    if (!map_get(&gen_foreign_headers_map, name)) {
+        map_put(&gen_foreign_headers_map, name, (void *)1);
+        buf_push(gen_foreign_headers_buf, name);
     }
 }
 
-void gen_package_sources(Package *package) {
-    const char *source_arg_name = str_intern("source");
-    for (size_t i = 0; i < package->num_decls; i++) {
-        Decl *decl = package->decls[i];
-        if (decl->kind != DECL_NOTE) {
-            continue;
-        }
-        Note note = decl->note;
-        if (note.name == foreign_name) {
-            for (size_t i = 0; i < note.num_args; i++) {
-                if (note.args[i].name != source_arg_name ) {
-                    continue;
-                }
-                Expr *expr = note.args[i].expr;
-                if (expr->kind != EXPR_STR) {
-                    fatal_error(decl->pos, "#foreign's source argument must be a quoted string");
-                }
-                char source_path[MAX_PATH];
-                path_copy(source_path, package->full_path);
-                path_join(source_path, expr->str_lit.val);
-                path_absolute(source_path);
-                genlnf("#include ");
-                gen_str(source_path, false);
-            }
-        }
+const char **gen_foreign_sources_buf;
+
+static void add_foreign_source(const char *name) {
+    buf_push(gen_foreign_sources_buf, str_intern(name));
+}
+
+void gen_include(const char *path) {
+    genlnf("#include ");
+    if (*path == '<') {
+        genf("%s", path);
+    } else {
+        gen_str(path, false);
     }
 }
 
 void gen_foreign_headers(void) {
-    for (size_t i = 0; i < buf_len(package_list); i++) {
-        gen_package_headers(package_list[i]);
+    if (gen_foreign_headers_buf) {
+        genlnf("// Foreign header files");
+        for (size_t i = 0; i < buf_len(gen_foreign_headers_buf); i++) {
+            gen_include(gen_foreign_headers_buf[i]);
+        }
     }
 }
 
 void gen_foreign_sources(void) {
+    for (size_t i = 0; i < buf_len(gen_foreign_sources_buf); i++) {
+        gen_include(gen_foreign_sources_buf[i]);
+    }
+}
+
+const char **gen_sources_buf;
+
+static void put_include_path(char path[MAX_PATH], Package *package, const char *filename) {
+    if (*filename == '<') {
+        path_copy(path, filename);
+    } else {
+        path_copy(path, package->full_path);
+        path_join(path, filename);
+        path_absolute(path);
+    }
+}
+
+char *gen_preamble_buf;
+char *gen_postamble_buf;
+
+static void preprocess_package(Package *package) {
+    if (!package->external_name) {
+        char *external_name = NULL;
+        for (const char *ptr = package->path; *ptr; ptr++) {
+            buf_printf(external_name, "%c", *ptr == '/' ? '_' : *ptr);
+        }
+        buf_printf(external_name, "_");
+        package->external_name = str_intern(external_name);
+    }
+    const char *header_name = str_intern("header");
+    const char *source_name = str_intern("source");
+    const char *preamble_name = str_intern("preamble");
+    const char *postamble_name = str_intern("postamble");
+    for (size_t i = 0; i < package->num_decls; i++) {
+        Decl *decl = package->decls[i];
+        if (decl->kind != DECL_NOTE) {
+            continue;
+        }
+        Note note = decl->note;
+        if (note.name == foreign_name) {
+            for (size_t k = 0; k < note.num_args; k++) {
+                NoteArg arg = note.args[k];
+                Expr *expr = note.args[k].expr;
+                if (expr->kind != EXPR_STR) {
+                    fatal_error(decl->pos, "#foreign argument must be a string");
+                }
+                const char *str = expr->str_lit.val;
+                if (arg.name == header_name) {
+                    char path[MAX_PATH];
+                    put_include_path(path, package, str);
+                    add_foreign_header(path);
+                } else if (arg.name == source_name) {
+                    char path[MAX_PATH];
+                    put_include_path(path, package, str);
+                    add_foreign_source(path);
+                } else if (arg.name == preamble_name) {
+                    buf_printf(gen_preamble_buf, "%s\n", str);
+                } else if (arg.name == postamble_name) {
+                    buf_printf(gen_postamble_buf, "%s\n", str);
+                } else {
+                    fatal_error(decl->pos, "Unknown #foreign named argument '%s'", arg.name);
+                }
+            }
+        }
+    }
+}
+
+void preprocess_packages(void) {
     for (size_t i = 0; i < buf_len(package_list); i++) {
-        gen_package_sources(package_list[i]);
+        preprocess_package(package_list[i]);
     }
 }
 
@@ -1096,23 +1127,31 @@ void gen_typeinfos(void) {
 
 void gen_package_external_names(void) {
     for (size_t i = 0; i < buf_len(package_list); i++) {
-        Package *package = package_list[i];
-        if (!package->external_name) {
-            char *external_name = NULL;
-            for (const char *ptr = package->path; *ptr; ptr++) {
-                buf_printf(external_name, "%c", *ptr == '/' ? '_' : *ptr);
-            }
-            buf_printf(external_name, "_");
-            package->external_name = str_intern(external_name);
-        }
+    }
+}
+
+void gen_preamble(void) {
+    genf("%s", gen_preamble_str);
+    if (gen_preamble_buf) {
+        genln();
+        genlnf("// Foreign preamble");
+        genlnf("%s", gen_preamble_buf);
+    }
+}
+
+void gen_postamble(void) {
+    genf("%s", gen_postamble_str);
+    if (gen_postamble_buf) {
+        genln();
+        genlnf("// Foreign postamble");
+        genlnf("%s", gen_postamble_buf);
     }
 }
 
 void gen_all(void) {
+    preprocess_packages();
     gen_buf = NULL;
-    genf("%s", gen_preamble);
-    gen_package_external_names();
-    genlnf("// Foreign header files");
+    gen_preamble();
     gen_foreign_headers();
     genln();
     genlnf("// Forward declarations");
@@ -1128,5 +1167,5 @@ void gen_all(void) {
     genlnf("// Foreign source files");
     gen_foreign_sources();
     genln();
-    genf("%s", gen_postamble);
+    gen_postamble();
 }
