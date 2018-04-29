@@ -298,3 +298,12 @@ func SDL_GetPlatform(): char const*;
 
 @foreign
 func SDL_ClearError();
+
+@foreign
+func SDL_LoadFunction(handle: void*, name: char const*): void*;
+
+@foreign
+func SDL_LoadObject(sofile: char const*): void*;
+
+@foreign
+func SDL_UnloadObject(handle: void*);

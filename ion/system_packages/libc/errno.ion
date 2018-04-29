@@ -1,0 +1,3 @@
+#foreign(header = "<errno.h>")
+
+@foreign var errno: int;
