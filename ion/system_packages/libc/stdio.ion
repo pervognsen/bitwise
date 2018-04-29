@@ -4,6 +4,15 @@
 struct FILE;
 
 @foreign
+var stdin:  FILE*;
+
+@foreign
+var stdout: FILE*;
+
+@foreign
+var stderr: FILE*;
+
+@foreign
 typedef va_list = char*;
 
 @foreign
