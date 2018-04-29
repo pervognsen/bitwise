@@ -1,0 +1,2 @@
+@foreign
+typedef time_t = int64;
