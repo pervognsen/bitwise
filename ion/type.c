@@ -117,6 +117,10 @@ bool is_ptr_type(Type *type) {
     return type->kind == TYPE_PTR;
 }
 
+bool is_ptr_like_type(Type *type) {
+    return type->kind == TYPE_PTR || type->kind == TYPE_FUNC;
+}
+
 bool is_const_type(Type *type) {
     return type->kind == TYPE_CONST;
 }
@@ -456,3 +460,4 @@ Type *aggregate_field_type_from_name(Type *type, const char *name) {
     }
     return aggregate_field_type_from_index(type, index);
 }
+
