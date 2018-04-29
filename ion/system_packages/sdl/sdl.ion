@@ -57,8 +57,120 @@ struct SDL_AudioSpec {
 typedef SDL_AudioDeviceID = uint32;
 
 @foreign
+struct SDL_AudioCVT
+{
+    needed: int;
+    src_format: SDL_AudioFormat;
+    dst_format: SDL_AudioFormat;
+    rate_incr: double;
+    buf: uint8*;
+    len: int;
+    len_cvt: int;
+    len_mult: int;
+    len_ratio: double;
+    filters: SDL_AudioFilter[10];
+    filter_index: int;
+}
+
+@foreign
+enum SDL_AudioStatus {
+    SDL_AUDIO_STOPPED = 0,
+    SDL_AUDIO_PLAYING,
+    SDL_AUDIO_PAUSED
+}
+
+@foreign
+func SDL_AudioInit(driver_name: char const*): int;
+
+@foreign
+func SDL_AudioQuit();
+
+@foreign
+func SDL_BuildAudioCVT(cvt: SDL_AudioCVT*, src_format: SDL_AudioFormat, src_channels: uint8,
+    src_rate: int, dst_format: SDL_AudioFormat, dst_channels: uint8, dst_rate: int): int;
+
+@foreign
+func SDL_ClearQueuedAudio(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_CloseAudio();
+
+@foreign
+func SDL_CloseAudioDevice(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_ConvertAudio(cvt: SDL_AudioCVT*): int;
+
+@foreign
+func SDL_DequeueAudio(dev: SDL_AudioDeviceID, data: void*, len: uint32): uint32;
+
+@foreign
+func SDL_FreeWAV(audio_buf: uint8*);
+
+@foreign
+func SDL_GetAudioDeviceName(index: int, iscapture: int): char const*;
+
+@foreign
+func SDL_GetAudioDeviceStatus(dev: SDL_AudioDeviceID): SDL_AudioStatus;
+
+@foreign
+func SDL_GetAudioDriver(index: int): char const*;
+
+@foreign
+func SDL_GetAudioStatus(): char const*;
+
+@foreign
+func SDL_GetCurrentAudioDriver();
+
+@foreign
+func SDL_GetNumAudioDevices(iscapture: int): int;
+
+@foreign
+func SDL_GetNumAudioDrivers(): int;
+
+@foreign
+func SDL_GetQueuedAudioSize(dev: SDL_AudioDeviceID): uint32;
+
+@foreign
+func SDL_LoadWAV(file: char const*, spec: SDL_AudioSpec*, audio_buf: uint8**, audio_len: uint32*): SDL_AudioSpec*;
+
+@foreign
+func SDL_LoadWAV_RW(src: SDL_RWops*, freesrc: int, spec: SDL_AudioSpec*, audio_buf: uint8**, audio_len: uint32*): SDL_AudioSpec*;
+
+@foreign
+func SDL_LockAudio();
+
+@foreign
+func SDL_LockAudioDevice(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_MixAudio(dst: uint8*, src: uint8 const*, len: uint32, volume: int);
+
+@foreign
+func SDL_MixAudioFormat(dst: uint8*, src: uint8 const*, format: SDL_AudioFormat, len: uint32, volume: int);
+
+@foreign
+func SDL_OpenAudio(desired: SDL_AudioSpec*, obtained: SDL_AudioSpec*): int;
+
+@foreign
 func SDL_OpenAudioDevice(device: char const*, iscapture: int, desired: SDL_AudioSpec const*,
     obtained: SDL_AudioSpec*, allowed_changes: int): SDL_AudioDeviceID;
+
+@foreign
+func SDL_PauseAudio(pause_on: int);
+
+@foreign
+func SDL_PauseAudioDevice(dev: SDL_AudioDeviceID, pause_on: int);
+
+@foreign
+func SDL_QueueAudio(dev: SDL_AudioDeviceID, data: void const*, len: uint32): int;
+
+@foreign
+func SDL_UnlockAudio();
+
+@foreign
+func SDL_UnlockAudioDevice(dev: SDL_AudioDeviceID);
+
 
 @foreign
 func SDL_GetDisplayDPI(display_index: int, ddpi: float*, hdpi: float*, vdpi: float*): int;
@@ -117,6 +229,24 @@ func SDL_GetPerformanceCounter(): uint64;
 
 @foreign
 func SDL_GetPerformanceFrequency(): uint64;
+
+@foreign
+typedef SDL_TimerCallback = func(interval: uint32, param: void*): uint32;
+
+@foreign
+typedef SDL_TimerID = int;
+
+@foreign
+func SDL_AddTimer(interval: uint32, callback: SDL_TimerCallback, param: void*): SDL_TimerID;
+
+@foreign
+func SDL_Delay(ms: uint32);
+
+@foreign
+func SDL_GetTicks(): uint32;
+
+@foreign
+func SDL_RemoveTimer(id: SDL_TimerID): SDL_bool;
 
 @foreign
 enum SDL_WindowFlags {
@@ -285,9 +415,6 @@ func SDL_strdup(str: char const*): char*;
 func SDL_free(mem: void*);
 
 @foreign
-func SDL_PauseAudioDevice(dev: SDL_AudioDeviceID, pause_on: int);
-
-@foreign
 func SDL_Init(flags: uint32): int;
 
 @foreign
@@ -307,3 +434,320 @@ func SDL_LoadObject(sofile: char const*): void*;
 
 @foreign
 func SDL_UnloadObject(handle: void*);
+
+@foreign
+enum SDL_ThreadPriority {
+    SDL_THREAD_PRIORITY_LOW,
+    SDL_THREAD_PRIORITY_NORMAL,
+    SDL_THREAD_PRIORITY_HIGH,
+}
+
+@foreign struct SDL_Thread;
+@foreign struct SDL_atomic_t;
+@foreign struct SDL_cond;
+@foreign struct SDL_mutex;
+@foreign struct SDL_sem;
+
+@foreign typedef SDL_threadID   = ulong;
+@foreign typedef SDL_TLSID      = uint;
+@foreign typedef SDL_SpinLock   = int;
+@foreign typedef SDL_ThreadFunction = func(data: void*): int;
+
+@foreign
+enum SDL_bool {
+    SDL_FALSE = 0,
+    SDL_TRUE  = 1
+}
+
+@foreign
+func SDL_CreateThread(fn: SDL_ThreadFunction, name: char const*, data: void*): SDL_Thread*;
+
+@foreign
+func SDL_DetachThread(thread: SDL_Thread*);
+
+@foreign
+func SDL_GetThreadID(thread: SDL_Thread*): SDL_threadID;
+
+@foreign
+func SDL_GetThreadName(thread: SDL_Thread*): char const*;
+
+@foreign
+func SDL_SetThreadPriority(priority: SDL_ThreadPriority): int;
+
+@foreign
+func SDL_TLSCreate(): SDL_TLSID;
+
+@foreign
+func SDL_TLSGet(id: SDL_TLSID): void*;
+
+@foreign
+func SDL_TLSSet(id: SDL_TLSID, value: void const*, destructor: func(void*)): int;
+
+@foreign
+func SDL_ThreadID(): SDL_threadID;
+
+@foreign
+func SDL_WaitThread(thread: SDL_Thread*, status: int*);
+
+@foreign
+func SDL_CondBroadcast(cond: SDL_cond*): int;
+
+@foreign
+func SDL_CondSignal(cond: SDL_cond*): int;
+
+@foreign
+func SDL_CondWait(cond: SDL_cond*, mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_CondWaitTimeout(cond: SDL_cond*, mutex: SDL_mutex*, ms: uint32): int;
+
+@foreign
+func SDL_CreateCond(): SDL_cond*;
+
+@foreign
+func SDL_CreateMutex(): SDL_mutex*;
+
+@foreign
+func SDL_CreateSemaphore(initial_value: uint32): SDL_sem*;
+
+@foreign
+func SDL_DestroyCond(cond: SDL_cond*);
+
+@foreign
+func SDL_DestroyMutex(mutex: SDL_mutex*);
+
+@foreign
+func SDL_DestroySemaphore(sem: SDL_sem*);
+
+@foreign
+func SDL_LockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_SemPost(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemTryWait(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemValue(sem: SDL_sem*): uint32;
+
+@foreign
+func SDL_SemWait(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemWaitTimeout(sem: SDL_sem*, ms: uint32): int;
+
+@foreign
+func SDL_TryLockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_UnlockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_AtomicLock(lock: SDL_SpinLock*);
+
+@foreign
+func SDL_AtomicUnlock(lock: SDL_SpinLock*);
+
+@foreign
+func SDL_AtomicIncRef(a: SDL_atomic_t*);
+
+@foreign
+func SDL_AtomicDecRef(a: SDL_atomic_t*): SDL_bool;
+
+@foreign
+func SDL_AtomicAdd(a: SDL_atomic_t*, v: int): int;
+
+@foreign
+func SDL_AtomicCAS(a: SDL_atomic_t*, oldval: int, newval: int): SDL_bool;
+
+@foreign
+func SDL_AtomicCASPtr(a: void**, oldval: void*, newval: void*): SDL_bool;
+
+@foreign
+func SDL_AtomicGet(a: SDL_atomic_t*): int;
+
+@foreign
+func SDL_AtomicGetPtr(a: void**): void*;
+
+@foreign
+func SDL_AtomicSet(a: SDL_atomic_t*, v: int): int;
+
+@foreign
+func SDL_AtomicSetPtr(a: void**, v: void*): void*;
+
+@foreign
+func SDL_AtomicTryLock(lock: SDL_SpinLock*): SDL_bool;
+
+@foreign
+func SDL_CompilerBarrier();
+
+@foreign
+func SDL_GetBasePath(): char*;
+
+@foreign
+func SDL_GetPrefPath(org: char const*, app: char const*): char*;
+
+
+@foreign struct SDL_RWops;
+
+@foreign
+func SDL_AllocRW(): SDL_RWops*;
+
+@foreign
+func SDL_FreeRW(area: SDL_RWops*);
+
+@foreign
+func SDL_RWFromConstMem(mem: void const*, size: int): SDL_RWops*;
+
+@foreign
+func SDL_RWFromFP(fp: void*, autoclose: SDL_bool): SDL_RWops*;
+
+@foreign
+func SDL_RWFromFile(file: char const*, mode: char const*): SDL_RWops*;
+
+@foreign
+func SDL_RWFromMem(mem: void*, size: int): SDL_RWops*;
+
+@foreign
+func SDL_RWclose(context: SDL_RWops*): int;
+
+@foreign
+func SDL_RWread(context: SDL_RWops*, ptr: void*, size: usize, maxnum: usize): usize;
+
+@foreign
+func SDL_RWseek(context: SDL_RWops*, offset: int64, whence: int): int64;
+
+@foreign
+func SDL_RWsize(context: SDL_RWops*): int64;
+
+@foreign
+func SDL_RWtell(context: SDL_RWops*): int64;
+
+@foreign
+func SDL_RWwrite(context: SDL_RWops*, ptr: void const*, size: usize, num: usize): usize;
+
+@foreign
+func SDL_ReadBE16(src: SDL_RWops*): uint16;
+
+@foreign
+func SDL_ReadBE32(src: SDL_RWops*): uint32;
+
+@foreign
+func SDL_ReadBE64(src: SDL_RWops*): uint64;
+
+@foreign
+func SDL_ReadLE16(src: SDL_RWops*): uint16;
+
+@foreign
+func SDL_ReadLE32(src: SDL_RWops*): uint32;
+
+@foreign
+func SDL_ReadLE64(src: SDL_RWops*): uint64;
+
+@foreign
+func SDL_ReadU8(src: SDL_RWops*): uint8;
+
+@foreign
+func SDL_WriteBE16(dst: SDL_RWops*, value: uint16): usize;
+
+@foreign
+func SDL_WriteBE32(dst: SDL_RWops*, value: uint32): usize;
+
+@foreign
+func SDL_WriteBE64(dst: SDL_RWops*, value: uint64): usize;
+
+@foreign
+func SDL_WriteLE16(dst: SDL_RWops*, value: uint16): usize;
+
+@foreign
+func SDL_WriteLE32(dst: SDL_RWops*, value: uint32): usize;
+
+@foreign
+func SDL_WriteLE64(dst: SDL_RWops*, value: uint64): usize;
+
+@foreign
+func SDL_WriteU8(dst: SDL_RWops*, value: uint8): usize;
+
+
+@foreign
+func SDL_GetCPUCacheLineSize(): int;
+
+@foreign
+func SDL_GetCPUCount(): int;
+
+@foreign
+func SDL_GetSystemRAM(): int;
+
+@foreign
+func SDL_Has3DNow(): SDL_bool;
+
+@foreign
+func SDL_HasAVX(): SDL_bool;
+
+@foreign
+func SDL_HasAVX2(): SDL_bool;
+
+@foreign
+func SDL_HasAltiVec(): SDL_bool;
+
+@foreign
+func SDL_HasMMX(): SDL_bool;
+
+@foreign
+func SDL_HasRDTSC(): SDL_bool;
+
+@foreign
+func SDL_HasSSE(): SDL_bool;
+
+@foreign
+func SDL_HasSSE2(): SDL_bool;
+
+@foreign
+func SDL_HasSSE3(): SDL_bool;
+
+@foreign
+func SDL_HasSSE41(): SDL_bool;
+
+@foreign
+func SDL_HasSSE42(): SDL_bool;
+
+
+@foreign
+func SDL_Swap16(x: uint16): uint16;
+
+@foreign
+func SDL_Swap32(x: uint32): uint32;
+
+@foreign
+func SDL_Swap64(x: uint64): uint64;
+
+@foreign
+func SDL_SwapBE16(x: uint16): uint16;
+
+@foreign
+func SDL_SwapBE32(x: uint32): uint32;
+
+@foreign
+func SDL_SwapBE64(x: uint64): uint64;
+
+@foreign
+func SDL_SwapFloat(x: float): float;
+
+@foreign
+func SDL_SwapFloatBE(x: float): float;
+
+@foreign
+func SDL_SwapFloatLE(x: float): float;
+
+@foreign
+func SDL_SwapLE16(x: uint16): uint16;
+
+@foreign
+func SDL_SwapLE32(x: uint32): uint32;
+
+@foreign
+func SDL_SwapLE64(x: uint64): uint64;
+
+@foreign
+func SDL_MostSignificantBitIndex32(x: uint32): int;
