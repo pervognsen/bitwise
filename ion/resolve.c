@@ -98,6 +98,26 @@ Sym *sym_new(SymKind kind, const char *name, Decl *decl) {
     return sym;
 }
 
+void process_decl_notes(Decl *decl, Sym *sym) {
+    Note *foreign_note = get_decl_note(decl, foreign_name);
+    if (foreign_note) {
+        if (foreign_note->num_args > 1) {
+            fatal_error(decl->pos, "@foreign takes 0 or 1 argument");
+        }
+        const char *external_name;
+        if (foreign_note->num_args == 0) {
+            external_name = sym->name;
+        } else {
+            Expr *arg = foreign_note->args[0].expr;
+            if (arg->kind != EXPR_STR) {
+                fatal_error(decl->pos, "@foreign argument 1 must be a string literal");
+            }
+            external_name = arg->str_lit.val;
+        }
+        sym->external_name = external_name;
+    }
+}
+
 Sym *sym_decl(Decl *decl) {
     SymKind kind = SYM_NONE;
     switch (decl->kind) {
@@ -122,23 +142,7 @@ Sym *sym_decl(Decl *decl) {
     }
     Sym *sym = sym_new(kind, decl->name, decl);
     set_resolved_sym(decl, sym);
-    Note *foreign_note = get_decl_note(decl, foreign_name);
-    if (foreign_note) {
-        if (foreign_note->num_args > 1) {
-            fatal_error(decl->pos, "@foreign takes 0 or 1 argument");
-        }
-        const char *external_name;
-        if (foreign_note->num_args == 0) {
-            external_name = sym->name;
-        } else {
-            Expr *arg = foreign_note->args[0].expr;
-            if (arg->kind != EXPR_STR) {
-                fatal_error(decl->pos, "@foreign argument 1 must be a string literal");
-            }
-            external_name = arg->str_lit.val;
-        }
-        sym->external_name = external_name;
-    }
+    process_decl_notes(decl, sym);
     return sym;
 }
 
@@ -734,11 +738,12 @@ Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
 Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
     Type *type;
     if (typespec) {
-        type = resolve_typespec(typespec);
+        Type *declared_type = resolve_typespec(typespec);
+        type = declared_type;
         if (expr) {
-            type = resolve_typed_init(pos, type, expr);
+            type = resolve_typed_init(pos, declared_type, expr);
             if (!type) {
-                fatal_error(pos, "Invalid type in initialization. Expected %s", get_type_name(type));
+                fatal_error(pos, "Invalid type in initialization. Expected %s", get_type_name(declared_type));
             }
         }
     } else {
