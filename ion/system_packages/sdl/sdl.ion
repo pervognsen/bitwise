@@ -541,3 +541,46 @@ func SDL_WriteLE64(dst: SDL_RWops*, value: uint64): usize;
 
 @foreign
 func SDL_WriteU8(dst: SDL_RWops*, value: uint8): usize;
+
+
+@foreign
+func SDL_GetCPUCacheLineSize(): int;
+
+@foreign
+func SDL_GetCPUCount(): int;
+
+@foreign
+func SDL_GetSystemRAM(): int;
+
+@foreign
+func SDL_Has3DNow(): SDL_bool;
+
+@foreign
+func SDL_HasAVX(): SDL_bool;
+
+@foreign
+func SDL_HasAVX2(): SDL_bool;
+
+@foreign
+func SDL_HasAltiVec(): SDL_bool;
+
+@foreign
+func SDL_HasMMX(): SDL_bool;
+
+@foreign
+func SDL_HasRDTSC(): SDL_bool;
+
+@foreign
+func SDL_HasSSE(): SDL_bool;
+
+@foreign
+func SDL_HasSSE2(): SDL_bool;
+
+@foreign
+func SDL_HasSSE3(): SDL_bool;
+
+@foreign
+func SDL_HasSSE41(): SDL_bool;
+
+@foreign
+func SDL_HasSSE42(): SDL_bool;
