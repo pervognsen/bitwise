@@ -220,7 +220,7 @@ func decode_instruction(data: uint32): Instruction {
     case 0b0001111: // FENCE, FENCEI
         if (data == 0b0000_0000_0000_00000_001_00000_0001111) {
             instr.op = FENCEI;
-        } else if (data & 0b1111_0000_0000_11111_111_11111_1111111 == 0) {
+        } else if (data & 0b1111_0000_0000_11111_111_11111_0000000 == 0) {
             instr.op = FENCE;
         }
     case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
