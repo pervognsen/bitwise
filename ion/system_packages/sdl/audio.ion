@@ -1,0 +1,141 @@
+@foreign
+const AUDIO_F32LSB = 0x8120;
+
+@foreign
+const AUDIO_F32 = AUDIO_F32LSB;
+
+@foreign
+typedef SDL_AudioFormat = uint16;
+
+@foreign
+typedef SDL_AudioCallback = func(userdata: void*, stream: uint8*, len: int);
+
+@foreign
+struct SDL_AudioSpec {
+    freq: int;
+    format: SDL_AudioFormat;
+    channels: uint8;
+    silence: uint8;
+    samples: uint16;
+    padding: uint16;
+    size: uint32;
+    callback: SDL_AudioCallback;
+    userdata: void*;
+}
+
+@foreign
+typedef SDL_AudioDeviceID = uint32;
+
+@foreign
+struct SDL_AudioCVT {
+    needed: int;
+    src_format: SDL_AudioFormat;
+    dst_format: SDL_AudioFormat;
+    rate_incr: double;
+    buf: uint8*;
+    len: int;
+    len_cvt: int;
+    len_mult: int;
+    len_ratio: double;
+    filters: SDL_AudioFilter[10];
+    filter_index: int;
+}
+
+@foreign
+enum SDL_AudioStatus {
+    SDL_AUDIO_STOPPED = 0,
+    SDL_AUDIO_PLAYING,
+    SDL_AUDIO_PAUSED
+}
+
+@foreign
+func SDL_AudioInit(driver_name: char const*): int;
+
+@foreign
+func SDL_AudioQuit();
+
+@foreign
+func SDL_BuildAudioCVT(cvt: SDL_AudioCVT*, src_format: SDL_AudioFormat, src_channels: uint8,
+    src_rate: int, dst_format: SDL_AudioFormat, dst_channels: uint8, dst_rate: int): int;
+
+@foreign
+func SDL_ClearQueuedAudio(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_CloseAudio();
+
+@foreign
+func SDL_CloseAudioDevice(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_ConvertAudio(cvt: SDL_AudioCVT*): int;
+
+@foreign
+func SDL_DequeueAudio(dev: SDL_AudioDeviceID, data: void*, len: uint32): uint32;
+
+@foreign
+func SDL_FreeWAV(audio_buf: uint8*);
+
+@foreign
+func SDL_GetAudioDeviceName(index: int, iscapture: int): char const*;
+
+@foreign
+func SDL_GetAudioDeviceStatus(dev: SDL_AudioDeviceID): SDL_AudioStatus;
+
+@foreign
+func SDL_GetAudioDriver(index: int): char const*;
+
+@foreign
+func SDL_GetAudioStatus(): char const*;
+
+@foreign
+func SDL_GetCurrentAudioDriver();
+
+@foreign
+func SDL_GetNumAudioDevices(iscapture: int): int;
+
+@foreign
+func SDL_GetNumAudioDrivers(): int;
+
+@foreign
+func SDL_GetQueuedAudioSize(dev: SDL_AudioDeviceID): uint32;
+
+@foreign
+func SDL_LoadWAV(file: char const*, spec: SDL_AudioSpec*, audio_buf: uint8**, audio_len: uint32*): SDL_AudioSpec*;
+
+@foreign
+func SDL_LoadWAV_RW(src: SDL_RWops*, freesrc: int, spec: SDL_AudioSpec*, audio_buf: uint8**, audio_len: uint32*): SDL_AudioSpec*;
+
+@foreign
+func SDL_LockAudio();
+
+@foreign
+func SDL_LockAudioDevice(dev: SDL_AudioDeviceID);
+
+@foreign
+func SDL_MixAudio(dst: uint8*, src: uint8 const*, len: uint32, volume: int);
+
+@foreign
+func SDL_MixAudioFormat(dst: uint8*, src: uint8 const*, format: SDL_AudioFormat, len: uint32, volume: int);
+
+@foreign
+func SDL_OpenAudio(desired: SDL_AudioSpec*, obtained: SDL_AudioSpec*): int;
+
+@foreign
+func SDL_OpenAudioDevice(device: char const*, iscapture: int, desired: SDL_AudioSpec const*,
+    obtained: SDL_AudioSpec*, allowed_changes: int): SDL_AudioDeviceID;
+
+@foreign
+func SDL_PauseAudio(pause_on: int);
+
+@foreign
+func SDL_PauseAudioDevice(dev: SDL_AudioDeviceID, pause_on: int);
+
+@foreign
+func SDL_QueueAudio(dev: SDL_AudioDeviceID, data: void const*, len: uint32): int;
+
+@foreign
+func SDL_UnlockAudio();
+
+@foreign
+func SDL_UnlockAudioDevice(dev: SDL_AudioDeviceID);

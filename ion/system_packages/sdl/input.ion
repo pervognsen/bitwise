@@ -1,0 +1,143 @@
+@foreign
+const SDL_RELEASED = 0;
+
+@foreign
+const SDL_PRESSED = 1;
+
+@foreign
+func SDL_PumpEvents();
+
+@foreign
+func SDL_CaptureMouse(enabled: bool): int;
+
+@foreign
+func SDL_WarpMouseInWindow(window: SDL_Window*, x: int, y: int);
+
+@foreign
+func SDL_GetMouseState(x: int*, y: int*): uint32;
+
+@foreign
+func SDL_WarpMouseGlobal(x: int, y: int): int;
+
+@foreign
+func SDL_GetGlobalMouseState(x: int*, y: int*): uint32;
+
+@foreign
+func SDL_GetScancodeFromName(name: char const*): SDL_Scancode;
+
+@foreign
+enum SDL_Scancode {
+    SDL_SCANCODE_UNKNOWN = 0,
+    SDL_SCANCODE_RETURN = 40,
+    SDL_SCANCODE_ESCAPE = 41,
+    SDL_SCANCODE_BACKSPACE = 42,
+    SDL_SCANCODE_TAB = 43,
+    SDL_SCANCODE_SPACE = 44,
+    SDL_SCANCODE_RIGHT = 79,
+    SDL_SCANCODE_LEFT = 80,
+    SDL_SCANCODE_DOWN = 81,
+    SDL_SCANCODE_UP = 82,
+    SDL_SCANCODE_LCTRL = 224,
+    SDL_SCANCODE_LSHIFT = 225,
+    SDL_SCANCODE_LALT = 226,
+    SDL_SCANCODE_LGUI = 227,
+    SDL_SCANCODE_RCTRL = 228,
+    SDL_SCANCODE_RSHIFT = 229,
+    SDL_SCANCODE_RALT = 230,
+    SDL_NUM_SCANCODES = 512,
+}
+
+@foreign
+enum SDL_EventType {
+    SDL_QUIT = 0x100,
+    SDL_KEYDOWN = 0x300,
+    SDL_KEYUP,
+    SDL_TEXTEDITING,
+    SDL_TEXTINPUT,
+    SDL_MOUSEMOTION = 0x400,
+    SDL_MOUSEBUTTONDOWN,
+    SDL_MOUSEBUTTONUP,    
+}
+
+@foreign
+const SDL_BUTTON_LEFT = 1;
+
+@foreign
+const SDL_BUTTON_MIDDLE = 2;
+
+@foreign
+const SDL_BUTTON_RIGHT = 3;
+
+@foreign
+typedef SDL_Keycode = int32;
+
+@foreign
+struct SDL_Keysym {
+    scancode: SDL_Scancode;
+    sym: SDL_Keycode;
+    mod: uint16;
+    unused: uint32;
+}
+
+@foreign
+struct SDL_KeyboardEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    state: uint8;
+    repeat: uint8;
+    padding2: uint8;
+    padding3: uint8;
+    keysym: SDL_Keysym;
+}
+
+@foreign
+const SDL_TEXTINPUTEVENT_TEXT_SIZE = 32;
+
+@foreign
+struct SDL_TextInputEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    text: char[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+}
+
+@foreign
+struct SDL_MouseMotionEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    which: uint32;
+    state: uint32;
+    x: int32;
+    y: int32;
+    xrel: int32;
+    yrel: int32;
+}
+
+@foreign
+struct SDL_MouseButtonEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    which: uint32;
+    button: uint8;
+    state: uint8;
+    clicks: uint8;
+    padding1: uint8;
+    x: int32;
+    y: int32;
+}
+
+@fake("This only specifies the subset of fields in the real struct we currently support")
+@foreign
+union SDL_Event {
+    type: uint32;
+    key: SDL_KeyboardEvent;
+    text: SDL_TextInputEvent;
+    motion: SDL_MouseMotionEvent;
+    button: SDL_MouseButtonEvent;
+}
+
+@foreign
+func SDL_PollEvent(event: SDL_Event*): int;

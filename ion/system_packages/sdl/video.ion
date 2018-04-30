@@ -1,0 +1,68 @@
+@foreign
+enum SDL_WindowFlags {
+    SDL_WINDOW_FULLSCREEN = 0x00000001,
+    SDL_WINDOW_FULLSCREEN_DESKTOP = SDL_WINDOW_FULLSCREEN | 0x00001000,
+    SDL_WINDOW_SHOWN = 0x00000002,
+    SDL_WINDOW_HIDDEN = 0x00000008,
+    SDL_WINDOW_RESIZABLE = 0x00000020,
+}
+
+@foreign
+struct SDL_DisplayMode {
+    format: uint32;
+    w: int;
+    h: int;
+    refresh_rate: int;
+    driverdata: void*;
+}
+
+@foreign
+func SDL_GetDisplayDPI(display_index: int, ddpi: float*, hdpi: float*, vdpi: float*): int;
+
+@foreign
+func SDL_GetCurrentDisplayMode(display_index: int, mode: SDL_DisplayMode*): int;
+
+@foreign
+const SDL_WINDOWPOS_CENTERED = 0x2FFF0000u;
+
+@foreign
+struct SDL_Window;
+
+@foreign
+func SDL_CreateWindow(title: char const*, x: int, y: int, w: int, h: int, flags: uint32): SDL_Window*;
+
+@foreign
+func SDL_SetWindowFullscreen(window: SDL_Window*, flags: uint32): int;
+
+@foreign
+func SDL_SetWindowTitle(window: SDL_Window*, title: char const*);
+
+@foreign
+func SDL_SetWindowPosition(window: SDL_Window*, x: int, y: int);
+
+@foreign
+func SDL_GetWindowPosition(window: SDL_Window*, x: int*, y: int*);
+
+@foreign
+func SDL_SetWindowSize(window: SDL_Window*, w: int, h: int);
+
+@foreign
+func SDL_GetWindowSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_SetWindowResizable(window: SDL_Window*, enabled: bool);
+
+@foreign
+func SDL_HideWindow(window: SDL_Window*);
+
+@foreign
+func SDL_ShowWindow(window: SDL_Window*);
+
+@foreign
+func SDL_SetClipboardText(text: char const*): int;
+
+@foreign
+func SDL_HasClipboardText(): bool;
+
+@foreign
+func SDL_GetClipboardText(): char*;

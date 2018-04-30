@@ -1,0 +1,23 @@
+@foreign
+func SDL_GetPerformanceCounter(): uint64;
+
+@foreign
+func SDL_GetPerformanceFrequency(): uint64;
+
+@foreign
+typedef SDL_TimerCallback = func(interval: uint32, param: void*): uint32;
+
+@foreign
+typedef SDL_TimerID = int;
+
+@foreign
+func SDL_AddTimer(interval: uint32, callback: SDL_TimerCallback, param: void*): SDL_TimerID;
+
+@foreign
+func SDL_Delay(ms: uint32);
+
+@foreign
+func SDL_GetTicks(): uint32;
+
+@foreign
+func SDL_RemoveTimer(id: SDL_TimerID): SDL_bool;
