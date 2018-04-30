@@ -996,7 +996,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
                 }
                 has_default = true;
             }
-            if (switch_case.block.num_stmts > 0) {
+            if (switch_case.block.num_stmts > 1) {
                 Stmt *last_stmt = switch_case.block.stmts[switch_case.block.num_stmts - 1];
                 if (last_stmt->kind == STMT_BREAK) {
                     warning(last_stmt->pos, "Case blocks already end with an implicit break");
