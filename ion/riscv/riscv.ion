@@ -249,7 +249,7 @@ struct Hart {
 const SHIFT_MASK = (1 << 5) - 1;
 
 func read_instruction(hart: Hart*, addr: uint32): uint32 {
-    if (addr + 4 < hart.mem_len) {
+    if (addr < hart.mem_len - 3) {
         return *(:uint32*)hart.mem;
     } else {
         return 0;
@@ -267,7 +267,7 @@ func write_reg(hart: Hart*, reg: Reg, val: uint32) {
 }
 
 func load_word(hart: Hart*, addr: uint32): uint32 {
-    if (addr + 3 < hart.mem_len) {
+    if (addr < hart.mem_len - 3) {
         return *(:uint32*)(hart.mem + addr);
     } else {
         return 0;
@@ -275,7 +275,7 @@ func load_word(hart: Hart*, addr: uint32): uint32 {
 }
 
 func load_halfword(hart: Hart*, addr: uint32): uint32 {
-    if (addr + 1 < hart.mem_len) {
+    if (addr < hart.mem_len - 1) {
         return *(:uint16*)(hart.mem + addr);
     } else {
         return 0;
@@ -291,13 +291,13 @@ func load_byte(hart: Hart*, addr: uint32): uint32 {
 }
 
 func store_word(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr + 3 < hart.mem_len) {
+    if (addr < hart.mem_len - 3) {
         *(:uint32*)(hart.mem + addr) = val;
     }
 }
 
 func store_halfword(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr + 1 < hart.mem_len) {
+    if (addr < hart.mem_len - 1) {
         *(:uint16*)(hart.mem + addr) = val;
     }
 }
