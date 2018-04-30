@@ -49,16 +49,21 @@ enum Op = uint8 {
     CSRRWI,
     CSRRSI,
     CSRRCI,
+    NUM_OPS,
 }
 
 typedef Reg = uint8;
 typedef Csr = uint16;
+typedef SuccPred = uint8;
+
+const SHIFT_MASK = (1 << 5) - 1;
 
 struct Instruction {
     op: Op;
     rs1, rs2, rd: Reg;
     csr: Csr;
     imm: uint32;
+    succ_pred: SuccPred;
 }
 
 var funct3_to_branch_op: Op[8] = {
@@ -118,6 +123,53 @@ var funct3_to_csr_op: Op[8] = {
     [0b111] = CSRRCI,
 };
 
+var op_to_mask: uint32[NUM_OPS] = {
+    // U-type instructions
+    [LUI]   = 0b00000000000000000000_00000_0110111,
+    [AUIPC] = 0b00000000000000000000_00000_0010111,
+    // J-type instructions
+    [JAL]    = 0b00000000000000000000_00000_1101111,
+    // I-type instructions
+    [JALR]  = 0b000000000000_00000_000_00000_1100111,
+    [LB]    = 0b000000000000_00000_000_00000_0000011,
+    [LH]    = 0b000000000000_00000_001_00000_0000011,
+    [LW]    = 0b000000000000_00000_010_00000_0000011,
+    [LBU]   = 0b000000000000_00000_100_00000_0000011,
+    [LHU]   = 0b000000000000_00000_101_00000_0000011,
+    [ADDI]  = 0b000000000000_00000_000_00000_0010011,
+    [SLTI]  = 0b000000000000_00000_010_00000_0010011,
+    [SLTIU] = 0b000000000000_00000_011_00000_0010011,
+    [XORI]  = 0b000000000000_00000_100_00000_0010011,
+    [ORI]   = 0b000000000000_00000_110_00000_0010011,
+    [ANDI]  = 0b000000000000_00000_111_00000_0010011,
+    // R-type instructions
+    [ADD]  = 0b0000000_00000_00000_000_00000_0110011,
+    [SUB]  = 0b0100000_00000_00000_000_00000_0110011,
+    [SLL]  = 0b0000000_00000_00000_001_00000_0110011,
+    [SLT]  = 0b0000000_00000_00000_010_00000_0110011,
+    [SLTU] = 0b0000000_00000_00000_011_00000_0110011,
+    [XOR]  = 0b0000000_00000_00000_100_00000_0110011,
+    [SRL]  = 0b0000000_00000_00000_101_00000_0110011,
+    [SRA]  = 0b0100000_00000_00000_101_00000_0110011,
+    [OR]   = 0b0000000_00000_00000_110_00000_0110011,
+    [AND]  = 0b0000000_00000_00000_111_00000_0110011,
+    [SLLI] = 0b0000000_00000_00000_001_00000_0010011,
+    [SRLI] = 0b0000000_00000_00000_101_00000_0010011,
+    [SRAI] = 0b0100000_00000_00000_101_00000_0010011,
+    // CSR instructions
+    [CSRRW]  = 0b000000000000_00000_001_00000_1110011,
+    [CSRRS]  = 0b000000000000_00000_010_00000_1110011,
+    [CSRRC]  = 0b000000000000_00000_011_00000_1110011,
+    [CSRRWI] = 0b000000000000_00000_101_00000_1110011,
+    [CSRRSI] = 0b000000000000_00000_110_00000_1110011,
+    [CSRRCI] = 0b000000000000_00000_111_00000_1110011,
+    // Miscellaneous instructions
+    [FENCE]  = 0b0000_0000_0000_00000_000_00000_0001111,
+    [FENCEI] = 0b0000_0000_0000_00000_001_00000_0001111,
+    [ECALL]  = 0b000000000000_00000_000_00000_1110011,
+    [EBREAK] = 0b000000000001_00000_000_00000_1110011,
+};
+
 func sign_extend(data: uint32, width: uint32): uint32 {
     return uint32(int32(data << (32 - width)) >> (32 - width));
 }
@@ -169,76 +221,126 @@ func decode_instruction(data: uint32): Instruction {
     rd := bits(data, 7, 5);
     rs1 := bits(data, 15, 5);
     rs2 := bits(data, 20, 5);
-    op: Op;
-    imm: uint32;
-    csr: Csr;
     switch (opcode) {
     case 0b0110111: // LUI
-        op = LUI;
-        imm = decode_u_immediate(data);
+        return {op = LUI, rd = rd, imm = decode_u_immediate(data)};
     case 0b0010111: // AUIPC
-        op = AUIPC;
-        imm = decode_u_immediate(data);
+        return {op = AUIPC, rd = rd, imm = decode_u_immediate(data)};
     case 0b1101111: // JAL
-        op = JAL;
-        imm = decode_j_immediate(data);
+        return {op = JAL, rd = rd, imm = decode_j_immediate(data)};
     case 0b1100111: // JALR
         if (funct3 == 0b000) {
-            op = JALR;
-            imm = decode_i_immediate(data);
+            return {op = JALR, rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
         }
     case 0b1100011: // BEQ, BNE, BLT, BGE, BLTU, BGEU
-        op = funct3_to_branch_op[funct3];
-        imm = decode_b_immediate(data);
+        return {op = funct3_to_branch_op[funct3], rs1 = rs1, rs2 = rs2, imm = decode_b_immediate(data)};
     case 0b0000011: // LB, LH, LW, LBU, LHU
-        op = funct3_to_load_op[funct3];
-        imm = decode_i_immediate(data);
+        return {op = funct3_to_load_op[funct3], rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
     case 0b0100011: // SB, SH, SW
-        op = funct3_to_store_op[funct3];
-        imm = decode_s_immediate(data);
+        return {op = funct3_to_store_op[funct3], rs1 = rs1, rs2 = rs2, imm = decode_s_immediate(data)};
     case 0b0010011: // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
-        op = funct3_to_imm_op[funct3];
+        op := funct3_to_imm_op[funct3];
         switch (op) {
         case SLLI:
-            imm = rs2;
-            if (funct7 != 0b0000000) {
-                op = ILLEGAL;
+            if (funct7 == 0b0000000) {
+                return {op = SLLI, rd = rd, rs1 = rs1, imm = rs2};
             }
         case SRLI:
-            imm = rs2;
-            if (funct7 == 0b0100000) {
-                op = SRAI;
-            } else if (funct7 != 0b0000000) {
-                op = ILLEGAL;
+            if (funct7 == 0b0000000) {
+                return {op = SRLI, rd = rd, rs1 = rs1, imm = rs2};
+            } else if (funct7 == 0b0100000) {
+                return {op = SRAI, rd = rd, rs1 = rs1, imm = rs2};
             }
         default:
-            imm = decode_i_immediate(data);
+            return {op = op, rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
         }
     case 0b0110011: // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
         if (funct7 & 0b1011111 == 0) {
             funct4 := funct3 | (bits(funct7, 5, 1) << 3);
-            op = funct4_to_reg_op[funct4];
+            return {op = funct4_to_reg_op[funct4], rd = rd, rs1 = rs1, rs2 = rs2};
         }
     case 0b0001111: // FENCE, FENCEI
         if (data == 0b0000_0000_0000_00000_001_00000_0001111) {
-            op = FENCEI;
+            return {op = FENCEI};
         } else if (data & 0b1111_0000_0000_11111_111_11111_0000000 == 0) {
-            op = FENCE;
+            return {op = FENCE, succ_pred = bits(data, 20, 8)};
         }
     case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
         if (data == 0b000000000000_00000_000_00000_1110011) {
-            op = ECALL;
+            return {op = ECALL};
         } else if (data == 0b000000000001_00000_000_00000_1110011) {
-            op = EBREAK;
+            return {op = EBREAK};
         } else {
-            op = funct3_to_csr_op[funct3];
-            imm = bits(data, 15, 5);
-            csr = bits(data, 20, 12);
+            return {op = funct3_to_csr_op[funct3], rd = rd, rs1 = rs1, csr = bits(data, 20, 12), imm = bits(data, 15, 5)};
         }
     default:
         break;
     }
-    return Instruction{op = op, rd = rd, rs1 = rs2, rs2 = rs2, imm = imm, csr = csr};
+    return {op = ILLEGAL};
+}
+
+func encode_u_immediate(imm: uint32): uint32 {
+    imm_12_31 := bits(imm, 12, 20) << 20;
+    return imm_12_31;
+}
+
+func encode_i_immediate(imm: uint32): uint32 {
+    imm_12_31 := bits(imm, 0, 12) << 20;
+    return imm_12_31;
+}
+
+func encode_s_immediate(imm: uint32): uint32 {
+    imm_0_4 := bits(imm, 0, 4) << 7;
+    imm_5_11 := bits(imm, 5, 6) << 25;
+    return imm_0_4 | imm_5_11;
+}
+
+func encode_b_immediate(imm: uint32): uint32 {
+    imm_1_4 := bits(imm, 1, 4) << 8;
+    imm_5_10 := bits(imm, 5, 6) << 25;
+    imm_11 := bits(imm, 11, 1) << 7;
+    imm_12 := bits(imm, 12, 1) << 31;
+    return imm_1_4 | imm_5_10 | imm_11 | imm_12;
+}
+
+func encode_j_immediate(imm: uint32): uint32 {
+    imm_1_10 := bits(imm, 1, 10) << 21;
+    imm_11 := bits(imm, 11, 1) << 20;
+    imm_12_19 := bits(imm, 12, 8) << 12;
+    imm_20 := bits(imm, 20, 1) << 31;
+    return imm_1_10 | imm_11 | imm_12_19 | imm_20;
+}
+
+func encode_instruction(instr: Instruction): uint32 {
+    mask := op_to_mask[instr.op];
+    rd := instr.rd << 6;
+    rs1 := instr.rs1 << 15;
+    rs2 := instr.rs2 << 20;
+    imm := instr.imm;
+    switch (instr.op) {
+    case LUI, AUIPC:
+        return mask | rd | encode_u_immediate(imm);
+    case JAL:
+        return mask | rd | encode_j_immediate(imm);
+    case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+        return mask | rs1 | rs2 | encode_b_immediate(imm);
+    case JALR, LB, LH, LW, LBU, LHU, ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
+        return mask | rd | rs1 | encode_i_immediate(imm);
+    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+        return mask | rd | rs1 | rs2;
+    case SLLI, SRLI, SRAI:
+        shamt := (instr.imm & SHIFT_MASK) << 20;
+        return mask | rd | rs1 | shamt;
+    case SB, SH, SW:
+        return mask | rs1 | rs2 | encode_s_immediate(imm);
+    case FENCE:
+        succ_pred := instr.succ_pred << 20;
+        return mask | succ_pred;
+    case FENCEI, ECALL, EBREAK:
+        return mask;
+    default:
+        return 0;
+    }
 }
 
 struct Hart {
@@ -247,8 +349,6 @@ struct Hart {
     ram: uint8*;
     ram_size: uint32;
 }
-
-const SHIFT_MASK = (1 << 5) - 1;
 
 func read_instruction(hart: Hart*, addr: uint32): uint32 {
     if (addr < hart.ram_size - 3) {
@@ -480,8 +580,9 @@ func print_hart_state(hart: Hart*) {
 
 func main(argc: int, argv: char**): int {
     ram: uint8[64 * 1024];
-    hart := Hart{ram = ram, ram_size = sizeof(ram)};
-    print_hart_state(&hart);
-    step(&hart);
+//    hart := Hart{ram = ram, ram_size = sizeof(ram)};
+//    print_hart_state(&hart);
+//    step(&hart);
+
     return 0;
 }
