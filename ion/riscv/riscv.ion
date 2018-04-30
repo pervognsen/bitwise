@@ -1,0 +1,481 @@
+import libc {...}
+
+enum Op = uint8 {
+    ILLEGAL,
+    LUI,
+    AUIPC,
+    JAL,
+    JALR,
+    BEQ,
+    BNE,
+    BLT,
+    BGE,
+    BLTU,
+    BGEU,
+    LB,
+    LH,
+    LW,
+    LBU,
+    LHU,
+    SB,
+    SH,
+    SW,
+    ADDI,
+    SLTI,
+    SLTIU,
+    XORI,
+    ORI,
+    ANDI,
+    SLLI,
+    SRLI,
+    SRAI,
+    ADD,
+    SUB,
+    SLL,
+    SLT,
+    SLTU,
+    XOR,
+    SRL,
+    SRA,
+    OR,
+    AND,
+    FENCE,
+    FENCEI,
+    ECALL,
+    EBREAK,
+    CSRRW,
+    CSRRS,
+    CSRRC,
+    CSRRWI,
+    CSRRSI,
+    CSRRCI,
+}
+
+typedef Reg = uint8;
+typedef Csr = uint16;
+
+struct Instruction {
+    op: Op;
+    rs1, rs2, rd: Reg;
+    csr: Csr;
+    imm: uint32;
+}
+
+var funct3_to_branch_op: Op[8] = {
+    [0b000] = BEQ,
+    [0b001] = BNE,
+    [0b100] = BLT,
+    [0b101] = BGE,
+    [0b110] = BLTU,
+    [0b111] = BGEU,
+};
+
+var funct3_to_load_op: Op[8] = {
+    [0b000] = LB,
+    [0b001] = LH,
+    [0b010] = LW,
+    [0b100] = LBU,
+    [0b101] = LHU,
+};
+
+var funct3_to_store_op: Op[8] = {
+    [0b000] = SB,
+    [0b001] = SH,
+    [0b010] = SW,
+};
+
+var funct3_to_imm_op: Op[8] = {
+    [0b000] = ADDI,
+    [0b010] = SLTI,
+    [0b011] = SLTIU,
+    [0b100] = XORI,
+    [0b110] = ORI,
+    [0b111] = ANDI,
+    [0b001] = SLLI,
+    [0b101] = SRLI, // SRAI
+};
+
+// This is indexed by the concatenation of funct3 and the sixth bit of funct7.
+var funct4_to_reg_op: Op[16] = {
+    [0b0000] = ADD,
+    [0b1000] = SUB,
+    [0b0001] = SLL,
+    [0b0010] = SLT,
+    [0b0011] = SLTU,
+    [0b0100] = XOR,
+    [0b0101] = SRL,
+    [0b1101] = SRA,
+    [0b0110] = OR,
+    [0b0111] = AND,
+};
+
+var funct3_to_csr_op: Op[8] = {
+    [0b001] = CSRRW,
+    [0b010] = CSRRS,
+    [0b011] = CSRRC,
+    [0b101] = CSRRWI,
+    [0b110] = CSRRSI,
+    [0b111] = CSRRCI,
+};
+
+func sign_extend(data: uint32, width: uint32): uint32 {
+    return uint32(int32(data << (32 - width)) >> (32 - width));
+}
+
+func bits(data: uint32, start: uint32, len: uint32): uint32 {
+    return (data >> start) & ((1 << len) - 1);
+}
+
+func decode_u_immediate(data: uint32): uint32 {
+    imm_12_31 := bits(data, 12, 20) << 12;
+    imm_0_31 := imm_12_31;
+    return imm_0_31;
+}
+
+func decode_j_immediate(data: uint32): uint32 {
+    imm_1_10 := bits(data, 21, 10) << 1;
+    imm_11 := bits(data, 20, 1) << 11;
+    imm_12_19 := bits(data, 12, 8) << 12;
+    imm_20 := bits(data, 31, 1) << 20;
+    imm_0_20 := imm_1_10 | imm_11 | imm_12_19 | imm_20;
+    return sign_extend(imm_0_20, 21);
+}
+
+func decode_b_immediate(data: uint32): uint32 {
+    imm_1_4 := bits(data, 8, 4) << 1;
+    imm_5_10 := bits(data, 25, 6) << 5;
+    imm_11 := bits(data, 7, 1) << 1;
+    imm_12 := bits(data, 31, 1) << 12;
+    imm_0_12 := imm_1_4 | imm_5_10 | imm_11 | imm_12;
+    return sign_extend(imm_0_12, 13);
+}
+
+func decode_i_immediate(data: uint32): uint32 {
+    imm_0_11 := bits(data, 20, 12);
+    return sign_extend(imm_0_11, 12);
+}
+
+func decode_s_immediate(data: uint32): uint32 {
+    imm_0_4 := bits(data, 7, 5);
+    imm_5_11 := bits(data, 25, 7) << 5;
+    imm_0_11 := imm_0_4 | imm_5_11;
+    return sign_extend(imm_0_11, 12);
+}
+
+func decode_instruction(data: uint32): Instruction {
+    opcode := bits(data, 0, 7);
+    rd := bits(data, 7, 5);
+    funct3 := bits(data, 12, 3);
+    rs1 := bits(data, 15, 5);
+    rs2 := bits(data, 20, 5);
+    funct7 := bits(data, 25, 7);
+    instr := Instruction{rs1 = rs1, rs2 = rs2, rd = rd};
+    switch (opcode) {
+    case 0b0110111: // LUI
+        instr.op = LUI;
+        instr.imm = decode_u_immediate(data);
+    case 0b0010111: // AUIPC
+        instr.op = AUIPC;
+        instr.imm = decode_u_immediate(data);
+    case 0b1101111: // JAL
+        instr.op = JAL;
+        instr.imm = decode_j_immediate(data);
+    case 0b1100111: // JALR
+        if (funct3 == 0b000) {
+            instr.op = JALR;
+            instr.imm = decode_i_immediate(data);
+        }
+    case 0b1100011: // BEQ, BNE, BLT, BGE, BLTU, BGEU
+        instr.op = funct3_to_branch_op[funct3];
+        instr.imm = decode_b_immediate(data);
+    case 0b0000011: // LB, LH, LW, LBU, LHU
+        instr.op = funct3_to_load_op[funct3];
+        instr.imm = decode_i_immediate(data);
+    case 0b0100011: // SB, SH, SW
+        instr.op = funct3_to_store_op[funct3];
+        instr.imm = decode_s_immediate(data);
+    case 0b0010011: // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+        instr.op = funct3_to_imm_op[funct3];
+        switch (instr.op) {
+        case SLLI:
+            instr.imm = rs2;
+            if (funct7 != 0b0000000) {
+                instr.op = ILLEGAL;
+            }
+        case SRLI:
+            instr.imm = rs2;
+            if (funct7 == 0b0100000) {
+                instr.op = SRAI;
+            } else if (funct7 != 0b0000000) {
+                instr.op = ILLEGAL;
+            }
+        default:
+            instr.imm = decode_i_immediate(data);
+        }
+    case 0b0110011: // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
+        if (funct7 & 0b1011111 == 0) {
+            funct4 := funct3 | (bits(funct7, 5, 1) << 3);
+            instr.op = funct4_to_reg_op[funct4];
+        }
+    case 0b0001111: // FENCE, FENCEI
+        if (data == 0b0000_0000_0000_00000_001_00000_0001111) {
+            instr.op = FENCEI;
+        } else if (data & 0b1111_0000_0000_11111_111_11111_1111111 == 0) {
+            instr.op = FENCE;
+        }
+    case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
+        if (data == 0b000000000000_00000_000_00000_0000000) {
+            instr.op = ECALL;
+        } else if (data == 0b000000000001_00000_000_00000_0000000) {
+            instr.op = EBREAK;
+        } else {
+            instr.op = funct3_to_csr_op[funct3];
+            instr.imm = bits(data, 15, 5);
+            instr.csr = bits(data, 20, 12);
+        }
+    default:
+        break;
+    }
+    return instr;
+}
+
+struct Hart {
+    pc: uint32;
+    regs: uint32[32];
+    mem: uint8*;
+    mem_len: uint32;
+}
+
+const SHIFT_MASK = (1 << 5) - 1;
+
+func read_instruction(hart: Hart*, addr: uint32): uint32 {
+    if (addr + 4 < hart.mem_len) {
+        return *(:uint32*)hart.mem;
+    } else {
+        return 0;
+    }
+}
+
+func read_reg(hart: Hart*, reg: Reg): uint32 {
+    return hart.regs[reg];
+}
+
+func write_reg(hart: Hart*, reg: Reg, val: uint32) {
+    if (reg) {
+        hart.regs[reg] = val;
+    }
+}
+
+func load_word(hart: Hart*, addr: uint32): uint32 {
+    if (addr + 3 < hart.mem_len) {
+        return *(:uint32*)(hart.mem + addr);
+    } else {
+        return 0;
+    }
+}
+
+func load_halfword(hart: Hart*, addr: uint32): uint32 {
+    if (addr + 1 < hart.mem_len) {
+        return *(:uint16*)(hart.mem + addr);
+    } else {
+        return 0;
+    }
+}
+
+func load_byte(hart: Hart*, addr: uint32): uint32 {
+    if (addr < hart.mem_len) {
+        return *(hart.mem + addr);
+    } else {
+        return 0;
+    }
+}
+
+func store_word(hart: Hart*, addr: uint32, val: uint32) {
+    if (addr + 3 < hart.mem_len) {
+        *(:uint32*)(hart.mem + addr) = val;
+    }
+}
+
+func store_halfword(hart: Hart*, addr: uint32, val: uint32) {
+    if (addr + 1 < hart.mem_len) {
+        *(:uint16*)(hart.mem + addr) = val;
+    }
+}
+
+func store_byte(hart: Hart*, addr: uint32, val: uint32) {
+    if (addr < hart.mem_len) {
+        *(:uint8*)(hart.mem + addr) = val;
+    }
+}
+
+func read_csr(hart: Hart*, csr: Csr): uint32 {
+    return 0;
+}
+
+func write_csr(hart: Hart*, csr: Csr, val: uint32) {
+}
+
+func step(hart: Hart*) {
+    pc := hart.pc;
+    instr_data := read_instruction(hart, pc);
+    instr := decode_instruction(instr_data);
+    rs1 := instr.rs1;
+    rs2 := instr.rs2;
+    rd := instr.rd;
+    imm := instr.imm;
+    csr := instr.csr;
+    rs1_val := hart.regs[rs1];
+    rs2_val := hart.regs[rs2];
+    next_pc := pc + 4;
+    branch_pc := pc + imm;
+    switch (instr.op) {
+    case LUI:
+        write_reg(hart, rd, imm);
+    case AUIPC:
+        write_reg(hart, rd, branch_pc);
+    case JAL:
+        write_reg(hart, rd, next_pc);
+        next_pc = branch_pc;
+    case JALR:
+        write_reg(hart, rd, next_pc);
+        next_pc = (rs1_val + imm) & ~1;
+    case BEQ:
+        if (rs1_val == rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BNE:
+        if (rs1_val != rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BLT:
+        if (int32(rs1_val) < int32(rs2_val)) {
+            next_pc = branch_pc;
+        }
+    case BGE:
+        if (int32(rs1_val) >= int32(rs2_val)) {
+            next_pc = branch_pc;
+        }
+    case BLTU:
+        if (rs1_val < rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BGEU:
+        if (rs1_val >= rs2_val) {
+            next_pc = branch_pc;
+        }
+    case LB:
+        write_reg(hart, rd, sign_extend(load_byte(hart, rs1_val + imm), 8));
+    case LH:
+        write_reg(hart, rd, sign_extend(load_halfword(hart, rs1_val + imm), 16));
+    case LW:
+        write_reg(hart, rd, load_word(hart, rs1_val + imm));
+    case LBU:
+        write_reg(hart, rd, load_byte(hart, rs1_val + imm));
+    case LHU:
+        write_reg(hart, rd, load_halfword(hart, rs1_val + imm));
+    case SB:
+        store_byte(hart, rs1_val + imm, rs2_val);
+    case SH:
+        store_halfword(hart, rs1_val + imm, rs2_val);
+    case SW:
+        store_word(hart, rs1_val + imm, rs2_val);
+    case ADDI:
+        write_reg(hart, rd, rs1_val + imm);
+    case SLTI:
+        write_reg(hart, rd, int32(rs1_val) < int32(imm));
+    case SLTIU:
+        write_reg(hart, rd, rs1_val < imm);
+    case XORI:
+        write_reg(hart, rd, rs1_val ^ imm);
+    case ORI:
+        write_reg(hart, rd, rs1_val | imm);
+    case ANDI:
+        write_reg(hart, rd, rs1_val & imm);
+    case SLLI:
+        write_reg(hart, rd, rs1_val << imm);
+    case SRLI:
+        write_reg(hart, rd, rs1_val >> imm);
+    case SRAI:
+        write_reg(hart, rd, int32(rs1_val) >> imm);
+    case ADD:
+        write_reg(hart, rd, rs1_val + rs2_val);
+    case SUB:
+        write_reg(hart, rd, rs1_val - rs2_val);
+    case SLL:
+        write_reg(hart, rd, rs1_val << (rs2_val & SHIFT_MASK));
+    case SLT:
+        write_reg(hart, rd, int32(rs1_val) < int32(rs2_val));
+    case SLTU:
+        write_reg(hart, rd, rs1_val < rs2_val);
+    case XOR:
+        write_reg(hart, rd, rs1_val ^ rs2_val);
+    case SRL:
+        write_reg(hart, rd, rs1_val >> (rs2_val & SHIFT_MASK));
+    case SRA:
+        write_reg(hart, rd, int32(rs1_val) >> (rs2_val & SHIFT_MASK));
+    case OR:
+        write_reg(hart, rd, rs1_val | rs2_val);
+    case AND:
+        write_reg(hart, rd, rs1_val & rs2_val);
+    case FENCE:
+    case FENCEI:
+        // We don't need to do anything for fences for now.
+        break;
+    case ECALL:
+    case EBREAK:
+        // Not yet implemented
+        break;
+    case CSRRW:
+        if (rd) {
+            csr_val := read_csr(hart, csr);
+            write_reg(hart, rd, csr_val);
+        }
+        write_csr(hart, csr, rs1_val);
+    case CSRRS:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_csr(hart, csr, csr_val | rs1_val);
+        }
+    case CSRRC:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_reg(hart, rd, csr_val & ~rs1_val);
+        }
+    case CSRRWI:
+        if (rd) {
+            csr_val := read_csr(hart, csr);
+            write_reg(hart, rd, csr_val);
+        }
+        write_csr(hart, csr, imm);
+    case CSRRSI:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (imm) {
+            write_csr(hart, csr, csr_val | imm);
+        }
+    case CSRRCI:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_reg(hart, rd, csr_val & ~imm);
+        }
+    default:
+        break;
+    }
+    hart.pc = next_pc;
+}
+
+func print_hart_state(hart: Hart*) {
+    printf("pc = %d (0x%08x)\n", hart.pc, hart.pc);
+    for (reg := 1; reg < 32; reg++) {
+        printf("x%d = %d (0x%08x)\n", reg, hart.regs[reg], hart.regs[reg]);
+    }
+}
+
+func main(argc: int, argv: char**): int {
+    hart: Hart;
+    print_hart_state(&hart);
+    return 0;
+}
