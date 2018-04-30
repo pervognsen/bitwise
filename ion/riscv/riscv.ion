@@ -545,7 +545,7 @@ func step(hart: Hart*) {
         csr_val := read_csr(hart, csr);
         write_reg(hart, rd, csr_val);
         if (rs1) {
-            write_reg(hart, rd, csr_val & ~rs1_val);
+            write_csr(hart, csr, csr_val & ~rs1_val);
         }
     case CSRRWI:
         if (rd) {
@@ -563,7 +563,7 @@ func step(hart: Hart*) {
         csr_val := read_csr(hart, csr);
         write_reg(hart, rd, csr_val);
         if (rs1) {
-            write_reg(hart, rd, csr_val & ~imm);
+            write_csr(hart, csr, csr_val & ~imm);
         }
     default:
         #assert(0);
