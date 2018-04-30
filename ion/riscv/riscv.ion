@@ -164,93 +164,95 @@ func decode_s_immediate(data: uint32): uint32 {
 
 func decode_instruction(data: uint32): Instruction {
     opcode := bits(data, 0, 7);
-    rd := bits(data, 7, 5);
     funct3 := bits(data, 12, 3);
+    funct7 := bits(data, 25, 7);
+    rd := bits(data, 7, 5);
     rs1 := bits(data, 15, 5);
     rs2 := bits(data, 20, 5);
-    funct7 := bits(data, 25, 7);
-    instr := Instruction{rs1 = rs1, rs2 = rs2, rd = rd};
+    op: Op;
+    imm: uint32;
+    csr: Csr;
     switch (opcode) {
     case 0b0110111: // LUI
-        instr.op = LUI;
-        instr.imm = decode_u_immediate(data);
+        op = LUI;
+        imm = decode_u_immediate(data);
     case 0b0010111: // AUIPC
-        instr.op = AUIPC;
-        instr.imm = decode_u_immediate(data);
+        op = AUIPC;
+        imm = decode_u_immediate(data);
     case 0b1101111: // JAL
-        instr.op = JAL;
-        instr.imm = decode_j_immediate(data);
+        op = JAL;
+        imm = decode_j_immediate(data);
     case 0b1100111: // JALR
         if (funct3 == 0b000) {
-            instr.op = JALR;
-            instr.imm = decode_i_immediate(data);
+            op = JALR;
+            imm = decode_i_immediate(data);
         }
     case 0b1100011: // BEQ, BNE, BLT, BGE, BLTU, BGEU
-        instr.op = funct3_to_branch_op[funct3];
-        instr.imm = decode_b_immediate(data);
+        op = funct3_to_branch_op[funct3];
+        imm = decode_b_immediate(data);
     case 0b0000011: // LB, LH, LW, LBU, LHU
-        instr.op = funct3_to_load_op[funct3];
-        instr.imm = decode_i_immediate(data);
+        op = funct3_to_load_op[funct3];
+        imm = decode_i_immediate(data);
     case 0b0100011: // SB, SH, SW
-        instr.op = funct3_to_store_op[funct3];
-        instr.imm = decode_s_immediate(data);
+        op = funct3_to_store_op[funct3];
+        imm = decode_s_immediate(data);
     case 0b0010011: // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
-        instr.op = funct3_to_imm_op[funct3];
-        switch (instr.op) {
+        op = funct3_to_imm_op[funct3];
+        switch (op) {
         case SLLI:
-            instr.imm = rs2;
+            imm = rs2;
             if (funct7 != 0b0000000) {
-                instr.op = ILLEGAL;
+                op = ILLEGAL;
             }
         case SRLI:
-            instr.imm = rs2;
+            imm = rs2;
             if (funct7 == 0b0100000) {
-                instr.op = SRAI;
+                op = SRAI;
             } else if (funct7 != 0b0000000) {
-                instr.op = ILLEGAL;
+                op = ILLEGAL;
             }
         default:
-            instr.imm = decode_i_immediate(data);
+            imm = decode_i_immediate(data);
         }
     case 0b0110011: // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
         if (funct7 & 0b1011111 == 0) {
             funct4 := funct3 | (bits(funct7, 5, 1) << 3);
-            instr.op = funct4_to_reg_op[funct4];
+            op = funct4_to_reg_op[funct4];
         }
     case 0b0001111: // FENCE, FENCEI
         if (data == 0b0000_0000_0000_00000_001_00000_0001111) {
-            instr.op = FENCEI;
+            op = FENCEI;
         } else if (data & 0b1111_0000_0000_11111_111_11111_0000000 == 0) {
-            instr.op = FENCE;
+            op = FENCE;
         }
     case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
         if (data == 0b000000000000_00000_000_00000_1110011) {
-            instr.op = ECALL;
+            op = ECALL;
         } else if (data == 0b000000000001_00000_000_00000_1110011) {
-            instr.op = EBREAK;
+            op = EBREAK;
         } else {
-            instr.op = funct3_to_csr_op[funct3];
-            instr.imm = bits(data, 15, 5);
-            instr.csr = bits(data, 20, 12);
+            op = funct3_to_csr_op[funct3];
+            imm = bits(data, 15, 5);
+            csr = bits(data, 20, 12);
         }
     default:
         break;
     }
-    return instr;
+    return Instruction{op = op, rd = rd, rs1 = rs2, rs2 = rs2, imm = imm, csr = csr};
 }
 
 struct Hart {
     pc: uint32;
     regs: uint32[32];
-    mem: uint8*;
-    mem_len: uint32;
+    ram: uint8*;
+    ram_size: uint32;
 }
 
 const SHIFT_MASK = (1 << 5) - 1;
 
 func read_instruction(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.mem_len - 3) {
-        return *(:uint32*)hart.mem;
+    if (addr < hart.ram_size - 3) {
+        return *(:uint32*)hart.ram;
     } else {
         return 0;
     }
@@ -267,44 +269,44 @@ func write_reg(hart: Hart*, reg: Reg, val: uint32) {
 }
 
 func load_word(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.mem_len - 3) {
-        return *(:uint32*)(hart.mem + addr);
+    if (addr < hart.ram_size - 3) {
+        return *(:uint32*)(hart.ram + addr);
     } else {
         return 0;
     }
 }
 
 func load_halfword(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.mem_len - 1) {
-        return *(:uint16*)(hart.mem + addr);
+    if (addr < hart.ram_size - 1) {
+        return *(:uint16*)(hart.ram + addr);
     } else {
         return 0;
     }
 }
 
 func load_byte(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.mem_len) {
-        return *(hart.mem + addr);
+    if (addr < hart.ram_size) {
+        return *(hart.ram + addr);
     } else {
         return 0;
     }
 }
 
 func store_word(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.mem_len - 3) {
-        *(:uint32*)(hart.mem + addr) = val;
+    if (addr < hart.ram_size - 3) {
+        *(:uint32*)(hart.ram + addr) = val;
     }
 }
 
 func store_halfword(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.mem_len - 1) {
-        *(:uint16*)(hart.mem + addr) = val;
+    if (addr < hart.ram_size - 1) {
+        *(:uint16*)(hart.ram + addr) = uint16(val);
     }
 }
 
 func store_byte(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.mem_len) {
-        *(:uint8*)(hart.mem + addr) = val;
+    if (addr < hart.ram_size) {
+        *(hart.ram + addr) = uint8(val);
     }
 }
 
@@ -329,10 +331,12 @@ func step(hart: Hart*) {
     next_pc := pc + 4;
     branch_pc := pc + imm;
     switch (instr.op) {
+    case ILLEGAL:
+        break;
     case LUI:
         write_reg(hart, rd, imm);
     case AUIPC:
-        write_reg(hart, rd, branch_pc);
+        write_reg(hart, rd, pc + imm);
     case JAL:
         write_reg(hart, rd, next_pc);
         next_pc = branch_pc;
@@ -462,7 +466,7 @@ func step(hart: Hart*) {
             write_reg(hart, rd, csr_val & ~imm);
         }
     default:
-        break;
+        #assert(0);
     }
     hart.pc = next_pc;
 }
@@ -475,7 +479,9 @@ func print_hart_state(hart: Hart*) {
 }
 
 func main(argc: int, argv: char**): int {
-    hart: Hart;
+    ram: uint8[64 * 1024];
+    hart := Hart{ram = ram, ram_size = sizeof(ram)};
     print_hart_state(&hart);
+    step(&hart);
     return 0;
 }
