@@ -224,9 +224,9 @@ func decode_instruction(data: uint32): Instruction {
             instr.op = FENCE;
         }
     case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
-        if (data == 0b000000000000_00000_000_00000_0000000) {
+        if (data == 0b000000000000_00000_000_00000_1110011) {
             instr.op = ECALL;
-        } else if (data == 0b000000000001_00000_000_00000_0000000) {
+        } else if (data == 0b000000000001_00000_000_00000_1110011) {
             instr.op = EBREAK;
         } else {
             instr.op = funct3_to_csr_op[funct3];
