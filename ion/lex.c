@@ -451,6 +451,7 @@ void scan_float(void) {
 }
 
 char escape_to_char[256] = {
+    ['\\'] = '\\',
     ['n'] = '\n',
     ['r'] = '\r',
     ['t'] = '\t',
