@@ -274,19 +274,18 @@ func decode_instruction(data: uint32): Instruction {
             return {op = funct3_to_csr_op[funct3], rd = rd, rs1 = rs1, csr = bits(data, 20, 12), imm = bits(data, 15, 5)};
         }
     default:
-        break;
     }
     return {op = ILLEGAL};
 }
 
 func encode_u_immediate(imm: uint32): uint32 {
-    imm_12_31 := bits(imm, 12, 20) << 20;
+    imm_12_31 := bits(imm, 12, 20) << 12;
     return imm_12_31;
 }
 
 func encode_i_immediate(imm: uint32): uint32 {
-    imm_12_31 := bits(imm, 0, 12) << 20;
-    return imm_12_31;
+    imm_0_11 := bits(imm, 0, 12) << 20;
+    return imm_0_11;
 }
 
 func encode_s_immediate(imm: uint32): uint32 {
@@ -313,31 +312,32 @@ func encode_j_immediate(imm: uint32): uint32 {
 
 func encode_instruction(instr: Instruction): uint32 {
     mask := op_to_mask[instr.op];
-    rd := instr.rd << 6;
+    rd := instr.rd << 7;
     rs1 := instr.rs1 << 15;
     rs2 := instr.rs2 << 20;
-    imm := instr.imm;
     switch (instr.op) {
     case LUI, AUIPC:
-        return mask | rd | encode_u_immediate(imm);
+        return mask | rd | encode_u_immediate(instr.imm);
     case JAL:
-        return mask | rd | encode_j_immediate(imm);
+        return mask | rd | encode_j_immediate(instr.imm);
     case BEQ, BNE, BLT, BGE, BLTU, BGEU:
-        return mask | rs1 | rs2 | encode_b_immediate(imm);
+        return mask | rs1 | rs2 | encode_b_immediate(instr.imm);
     case JALR, LB, LH, LW, LBU, LHU, ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
-        return mask | rd | rs1 | encode_i_immediate(imm);
+        return mask | rd | rs1 | encode_i_immediate(instr.imm);
     case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
         return mask | rd | rs1 | rs2;
     case SLLI, SRLI, SRAI:
-        shamt := (instr.imm & SHIFT_MASK) << 20;
-        return mask | rd | rs1 | shamt;
+        return mask | rd | rs1 | ((instr.imm & SHIFT_MASK) << 20);
     case SB, SH, SW:
-        return mask | rs1 | rs2 | encode_s_immediate(imm);
+        return mask | rs1 | rs2 | encode_s_immediate(instr.imm);
     case FENCE:
-        succ_pred := instr.succ_pred << 20;
-        return mask | succ_pred;
+        return mask | (instr.succ_pred << 20);
     case FENCEI, ECALL, EBREAK:
         return mask;
+    case CSRRW, CSRRS, CSRRC:
+        return mask | rd | rs1 | (instr.csr << 20);
+    case CSRRWI, CSRRSI, CSRRCI:
+        return mask | rd | (bits(instr.imm, 0, 5) << 15) | (instr.csr << 20);
     default:
         return 0;
     }
@@ -578,11 +578,146 @@ func print_hart_state(hart: Hart*) {
     }
 }
 
-func main(argc: int, argv: char**): int {
-    ram: uint8[64 * 1024];
-//    hart := Hart{ram = ram, ram_size = sizeof(ram)};
-//    print_hart_state(&hart);
-//    step(&hart);
+func instruction_eq(a: Instruction, b: Instruction): bool {
+    op_eq := a.op == b.op;
+    rd_eq := a.rd == b.rd;
+    rs1_eq := a.rs1 == b.rs1;
+    rs2_eq := a.rs2 == b.rs2;
+    imm_eq := a.imm == b.imm;
+    csr_eq := a.csr == b.csr;
+    succ_pred_eq := a.succ_pred == b.succ_pred;
+    switch (a.op) {
+    case LUI, AUIPC, JAL:
+        return op_eq && rd_eq && imm_eq;
+    case JALR, LB, LH, LW, LBU, LHU, ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI:
+        return op_eq && rd_eq && rs1_eq && imm_eq;
+    case BEQ, BNE, BLT, BGE, BLTU, BGEU, SB, SH, SW:
+        return op_eq && rs1_eq && rs2_eq && imm_eq;
+    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+        return op_eq && rd_eq && rs1_eq && rs2_eq;
+    case FENCEI, ECALL, EBREAK:
+        return op_eq;
+    case FENCE:
+        return op_eq && succ_pred_eq;
+    case CSRRW, CSRRS, CSRRC:
+        return op_eq && rd_eq && rs1_eq && csr_eq;
+    case CSRRWI, CSRRSI, CSRRCI:
+        return op_eq && rd_eq && csr_eq && imm_eq;
+    default:
+        return false;
+    }
+}
 
+func test_invertible_coding(instr: Instruction) {
+    encoded_data := encode_instruction(instr);
+    decoded_instr := decode_instruction(encoded_data);
+    #assert(instruction_eq(instr, decoded_instr));
+}
+
+var test_u_imms: uint32[] = {
+    0b11111111111111111111_000000000000,
+    0b10101010101011011011_000000000000,
+    0b00000000000000000001_000000000000,
+};
+
+var test_j_imms: uint32[] = {
+    -2,
+    -12312,
+    482342,
+};
+
+var test_b_imms: uint32[] = {
+    -2,
+    -4002,
+    2684,
+};
+
+var test_i_imms: uint32[] = {
+    -1,
+    -2001,
+    1342,
+};
+
+var test_csrs: uint32[] = {
+    0b111111111111,
+    0b101011011011,
+    0b010001100001,
+};
+
+func test_all_invertible_coding() {
+    for (op := 1; op < NUM_OPS; op++) {
+        switch (op) {
+        case LUI, AUIPC:
+            for (rd := 0; rd < 32; rd++) {
+                for (i := 0; i < sizeof(test_u_imms)/sizeof(*test_u_imms); i++) {
+                    imm := test_u_imms[i];
+                    test_invertible_coding({op = op, rd = rd, imm = imm});
+                }
+            }
+        case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+            for (rs1 := 0; rs1 < 32; rs1++) {
+                for (rs2 := 0; rs2 < 32; rs2++) {
+                    for (i := 0; i < sizeof(test_b_imms)/sizeof(*test_b_imms); i++) {
+                        imm := test_b_imms[i];
+//                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = imm});
+                    }
+                }
+            }
+        case JAL:
+            for (rd := 0; rd < 32; rd++) {
+                for (i := 0; i < sizeof(test_j_imms)/sizeof(*test_j_imms); i++) {
+                    imm := test_j_imms[i];
+//                    test_invertible_coding({op = op, rd = rd, imm = imm});
+                }
+            }
+        case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (rs2 := 0; rs2 < 32; rs2++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, rs2 = rs2});
+                    }
+                }
+            }
+        case ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (i := 0; i < sizeof(test_i_imms)/sizeof(*test_i_imms); i++) {
+                        imm := test_i_imms[i];
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = imm});
+                    }
+                }
+            }
+        case SLLI, SRLI, SRAI:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (imm := 0; imm < 32; imm++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = imm});
+                    }
+                }
+            }
+        case CSRRW, CSRRS, CSRRC:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (i := 0; i < sizeof(test_csrs)/sizeof(*test_csrs); i++) {
+                        csr := test_csrs[i];
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = csr});
+                    }
+                }
+            }
+        case CSRRWI, CSRRSI, CSRRCI:
+            for (rd := 0; rd < 32; rd++) {
+                for (imm := 0; imm < 32; imm++) {
+                    for (i := 0; i < sizeof(test_csrs)/sizeof(*test_csrs); i++) {
+                        csr := test_csrs[i];
+                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = csr});
+                    }
+                }
+            }
+        }
+    }
+}
+
+func main(argc: int, argv: char**): int {
+    test_all_invertible_coding();
     return 0;
 }
