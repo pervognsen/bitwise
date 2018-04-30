@@ -401,7 +401,7 @@ bool is_convertible(Operand *operand, Type *dest) {
         return true;
     } else if (is_arithmetic_type(dest) && is_arithmetic_type(src)) {
         return true;
-    } else if (is_ptr_type(dest) && is_null_ptr(*operand)) {
+    } else if (is_ptr_like_type(dest) && is_null_ptr(*operand)) {
         return true;
     } else if (is_ptr_type(dest) && is_ptr_type(src)) {
         if (is_const_type(dest->base) && is_const_type(src->base)) {

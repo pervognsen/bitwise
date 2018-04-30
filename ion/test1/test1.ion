@@ -99,6 +99,8 @@ func test_loops() {
     // break;
     // continue;
     switch (0) {
+    case 1:
+        break;
     default:
         if (1) {
             break;

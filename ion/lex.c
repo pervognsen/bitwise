@@ -287,7 +287,6 @@ Token token;
 const char *stream;
 const char *line_start;
 
-
 void warning(SrcPos pos, const char *fmt, ...) {
     if (pos.name == NULL) {
         pos = pos_builtin;
@@ -367,6 +366,10 @@ void scan_int(void) {
     }
     unsigned long long val = 0;
     for (;;) {
+        if (*stream == '_') {
+            stream++;
+            continue;
+        }
         int digit = char_to_digit[(unsigned char)*stream];
         if (digit == 0 && *stream != '0') {
             break;
