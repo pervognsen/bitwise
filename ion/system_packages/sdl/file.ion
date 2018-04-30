@@ -1,0 +1,86 @@
+@foreign struct SDL_RWops;
+
+@foreign
+func SDL_GetBasePath(): char*;
+
+@foreign
+func SDL_GetPrefPath(org: char const*, app: char const*): char*;
+
+
+@foreign
+func SDL_AllocRW(): SDL_RWops*;
+
+@foreign
+func SDL_FreeRW(area: SDL_RWops*);
+
+@foreign
+func SDL_RWFromConstMem(mem: void const*, size: int): SDL_RWops*;
+
+@foreign
+func SDL_RWFromFP(fp: void*, autoclose: SDL_bool): SDL_RWops*;
+
+@foreign
+func SDL_RWFromFile(file: char const*, mode: char const*): SDL_RWops*;
+
+@foreign
+func SDL_RWFromMem(mem: void*, size: int): SDL_RWops*;
+
+@foreign
+func SDL_RWclose(context: SDL_RWops*): int;
+
+@foreign
+func SDL_RWread(context: SDL_RWops*, ptr: void*, size: usize, maxnum: usize): usize;
+
+@foreign
+func SDL_RWseek(context: SDL_RWops*, offset: int64, whence: int): int64;
+
+@foreign
+func SDL_RWsize(context: SDL_RWops*): int64;
+
+@foreign
+func SDL_RWtell(context: SDL_RWops*): int64;
+
+@foreign
+func SDL_RWwrite(context: SDL_RWops*, ptr: void const*, size: usize, num: usize): usize;
+
+@foreign
+func SDL_ReadBE16(src: SDL_RWops*): uint16;
+
+@foreign
+func SDL_ReadBE32(src: SDL_RWops*): uint32;
+
+@foreign
+func SDL_ReadBE64(src: SDL_RWops*): uint64;
+
+@foreign
+func SDL_ReadLE16(src: SDL_RWops*): uint16;
+
+@foreign
+func SDL_ReadLE32(src: SDL_RWops*): uint32;
+
+@foreign
+func SDL_ReadLE64(src: SDL_RWops*): uint64;
+
+@foreign
+func SDL_ReadU8(src: SDL_RWops*): uint8;
+
+@foreign
+func SDL_WriteBE16(dst: SDL_RWops*, value: uint16): usize;
+
+@foreign
+func SDL_WriteBE32(dst: SDL_RWops*, value: uint32): usize;
+
+@foreign
+func SDL_WriteBE64(dst: SDL_RWops*, value: uint64): usize;
+
+@foreign
+func SDL_WriteLE16(dst: SDL_RWops*, value: uint16): usize;
+
+@foreign
+func SDL_WriteLE32(dst: SDL_RWops*, value: uint32): usize;
+
+@foreign
+func SDL_WriteLE64(dst: SDL_RWops*, value: uint64): usize;
+
+@foreign
+func SDL_WriteU8(dst: SDL_RWops*, value: uint8): usize;
