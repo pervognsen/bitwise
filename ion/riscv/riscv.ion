@@ -129,6 +129,13 @@ var op_to_mask: uint32[NUM_OPS] = {
     [AUIPC] = 0b00000000000000000000_00000_0010111,
     // J-type instructions
     [JAL]   = 0b00000000000000000000_00000_1101111,
+    // B-type instructions
+    [BEQ]  = 0b0000000_00000_00000_000_00000_1100011,
+    [BNE]  = 0b0000000_00000_00000_001_00000_1100011,
+    [BLT]  = 0b0000000_00000_00000_100_00000_1100011,
+    [BGE]  = 0b0000000_00000_00000_101_00000_1100011,
+    [BLTU] = 0b0000000_00000_00000_110_00000_1100011,
+    [BGEU] = 0b0000000_00000_00000_111_00000_1100011,
     // I-type instructions
     [JALR]  = 0b000000000000_00000_000_00000_1100111,
     [LB]    = 0b000000000000_00000_000_00000_0000011,
@@ -156,6 +163,10 @@ var op_to_mask: uint32[NUM_OPS] = {
     [SLLI] = 0b0000000_00000_00000_001_00000_0010011,
     [SRLI] = 0b0000000_00000_00000_101_00000_0010011,
     [SRAI] = 0b0100000_00000_00000_101_00000_0010011,
+    // S-type instructions
+    [SB] = 0b0000000_00000_00000_000_00000_0100011,
+    [SH] = 0b0000000_00000_00000_001_00000_0100011,
+    [SW] = 0b0000000_00000_00000_010_00000_0100011,
     // CSR instructions
     [CSRRW]  = 0b000000000000_00000_001_00000_1110011,
     [CSRRS]  = 0b000000000000_00000_010_00000_1110011,
@@ -350,7 +361,7 @@ struct Hart {
     ram_size: uint32;
 }
 
-func read_instruction(hart: Hart*, addr: uint32): uint32 {
+func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
     if (addr < hart.ram_size - 3) {
         return *(:uint32*)hart.ram;
     } else {
@@ -419,7 +430,7 @@ func write_csr(hart: Hart*, csr: Csr, val: uint32) {
 
 func step(hart: Hart*) {
     pc := hart.pc;
-    instr_data := read_instruction(hart, pc);
+    instr_data := fetch_instruction(hart, pc);
     instr := decode_instruction(instr_data);
     rs1 := instr.rs1;
     rs2 := instr.rs2;
@@ -718,6 +729,9 @@ func test_all_invertible_coding() {
 }
 
 func main(argc: int, argv: char**): int {
+    for (op := 1; op < NUM_OPS; op++) {
+        #assert(op_to_mask[op] != 0);
+    }
     test_all_invertible_coding();
     return 0;
 }
