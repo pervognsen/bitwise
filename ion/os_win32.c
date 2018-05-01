@@ -1,4 +1,5 @@
 #include <io.h>
+#include <errno.h>
 
 void path_absolute(char path[MAX_PATH]) {
     char rel_path[MAX_PATH];
