@@ -181,6 +181,26 @@ var op_to_mask: uint32[NUM_OPS] = {
     [EBREAK] = 0b000000000001_00000_000_00000_1110011,
 };
 
+const U_IMMEDIATE_MIN = -(1 << 30);
+const U_IMMEDIATE_MAX = 1 << 30 - 1;
+const U_IMMEDIATE_ALIGN = 1 << 12;
+
+const I_IMMEDIATE_MAX = 1 << 10 - 1;
+const I_IMMEDIATE_MIN = -(1 << 10);
+const I_IMMEDIATE_ALIGN = 1;
+
+const S_IMMEDIATE_MIN = I_IMMEDIATE_MIN;
+const S_IMMEDIATE_MAX = I_IMMEDIATE_MAX;
+const S_IMMEDIATE_ALIGN = I_IMMEDIATE_ALIGN;
+
+const J_IMMEDIATE_MAX = 1 << 19 - 1;
+const J_IMMEDIATE_MIN = -(1 << 19);
+const J_IMMEDIATE_ALIGN = 2;
+
+const B_IMMEDIATE_MAX = 1 << 11 - 1;
+const B_IMMEDIATE_MIN = -(1 << 11);
+const B_IMMEDIATE_ALIGN = 2;
+
 func sign_extend(data: uint32, width: uint32): uint32 {
     return uint32(int32(data << (32 - width)) >> (32 - width));
 }
@@ -207,7 +227,7 @@ func decode_j_immediate(data: uint32): uint32 {
 func decode_b_immediate(data: uint32): uint32 {
     imm_1_4 := bits(data, 8, 4) << 1;
     imm_5_10 := bits(data, 25, 6) << 5;
-    imm_11 := bits(data, 7, 1) << 1;
+    imm_11 := bits(data, 7, 1) << 11;
     imm_12 := bits(data, 31, 1) << 12;
     imm_0_12 := imm_1_4 | imm_5_10 | imm_11 | imm_12;
     return sign_extend(imm_0_12, 13);
@@ -441,6 +461,7 @@ func step(hart: Hart*) {
     rs2_val := hart.regs[rs2];
     next_pc := pc + 4;
     branch_pc := pc + imm;
+    @complete
     switch (instr.op) {
     case ILLEGAL:
         break;
@@ -576,8 +597,6 @@ func step(hart: Hart*) {
         if (rs1) {
             write_csr(hart, csr, csr_val & ~imm);
         }
-    default:
-        #assert(0);
     }
     hart.pc = next_pc;
 }
@@ -625,6 +644,36 @@ func test_invertible_coding(instr: Instruction) {
     #assert(instruction_eq(instr, decoded_instr));
 }
 
+func random_aligned(min: int32, max: int32, align: int32): uint32 {
+    pick := rand() << 16 + rand();
+    mask := ~(align - 1);
+    return uint32((min + pick % (max - min)) & mask);
+}
+
+func random_j_immediate(): uint32 {
+    return random_aligned(J_IMMEDIATE_MIN, J_IMMEDIATE_MAX, J_IMMEDIATE_ALIGN);
+}
+
+func random_b_immediate(): uint32 {
+    return random_aligned(B_IMMEDIATE_MIN, B_IMMEDIATE_MAX, B_IMMEDIATE_ALIGN);
+}
+
+func random_u_immediate(): uint32 {
+    return random_aligned(U_IMMEDIATE_MIN, U_IMMEDIATE_MAX, U_IMMEDIATE_ALIGN);
+}
+
+func random_i_immediate(): uint32 {
+    return random_aligned(I_IMMEDIATE_MIN, I_IMMEDIATE_MAX, I_IMMEDIATE_ALIGN);
+}
+
+func random_s_immediate(): uint32 {
+    return random_aligned(S_IMMEDIATE_MIN, S_IMMEDIATE_MAX, S_IMMEDIATE_ALIGN);
+}
+
+func random_csr(): uint32 {
+    return random_aligned(0, (1 << 12) - 1, 1);
+}
+
 var test_u_imms: uint32[] = {
     0b11111111111111111111_000000000000,
     0b10101010101011011011_000000000000,
@@ -655,30 +704,29 @@ var test_csrs: uint32[] = {
     0b010001100001,
 };
 
-func test_all_invertible_coding() {
+const NUM_RANDOM_IMMEDIATES = 128;
+
+func test_random_invertible_codings() {
     for (op := 1; op < NUM_OPS; op++) {
         switch (op) {
         case LUI, AUIPC:
             for (rd := 0; rd < 32; rd++) {
-                for (i := 0; i < sizeof(test_u_imms)/sizeof(*test_u_imms); i++) {
-                    imm := test_u_imms[i];
-                    test_invertible_coding({op = op, rd = rd, imm = imm});
+                for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = random_u_immediate()});
                 }
             }
         case BEQ, BNE, BLT, BGE, BLTU, BGEU:
             for (rs1 := 0; rs1 < 32; rs1++) {
                 for (rs2 := 0; rs2 < 32; rs2++) {
-                    for (i := 0; i < sizeof(test_b_imms)/sizeof(*test_b_imms); i++) {
-                        imm := test_b_imms[i];
-//                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = imm});
+                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) { 
+                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = random_b_immediate()});
                     }
                 }
             }
         case JAL:
             for (rd := 0; rd < 32; rd++) {
-                for (i := 0; i < sizeof(test_j_imms)/sizeof(*test_j_imms); i++) {
-                    imm := test_j_imms[i];
-//                    test_invertible_coding({op = op, rd = rd, imm = imm});
+                for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = random_j_immediate()});
                 }
             }
         case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
@@ -692,9 +740,8 @@ func test_all_invertible_coding() {
         case ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
             for (rd := 0; rd < 32; rd++) {
                 for (rs1 := 0; rs1 < 32; rs1++) {
-                    for (i := 0; i < sizeof(test_i_imms)/sizeof(*test_i_imms); i++) {
-                        imm := test_i_imms[i];
-                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = imm});
+                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = random_i_immediate()});
                     }
                 }
             }
@@ -709,18 +756,16 @@ func test_all_invertible_coding() {
         case CSRRW, CSRRS, CSRRC:
             for (rd := 0; rd < 32; rd++) {
                 for (rs1 := 0; rs1 < 32; rs1++) {
-                    for (i := 0; i < sizeof(test_csrs)/sizeof(*test_csrs); i++) {
-                        csr := test_csrs[i];
-                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = csr});
+                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = random_csr()});
                     }
                 }
             }
         case CSRRWI, CSRRSI, CSRRCI:
             for (rd := 0; rd < 32; rd++) {
                 for (imm := 0; imm < 32; imm++) {
-                    for (i := 0; i < sizeof(test_csrs)/sizeof(*test_csrs); i++) {
-                        csr := test_csrs[i];
-                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = csr});
+                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
+                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = random_csr()});
                     }
                 }
             }
@@ -729,9 +774,10 @@ func test_all_invertible_coding() {
 }
 
 func main(argc: int, argv: char**): int {
+    srand(0);
     for (op := 1; op < NUM_OPS; op++) {
         #assert(op_to_mask[op] != 0);
     }
-    test_all_invertible_coding();
+    test_random_invertible_codings();
     return 0;
 }
