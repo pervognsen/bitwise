@@ -18,6 +18,11 @@ typedef va_list = char*;
 @foreign
 struct fpos_t;
 
+@foreign const EOF      = -1;
+@foreign const SEEK_SET = 0;
+@foreign const SEEK_CUR = 1;
+@foreign const SEEK_END = 2;
+
 @foreign
 func remove(filename: char const*): int;
 
