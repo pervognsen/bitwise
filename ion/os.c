@@ -72,7 +72,7 @@ bool dir_excluded(DirListIter *iter) {
     return iter->valid && (strcmp(iter->name, ".") == 0 || strcmp(iter->name, "..") == 0);
 }
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include "os_win32.c"
 #define strdup _strdup
 #else
