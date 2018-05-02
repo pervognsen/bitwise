@@ -339,7 +339,12 @@ func decode_instruction(data: uint32): Instruction {
         } else if (data == 0b000000000001_00000_000_00000_1110011) {
             return {op = EBREAK};
         } else {
-            return {op = funct3_to_csr_op[funct3], rd = rd, rs1 = rs1, csr = bits(data, 20, 12), imm = bits(data, 15, 5)};
+            op := funct3_to_csr_op[funct3];
+            if (bits(funct3, 2, 1)) {
+                return {op = op, rd = rd, csr = bits(data, 20, 12), imm = bits(data, 15, 5)};
+            } else {
+                return {op = op, rd = rd, rs1 = rs1, csr = bits(data, 20, 12)};
+            }
         }
     default:
     }
@@ -653,40 +658,10 @@ func print_hart_state(hart: Hart*) {
     }
 }
 
-func instruction_eq(a: Instruction, b: Instruction): bool {
-    op_eq := a.op == b.op;
-    rd_eq := a.rd == b.rd;
-    rs1_eq := a.rs1 == b.rs1;
-    rs2_eq := a.rs2 == b.rs2;
-    imm_eq := a.imm == b.imm;
-    csr_eq := a.csr == b.csr;
-    succ_pred_eq := a.succ_pred == b.succ_pred;
-    switch (a.op) {
-    case LUI, AUIPC, JAL:
-        return op_eq && rd_eq && imm_eq;
-    case JALR, LB, LH, LW, LBU, LHU, ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI:
-        return op_eq && rd_eq && rs1_eq && imm_eq;
-    case BEQ, BNE, BLT, BGE, BLTU, BGEU, SB, SH, SW:
-        return op_eq && rs1_eq && rs2_eq && imm_eq;
-    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
-        return op_eq && rd_eq && rs1_eq && rs2_eq;
-    case FENCEI, ECALL, EBREAK:
-        return op_eq;
-    case FENCE:
-        return op_eq && succ_pred_eq;
-    case CSRRW, CSRRS, CSRRC:
-        return op_eq && rd_eq && rs1_eq && csr_eq;
-    case CSRRWI, CSRRSI, CSRRCI:
-        return op_eq && rd_eq && csr_eq && imm_eq;
-    default:
-        return false;
-    }
-}
-
 func test_invertible_coding(instr: Instruction) {
     encoded_data := encode_instruction(instr);
     decoded_instr := decode_instruction(encoded_data);
-    #assert(instruction_eq(instr, decoded_instr));
+    #assert(memcmp(&instr, &decoded_instr, sizeof(instr)) == 0);
 }
 
 func round_down(val: uint32, align: uint32): uint32 {
@@ -999,6 +974,9 @@ func emit_j(asm: Asm*, target: Sym*) {
 }
 
 func main(argc: int, argv: char**): int {
+    test_main();
+    return 0;
+
     ram: uint8[256 * 1024];
     asm := &Asm{buf = ram, buf_size = sizeof(ram)};
 
