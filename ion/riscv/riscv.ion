@@ -812,6 +812,14 @@ func test_main() {
     test_random_invertible_codings();
 }
 
+func imm_hi(imm: uint32): uint32 {
+    return imm + 0x800;
+}
+
+func imm_lo(imm: uint32): uint32 {
+    return imm;
+}
+
 enum AsmError {
     ASM_ERROR_NONE,
     ASM_ERROR_OVERFLOW,
@@ -853,57 +861,57 @@ func new_sym(asm: Asm*): Sym* {
     return sym;
 }
 
-func resolve_sym(asm: Asm*, sym: Sym*) {
-    #assert(sym.state == SYM_UNRESOLVED);
-    addr := asm.addr;
-    for (ref := sym.ref; ref; ref = ref.next) {
-        instr_ptr := (:uint32*)(asm.buf + ref.addr);
-        instr := decode_instruction(*instr_ptr);
-        @complete
+func resolve_sym_ref(asm: Asm*, sym: Sym const*, ref: SymRef const*) {
+    instr_ptr := (:uint32*)(asm.buf + ref.addr);
+    instr := decode_instruction(*instr_ptr);
+    @complete
         switch (ref.kind) {
         case REF_LO_OFFSET:
-            instr.imm = imm_lo(addr - ref.base);
+            instr.imm = imm_lo(sym.addr - ref.base);
         case REF_HI_OFFSET:
-            instr.imm = imm_hi(addr - ref.base);
+            instr.imm = imm_hi(sym.addr - ref.base);
         }
-        *instr_ptr = encode_instruction(instr);
-    }
+    *instr_ptr = encode_instruction(instr);
+}
+
+func resolve_sym_here(asm: Asm*, sym: Sym*) {
+    #assert(sym.state == SYM_UNRESOLVED);
+    addr := asm.addr;
     sym.state = SYM_RESOLVED;
     sym.addr = addr;
+    for (ref := sym.ref; ref; ref = ref.next) {
+        resolve_sym_ref(asm, sym, ref);
+    }
 }
 
 func new_sym_here(asm: Asm*): Sym* {
     sym := new_sym(asm);
-    resolve_sym(asm, sym);
+    resolve_sym_here(asm, sym);
     return sym;
 }
 
 func ref_sym_offset(asm: Asm*, sym: Sym*, kind: SymRefKind, base: uint32) {
+    addr := asm.addr - 4;
     if (sym.state == SYM_UNRESOLVED) {
         ref: SymRef* = malloc(sizeof(SymRef));
         ref.kind = kind;
-        ref.addr = asm.addr;
+        ref.addr = addr;
         ref.base = base;
         ref.next = sym.ref;
         sym.ref = ref;
+    } else {
+        resolve_sym_ref(asm, sym, &{kind = kind, addr = addr, base = base});
     }
-}
-
-func check_overflow(asm: Asm*, size: uint32): bool {
-    if (asm.addr + size > asm.buf_size) {
-        asm.error = ASM_ERROR_OVERFLOW;
-        #assert(0);
-        return true;
-    }
-    return false;
 }
 
 func emit_bytes(asm: Asm*, data: void const*, size: uint32) {
-    if (check_overflow(asm, size)) {
-        return;
+    if (asm.addr + size <= asm.buf_size) {
+        memcpy(asm.buf + asm.addr, data, size);
+        asm.addr += size;
+    } else {
+        asm.error = ASM_ERROR_OVERFLOW;
+        #assert(0);
     }
-    memcpy(asm.buf + asm.addr, data, size);
-    asm.addr += size;
 }
 
 func emit_uint8(asm: Asm*, data: uint8) {
@@ -946,21 +954,20 @@ func emit_lw_reg(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
     emit_instr(asm, {op = LW, rd = rd, rs1 = rs1, imm = imm});
 }
 
-func imm_hi(imm: uint32): uint32 {
-    return imm + 0x800;
-}
-
-func imm_lo(imm: uint32): uint32 {
-    return imm;
-}
-
 func emit_lw(asm: Asm*, dest: Reg, src: Sym*) {
     base := asm.addr;
-    offset := src.addr - base;
+    emit_auipc(asm, dest, 0);
     ref_sym_offset(asm, src, REF_HI_OFFSET, base);
-    emit_auipc(asm, dest, imm_hi(offset));
+    emit_lw_reg(asm, dest, dest, 0);
     ref_sym_offset(asm, src, REF_LO_OFFSET, base);
-    emit_lw_reg(asm, dest, dest, imm_lo(offset));
+}
+
+func emit_la(asm: Asm*, rd: Reg, src: Sym*) {
+    base := asm.addr;
+    emit_auipc(asm, rd, 0);
+    ref_sym_offset(asm, src, REF_HI_OFFSET, base);
+    emit_addi(asm, rd, rd, 0);
+    ref_sym_offset(asm, src, REF_LO_OFFSET, base);
 }
 
 func emit_sw_reg(asm: Asm*, rs1: Reg, rs2: Reg, imm: uint32) {
@@ -969,25 +976,22 @@ func emit_sw_reg(asm: Asm*, rs1: Reg, rs2: Reg, imm: uint32) {
 
 func emit_sw(asm: Asm*, dest: Sym*, src: Reg, temp: Reg) {
     base := asm.addr;
-    offset := dest.addr - base;
+    emit_auipc(asm, temp, 0);
     ref_sym_offset(asm, dest, REF_HI_OFFSET, base);
-    emit_auipc(asm, temp, imm_hi(offset));
+    emit_sw_reg(asm, temp, src, 0);
     ref_sym_offset(asm, dest, REF_LO_OFFSET, base);
-    emit_sw_reg(asm, temp, src, imm_lo(offset));
 }
 
 func emit_beq(asm: Asm*, rs1: Reg, rs2: Reg, target: Sym*) {
     base := asm.addr;
-    offset := target.addr - base;
+    emit_instr(asm, {op = BEQ, rs1 = rs1, rs2 = rs2});
     ref_sym_offset(asm, target, REF_LO_OFFSET, base);
-    emit_instr(asm, {op = BEQ, rs1 = rs1, rs2 = rs2, imm = imm_lo(offset)});
 }
 
 func emit_jal(asm: Asm*, rd: Reg, target: Sym*) {
     base := asm.addr;
-    offset := target.addr - base;
+    emit_instr(asm, {op = JAL, rd = rd});
     ref_sym_offset(asm, target, REF_LO_OFFSET, base);
-    emit_instr(asm, {op = JAL, rd = rd, imm = imm_lo(offset)});
 }
 
 func emit_j(asm: Asm*, target: Sym*) {
@@ -1004,7 +1008,6 @@ func main(argc: int, argv: char**): int {
     emit_uint32(asm, 0);
 
     start := new_sym_here(asm);
-
     emit_lw(asm, X1, count);
     loop := new_sym_here(asm);
     done := new_sym(asm);
@@ -1012,18 +1015,20 @@ func main(argc: int, argv: char**): int {
     emit_add(asm, X2, X2, X1);
     emit_addi(asm, X1, X1, -1);
     emit_j(asm, loop);
-    resolve_sym(asm, done);
+    resolve_sym_here(asm, done);
     emit_sw(asm, result, X2, X1);
 
     global := new_sym(asm);
+    emit_la(asm, X4, global);
+
     emit_lw(asm, X1, global);
     emit_add(asm, X1, X1, X1);
     emit_sw(asm, global, X1, X2);
-    emit_lw(asm, X2, global);    
+    emit_lw(asm, X2, global);
     for (i := 0; i < 1024; i++) {
         emit_uint8(asm, 0);
     }
-    resolve_sym(asm, global);
+    resolve_sym_here(asm, global);
     emit_uint32(asm, 12345678);
 
     hart := Hart{pc = start.addr, ram = ram, ram_size = sizeof(ram)};
