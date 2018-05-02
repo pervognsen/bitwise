@@ -696,6 +696,7 @@ var test_csrs: uint32[] = {
 const NUM_TEST_CSRS = sizeof(test_csrs) / sizeof(*test_csrs);
 
 func init_test_immediates(dest: uint32*, dest_len: int, min: int32, max: int32, align: int32) {
+    #assert(round_down(uint32(min), align) == min);
     end := dest + dest_len;
     *dest++ = round_down(uint32(min), align);
     *dest++ = round_down(uint32(max), align);
@@ -974,9 +975,6 @@ func emit_j(asm: Asm*, target: Sym*) {
 }
 
 func main(argc: int, argv: char**): int {
-    test_main();
-    return 0;
-
     ram: uint8[256 * 1024];
     asm := &Asm{buf = ram, buf_size = sizeof(ram)};
 
