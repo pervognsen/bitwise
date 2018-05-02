@@ -52,7 +52,44 @@ enum Op = uint8 {
     NUM_OPS,
 }
 
-typedef Reg = uint8;
+enum Reg = uint8 {
+    X0,
+    X1,
+    X2,
+    X3,
+    X4,
+    X5,
+    X6,
+    X7,
+    X8,
+    X9,
+    X10,
+    X11,
+    X12,
+    X13,
+    X14,
+    X15,
+    X16,
+    X17,
+    X18,
+    X19,
+    X20,
+    X21,
+    X22,
+    X23,
+    X24,
+    X25,
+    X26,
+    X27,
+    X28,
+    X29,
+    X30,
+    X31,
+    NUM_REGS,
+}
+
+#static_assert(NUM_REGS == 32)
+
 typedef Csr = uint16;
 typedef SuccPred = uint8;
 
@@ -60,9 +97,9 @@ const SHIFT_MASK = (1 << 5) - 1;
 
 struct Instruction {
     op: Op;
-    rs1, rs2, rd: Reg;
-    csr: Csr;
+    rd, rs1, rs2: Reg;
     imm: uint32;
+    csr: Csr;
     succ_pred: SuccPred;
 }
 
@@ -212,7 +249,7 @@ func bits(data: uint32, start: uint32, len: uint32): uint32 {
 func decode_u_immediate(data: uint32): uint32 {
     imm_12_31 := bits(data, 12, 20) << 12;
     imm_0_31 := imm_12_31;
-    return imm_0_31;
+    return sign_extend(imm_0_31, 32);
 }
 
 func decode_j_immediate(data: uint32): uint32 {
@@ -320,8 +357,8 @@ func encode_i_immediate(imm: uint32): uint32 {
 }
 
 func encode_s_immediate(imm: uint32): uint32 {
-    imm_0_4 := bits(imm, 0, 4) << 7;
-    imm_5_11 := bits(imm, 5, 6) << 25;
+    imm_0_4 := bits(imm, 0, 5) << 7;
+    imm_5_11 := bits(imm, 5, 7) << 25;
     return imm_0_4 | imm_5_11;
 }
 
@@ -358,17 +395,22 @@ func encode_instruction(instr: Instruction): uint32 {
     case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
         return mask | rd | rs1 | rs2;
     case SLLI, SRLI, SRAI:
-        return mask | rd | rs1 | ((instr.imm & SHIFT_MASK) << 20);
+        imm := (instr.imm & SHIFT_MASK) << 20;
+        return mask | rd | rs1 | imm;
     case SB, SH, SW:
         return mask | rs1 | rs2 | encode_s_immediate(instr.imm);
     case FENCE:
-        return mask | (instr.succ_pred << 20);
+        succ_pred := instr.succ_pred << 20;
+        return mask | succ_pred;
     case FENCEI, ECALL, EBREAK:
         return mask;
     case CSRRW, CSRRS, CSRRC:
-        return mask | rd | rs1 | (instr.csr << 20);
+        csr := instr.csr << 20;
+        return mask | rd | rs1 | csr;
     case CSRRWI, CSRRSI, CSRRCI:
-        return mask | rd | (bits(instr.imm, 0, 5) << 15) | (instr.csr << 20);
+        csr := instr.csr << 20;
+        imm := bits(instr.imm, 0, 5) << 15;
+        return mask | rd | imm | csr;
     default:
         return 0;
     }
@@ -383,7 +425,7 @@ struct Hart {
 
 func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
     if (addr < hart.ram_size - 3) {
-        return *(:uint32*)hart.ram;
+        return *(:uint32*)(hart.ram + addr);
     } else {
         return 0;
     }
@@ -602,9 +644,12 @@ func step(hart: Hart*) {
 }
 
 func print_hart_state(hart: Hart*) {
-    printf("pc = %d (0x%08x)\n", hart.pc, hart.pc);
-    for (reg := 1; reg < 32; reg++) {
-        printf("x%d = %d (0x%08x)\n", reg, hart.regs[reg], hart.regs[reg]);
+    printf("pc = %d\n", hart.pc);
+    for (reg := 1; reg < 32; reg += 4) {
+        printf("%2d = %10d | ", reg, hart.regs[reg]);
+        printf("%2d = %10d | ", reg+1, hart.regs[reg+1]);
+        printf("%2d = %10d | ", reg+2, hart.regs[reg+2]);
+        printf("%2d = %10d\n", reg+3, hart.regs[reg+3]);
     }
 }
 
@@ -644,59 +689,28 @@ func test_invertible_coding(instr: Instruction) {
     #assert(instruction_eq(instr, decoded_instr));
 }
 
+func round_down(val: uint32, align: uint32): uint32 {
+    return val & ~(align - 1);
+}
+
+func random_uint32(): uint32 {
+    return rand() + rand() << 16;
+}
+
 func random_aligned(min: int32, max: int32, align: int32): uint32 {
-    pick := rand() << 16 + rand();
-    mask := ~(align - 1);
-    return uint32((min + pick % (max - min)) & mask);
-}
-
-func random_j_immediate(): uint32 {
-    return random_aligned(J_IMMEDIATE_MIN, J_IMMEDIATE_MAX, J_IMMEDIATE_ALIGN);
-}
-
-func random_b_immediate(): uint32 {
-    return random_aligned(B_IMMEDIATE_MIN, B_IMMEDIATE_MAX, B_IMMEDIATE_ALIGN);
-}
-
-func random_u_immediate(): uint32 {
-    return random_aligned(U_IMMEDIATE_MIN, U_IMMEDIATE_MAX, U_IMMEDIATE_ALIGN);
-}
-
-func random_i_immediate(): uint32 {
-    return random_aligned(I_IMMEDIATE_MIN, I_IMMEDIATE_MAX, I_IMMEDIATE_ALIGN);
-}
-
-func random_s_immediate(): uint32 {
-    return random_aligned(S_IMMEDIATE_MIN, S_IMMEDIATE_MAX, S_IMMEDIATE_ALIGN);
+    return round_down(min + random_uint32() % (max - min), align);
 }
 
 func random_csr(): uint32 {
     return random_aligned(0, (1 << 12) - 1, 1);
 }
 
-var test_u_imms: uint32[] = {
-    0b11111111111111111111_000000000000,
-    0b10101010101011011011_000000000000,
-    0b00000000000000000001_000000000000,
-};
+const NUM_TEST_IMMEDIATES = 128;
 
-var test_j_imms: uint32[] = {
-    -2,
-    -12312,
-    482342,
-};
-
-var test_b_imms: uint32[] = {
-    -2,
-    -4002,
-    2684,
-};
-
-var test_i_imms: uint32[] = {
-    -1,
-    -2001,
-    1342,
-};
+var test_u_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_j_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_b_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_i_immediates: uint32[NUM_TEST_IMMEDIATES];
 
 var test_csrs: uint32[] = {
     0b111111111111,
@@ -704,29 +718,45 @@ var test_csrs: uint32[] = {
     0b010001100001,
 };
 
-const NUM_RANDOM_IMMEDIATES = 128;
+const NUM_TEST_CSRS = sizeof(test_csrs) / sizeof(*test_csrs);
+
+func init_test_immediates(dest: uint32*, dest_len: int, min: int32, max: int32, align: int32) {
+    end := dest + dest_len;
+    *dest++ = round_down(uint32(min), align);
+    *dest++ = round_down(uint32(max), align);
+    while (dest != end) {
+        *dest++ = random_aligned(min, max, align);
+    }
+}
+
+func init_test() {
+    init_test_immediates(test_u_immediates, NUM_TEST_IMMEDIATES, U_IMMEDIATE_MIN, U_IMMEDIATE_MAX, U_IMMEDIATE_ALIGN);
+    init_test_immediates(test_j_immediates, NUM_TEST_IMMEDIATES, J_IMMEDIATE_MIN, J_IMMEDIATE_MAX, J_IMMEDIATE_ALIGN);
+    init_test_immediates(test_b_immediates, NUM_TEST_IMMEDIATES, B_IMMEDIATE_MIN, B_IMMEDIATE_MAX, B_IMMEDIATE_ALIGN);
+    init_test_immediates(test_i_immediates, NUM_TEST_IMMEDIATES, I_IMMEDIATE_MIN, I_IMMEDIATE_MAX, I_IMMEDIATE_ALIGN);
+}
 
 func test_random_invertible_codings() {
     for (op := 1; op < NUM_OPS; op++) {
         switch (op) {
         case LUI, AUIPC:
             for (rd := 0; rd < 32; rd++) {
-                for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
-                    test_invertible_coding({op = op, rd = rd, imm = random_u_immediate()});
+                for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = test_u_immediates[i]});
                 }
             }
         case BEQ, BNE, BLT, BGE, BLTU, BGEU:
             for (rs1 := 0; rs1 < 32; rs1++) {
                 for (rs2 := 0; rs2 < 32; rs2++) {
-                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) { 
-                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = random_b_immediate()});
+                    for (i := 0; i < NUM_TEST_IMMEDIATES; i++) { 
+                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = test_b_immediates[i]});
                     }
                 }
             }
         case JAL:
             for (rd := 0; rd < 32; rd++) {
-                for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
-                    test_invertible_coding({op = op, rd = rd, imm = random_j_immediate()});
+                for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = test_j_immediates[i]});
                 }
             }
         case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
@@ -740,8 +770,8 @@ func test_random_invertible_codings() {
         case ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
             for (rd := 0; rd < 32; rd++) {
                 for (rs1 := 0; rs1 < 32; rs1++) {
-                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
-                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = random_i_immediate()});
+                    for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = test_i_immediates[i]});
                     }
                 }
             }
@@ -756,16 +786,16 @@ func test_random_invertible_codings() {
         case CSRRW, CSRRS, CSRRC:
             for (rd := 0; rd < 32; rd++) {
                 for (rs1 := 0; rs1 < 32; rs1++) {
-                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
-                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = random_csr()});
+                    for (i := 0; i < NUM_TEST_CSRS; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = test_csrs[i]});
                     }
                 }
             }
         case CSRRWI, CSRRSI, CSRRCI:
             for (rd := 0; rd < 32; rd++) {
                 for (imm := 0; imm < 32; imm++) {
-                    for (i := 0; i < NUM_RANDOM_IMMEDIATES; i++) {
-                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = random_csr()});
+                    for (i := 0; i < NUM_TEST_CSRS; i++) {
+                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = test_csrs[i]});
                     }
                 }
             }
@@ -773,11 +803,234 @@ func test_random_invertible_codings() {
     }
 }
 
-func main(argc: int, argv: char**): int {
+func test_main() {
     srand(0);
+    init_test();
     for (op := 1; op < NUM_OPS; op++) {
         #assert(op_to_mask[op] != 0);
     }
     test_random_invertible_codings();
+}
+
+enum AsmError {
+    ASM_ERROR_NONE,
+    ASM_ERROR_OVERFLOW,
+}
+
+enum SymRefKind {
+    REF_LO_OFFSET,
+    REF_HI_OFFSET,
+}
+
+struct SymRef {
+    kind: SymRefKind;
+    addr: uint32;
+    base: uint32;
+    next: SymRef*;
+}
+
+enum SymState {
+    SYM_UNRESOLVED,
+    SYM_RESOLVED,
+}
+
+struct Sym {
+    state: SymState;
+    addr: uint32;
+    ref: SymRef*;
+}
+
+struct Asm {
+    buf: uint8*;
+    buf_size: uint32;
+    error: AsmError;
+    addr: uint32;
+}
+
+func new_sym(asm: Asm*): Sym* {
+    sym: Sym* = malloc(sizeof(Sym));
+    *sym = {};
+    return sym;
+}
+
+func resolve_sym(asm: Asm*, sym: Sym*) {
+    #assert(sym.state == SYM_UNRESOLVED);
+    addr := asm.addr;
+    for (ref := sym.ref; ref; ref = ref.next) {
+        instr_ptr := (:uint32*)(asm.buf + ref.addr);
+        instr := decode_instruction(*instr_ptr);
+        @complete
+        switch (ref.kind) {
+        case REF_LO_OFFSET:
+            instr.imm = imm_lo(addr - ref.base);
+        case REF_HI_OFFSET:
+            instr.imm = imm_hi(addr - ref.base);
+        }
+        *instr_ptr = encode_instruction(instr);
+    }
+    sym.state = SYM_RESOLVED;
+    sym.addr = addr;
+}
+
+func new_sym_here(asm: Asm*): Sym* {
+    sym := new_sym(asm);
+    resolve_sym(asm, sym);
+    return sym;
+}
+
+func ref_sym_offset(asm: Asm*, sym: Sym*, kind: SymRefKind, base: uint32) {
+    if (sym.state == SYM_UNRESOLVED) {
+        ref: SymRef* = malloc(sizeof(SymRef));
+        ref.kind = kind;
+        ref.addr = asm.addr;
+        ref.base = base;
+        ref.next = sym.ref;
+        sym.ref = ref;
+    }
+}
+
+func check_overflow(asm: Asm*, size: uint32): bool {
+    if (asm.addr + size > asm.buf_size) {
+        asm.error = ASM_ERROR_OVERFLOW;
+        #assert(0);
+        return true;
+    }
+    return false;
+}
+
+func emit_bytes(asm: Asm*, data: void const*, size: uint32) {
+    if (check_overflow(asm, size)) {
+        return;
+    }
+    memcpy(asm.buf + asm.addr, data, size);
+    asm.addr += size;
+}
+
+func emit_uint8(asm: Asm*, data: uint8) {
+    emit_bytes(asm, &data, 1);
+}
+
+func emit_uint16(asm: Asm*, data: uint16) {
+    emit_bytes(asm, &data, 2);
+}
+
+func emit_uint32(asm: Asm*, data: uint32) {
+    emit_bytes(asm, &data, 4);
+}
+
+func emit_str(asm: Asm*, str: char const*) {
+    emit_bytes(asm, str, strlen(str) + 1);
+}
+
+func emit_instr(asm: Asm*, instr: Instruction) {
+    emit_uint32(asm, encode_instruction(instr));
+}
+
+func emit_add(asm: Asm*, rd: Reg, rs1: Reg, rs2: Reg) {
+    emit_instr(asm, {op = ADD, rd = rd, rs1 = rs1, rs2 = rs2});
+}
+
+func emit_addi(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
+    emit_instr(asm, {op = ADDI, rd = rd, rs1 = rs1, imm = imm});
+}
+
+func emit_slli(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
+    emit_instr(asm, {op = SLLI, rd = rd, rs1 = rs1, imm = imm});
+}
+
+func emit_auipc(asm: Asm*, rd: Reg, imm: uint32) {
+    emit_instr(asm, {op = AUIPC, rd = rd, imm = imm});
+}
+
+func emit_lw_reg(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
+    emit_instr(asm, {op = LW, rd = rd, rs1 = rs1, imm = imm});
+}
+
+func imm_hi(imm: uint32): uint32 {
+    return imm + 0x800;
+}
+
+func imm_lo(imm: uint32): uint32 {
+    return imm;
+}
+
+func emit_lw(asm: Asm*, dest: Reg, src: Sym*) {
+    base := asm.addr;
+    offset := src.addr - base;
+    ref_sym_offset(asm, src, REF_HI_OFFSET, base);
+    emit_auipc(asm, dest, imm_hi(offset));
+    ref_sym_offset(asm, src, REF_LO_OFFSET, base);
+    emit_lw_reg(asm, dest, dest, imm_lo(offset));
+}
+
+func emit_sw_reg(asm: Asm*, rs1: Reg, rs2: Reg, imm: uint32) {
+    emit_instr(asm, {op = SW, rs1 = rs1, rs2 = rs2, imm = imm});
+}
+
+func emit_sw(asm: Asm*, dest: Sym*, src: Reg, temp: Reg) {
+    base := asm.addr;
+    offset := dest.addr - base;
+    ref_sym_offset(asm, dest, REF_HI_OFFSET, base);
+    emit_auipc(asm, temp, imm_hi(offset));
+    ref_sym_offset(asm, dest, REF_LO_OFFSET, base);
+    emit_sw_reg(asm, temp, src, imm_lo(offset));
+}
+
+func emit_beq(asm: Asm*, rs1: Reg, rs2: Reg, target: Sym*) {
+    base := asm.addr;
+    offset := target.addr - base;
+    ref_sym_offset(asm, target, REF_LO_OFFSET, base);
+    emit_instr(asm, {op = BEQ, rs1 = rs1, rs2 = rs2, imm = imm_lo(offset)});
+}
+
+func emit_jal(asm: Asm*, rd: Reg, target: Sym*) {
+    base := asm.addr;
+    offset := target.addr - base;
+    ref_sym_offset(asm, target, REF_LO_OFFSET, base);
+    emit_instr(asm, {op = JAL, rd = rd, imm = imm_lo(offset)});
+}
+
+func emit_j(asm: Asm*, target: Sym*) {
+    emit_jal(asm, X0, target);
+}
+
+func main(argc: int, argv: char**): int {
+    ram: uint8[256 * 1024];
+    asm := &Asm{buf = ram, buf_size = sizeof(ram)};
+
+    count := new_sym_here(asm);
+    emit_uint32(asm, 10);
+    result := new_sym(asm);
+    emit_uint32(asm, 0);
+
+    start := new_sym_here(asm);
+
+    emit_lw(asm, X1, count);
+    loop := new_sym_here(asm);
+    done := new_sym(asm);
+    emit_beq(asm, X1, X0, done);
+    emit_add(asm, X2, X2, X1);
+    emit_addi(asm, X1, X1, -1);
+    emit_j(asm, loop);
+    resolve_sym(asm, done);
+    emit_sw(asm, result, X2, X1);
+
+    global := new_sym(asm);
+    emit_lw(asm, X1, global);
+    emit_add(asm, X1, X1, X1);
+    emit_sw(asm, global, X1, X2);
+    emit_lw(asm, X2, global);    
+    for (i := 0; i < 1024; i++) {
+        emit_uint8(asm, 0);
+    }
+    resolve_sym(asm, global);
+    emit_uint32(asm, 12345678);
+
+    hart := Hart{pc = start.addr, ram = ram, ram_size = sizeof(ram)};
+    for (;;) {
+        getchar();
+        step(&hart);
+        print_hart_state(&hart);
+    }
     return 0;
 }
