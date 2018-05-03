@@ -468,12 +468,12 @@ int scan_hex_escape(void) {
     assert(*stream == 'x');
     stream++;
     int val = char_to_digit[(unsigned char)*stream];
-    if (!val) {
+    if (!val && *stream != '0') {
         error_here("\\x needs at least 1 hex digit");
     }
     stream++;
     int digit = char_to_digit[(unsigned char)*stream];
-    if (digit) {
+    if (digit || *stream == '0') {
         val *= 16;
         val += digit;
         if (val > 0xFF) {

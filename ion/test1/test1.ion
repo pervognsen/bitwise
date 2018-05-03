@@ -3,7 +3,7 @@ import libc {gc = getchar, ...}
 
 #static_assert('\xFF' == 255)
 
-var esc_test_str = "Hello\nworld\nHex: \xFHello\xFF";
+var esc_test_str = "Hello\nworld\nHex: \x01\x10\xFHello\xFF";
 
 var some_array: int* = (:int[]){1, 2, 3};
 
@@ -204,7 +204,24 @@ union IntOrPtr {
     p: int*;
 }
 
+var char_to_escape: char const[256] = {
+    ['\0'] = '0',
+    ['\n'] = 'n',
+    ['\r'] = 'r',
+    ['\t'] = 't',
+    ['\v'] = 'v',
+    ['\b'] = 'b',
+    ['\a'] = 'a',
+    ['\\'] = '\\',
+    ['"'] = '"',
+    ['\''] = '\'',
+};
+
 var escape_to_char: char const[256] = {
+    ['0'] = '\0',
+    ['\''] = '\'',
+    ['"'] = '"',
+    ['\\'] = '\\',
     ['n'] = '\n',
     ['r'] = '\r',
     ['t'] = '\t',
@@ -438,7 +455,8 @@ func test_const() {
     x := cv.x;
     // cv.x = {};
     c := escape_to_char[0];
-    // escape_to_char[0] = 0;
+    c = char_to_escape[c];
+    c = esc_test_str[0];
     f4(escape_to_char);
     p := (:char const*)0; // (:int*)0
     p = escape_to_char + 1;
