@@ -369,6 +369,16 @@ const char *str_intern(const char *str) {
     return str_intern_range(str, str + strlen(str));
 }
 
+bool str_islower(const char *str) {
+    while (*str) {
+        if (isalpha(*str) && !islower(*str)) {
+            return false;
+        }
+        str++;
+    }
+    return true;
+}
+
 // Value union
 
 typedef union Val {

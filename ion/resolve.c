@@ -2114,6 +2114,9 @@ void process_package_imports(Package *package) {
                 buf_printf(path_buf, "%s/", package->path);
             }
             for (size_t k = 0; k < decl->import.num_names; k++) {
+                if (!str_islower(decl->import.names[k])) {
+                    fatal_error(decl->pos, "Import name must be lower case: '%s'", decl->import.names[k]);
+                }
                 buf_printf(path_buf, "%s%s", k == 0 ? "" : "/", decl->import.names[k]);
             }
             Package *imported_package = import_package(path_buf);
