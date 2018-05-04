@@ -1103,19 +1103,34 @@ func gen_bin_op(asm: Asm*, op: Op) {
     gen_push_reg(asm, X2);
 }
 
-func gen_getdigit(asm: Asm*, dest: Reg) {
+func gen_getdigit(asm: Asm*) {
     repeat := new_sym_here(asm);
-    asm_getchar(asm, dest);
-    asm_branch(asm, BLT, X9, dest, repeat);
-    asm_imm_op(asm, ADDI, dest, dest, -'0');
-    asm_branch(asm, BLT, dest, X0, repeat);
+    asm_getchar(asm, X2);
+    asm_branch(asm, BLT, X9, X2, repeat);
+    asm_imm_op(asm, ADDI, X2, X2, -'0');
+    asm_branch(asm, BLT, X2, X0, repeat);
+    gen_push_reg(asm, X2);
 }
 
-func gen_putdigit(asm: Asm*, src: Reg) {
-    asm_imm_op(asm, ADDI, src, src, '0');
-    asm_putchar(asm, src, X3);
-    asm_li(asm, src, '\n');
-    asm_putchar(asm, src, X3);
+func gen_putdigit(asm: Asm*) {
+    gen_pop_reg(asm, X2);
+    asm_imm_op(asm, ADDI, X2, X2, '0');
+    asm_putchar(asm, X2, X3);
+    asm_li(asm, X2, '\n');
+    asm_putchar(asm, X2, X3);
+}
+
+func gen_dup(asm: Asm*) {
+    gen_pop_reg(asm, X2);
+    gen_push_reg(asm, X2);
+    gen_push_reg(asm, X2);
+}
+
+func gen_swap(asm: Asm*) {
+    gen_pop_reg(asm, X2);
+    gen_pop_reg(asm, X3);
+    gen_push_reg(asm, X2);
+    gen_push_reg(asm, X3);
 }
 
 // x1 is the stack pointer, x9 contains ASCII '9', x2 and x3 are temp registers
@@ -1130,19 +1145,17 @@ func gen_rpn(asm: Asm*, str: char const*, stack_size: uint32): Sym* {
     while (*str) {
         switch (*str) {
         case 'd':
-            gen_pop_reg(asm, X2);
-            gen_push_reg(asm, X2);
-            gen_push_reg(asm, X2);
+            gen_dup(asm);
+        case 's':
+            gen_swap(asm);
         case '+':
             gen_bin_op(asm, ADD);
         case '-':
             gen_bin_op(asm, SUB);
         case '?':
-            gen_getdigit(asm, X2);
-            gen_push_reg(asm, X2);
+            gen_getdigit(asm);
         case '!':
-            gen_pop_reg(asm, X2);
-            gen_putdigit(asm, X2);
+            gen_putdigit(asm);
         case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
             gen_push_imm(asm, *str - '0');
         }
@@ -1156,7 +1169,7 @@ func main(argc: int, argv: char**): int {
     ram: uint8[256 * 1024];
     asm := &Asm{buf = ram, buf_size = sizeof(ram)};
 
-    start := gen_rpn(asm, "??+!", 1024);
+    start := gen_rpn(asm, "??+?s-d+!", 1024);
 
  /*
     count := new_sym_here(asm);
