@@ -1,3 +1,16 @@
+# Bitwise, Day 25: RISC-V Dynamic Assembler, Part 2
+- Video: https://www.youtube.com/watch?v=ISNB7ARzUiE
+- Review changes
+- More coding
+
+# Bitwise, Day 24: RISC-V Dynamic Assembler
+- Video: https://www.youtube.com/watch?v=dmrhbzq3SNg
+- Extra: https://www.youtube.com/watch?v=5iosVysbc-c
+- Review improvements/polish on decoder from last time
+- Review new encoder, tests, simple simulator
+- Static vs dynamic assembler
+- Start coding
+
 # Bitwise, Day 23: RISC-V Toolchain Implementation
 - Video: https://www.youtube.com/watch?v=zDOd3inaOsY
 - Extra: https://www.youtube.com/watch?v=kRmvjEpziuM
