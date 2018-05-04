@@ -222,20 +222,20 @@ const U_IMMEDIATE_MIN = -(1 << 30);
 const U_IMMEDIATE_MAX = 1 << 30 - 1;
 const U_IMMEDIATE_ALIGN = 1 << 12;
 
-const I_IMMEDIATE_MAX = 1 << 10 - 1;
 const I_IMMEDIATE_MIN = -(1 << 10);
+const I_IMMEDIATE_MAX = 1 << 10 - 1;
 const I_IMMEDIATE_ALIGN = 1;
 
 const S_IMMEDIATE_MIN = I_IMMEDIATE_MIN;
 const S_IMMEDIATE_MAX = I_IMMEDIATE_MAX;
 const S_IMMEDIATE_ALIGN = I_IMMEDIATE_ALIGN;
 
-const J_IMMEDIATE_MAX = 1 << 19 - 1;
 const J_IMMEDIATE_MIN = -(1 << 19);
+const J_IMMEDIATE_MAX = 1 << 19 - 1;
 const J_IMMEDIATE_ALIGN = 2;
 
-const B_IMMEDIATE_MAX = 1 << 11 - 1;
 const B_IMMEDIATE_MIN = -(1 << 11);
+const B_IMMEDIATE_MAX = 1 << 11 - 1;
 const B_IMMEDIATE_ALIGN = 2;
 
 func sign_extend(data: uint32, width: uint32): uint32 {
@@ -340,10 +340,11 @@ func decode_instruction(data: uint32): Instruction {
             return {op = EBREAK};
         } else {
             op := funct3_to_csr_op[funct3];
+            csr := bits(data, 20, 12);
             if (bits(funct3, 2, 1)) {
-                return {op = op, rd = rd, csr = bits(data, 20, 12), imm = bits(data, 15, 5)};
+                return {op = op, rd = rd, csr = csr, imm = bits(data, 15, 5)};
             } else {
-                return {op = op, rd = rd, rs1 = rs1, csr = bits(data, 20, 12)};
+                return {op = op, rd = rd, csr = csr, rs1 = rs1};
             }
         }
     default:
@@ -400,7 +401,7 @@ func encode_instruction(instr: Instruction): uint32 {
     case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
         return mask | rd | rs1 | rs2;
     case SLLI, SRLI, SRAI:
-        imm := (instr.imm & SHIFT_MASK) << 20;
+        imm := bits(instr.imm, 0, 5) << 20;
         return mask | rd | rs1 | imm;
     case SB, SH, SW:
         return mask | rs1 | rs2 | encode_s_immediate(instr.imm);
@@ -413,7 +414,7 @@ func encode_instruction(instr: Instruction): uint32 {
         csr := instr.csr << 20;
         return mask | rd | rs1 | csr;
     case CSRRWI, CSRRSI, CSRRCI:
-        csr := instr.csr << 20;
+        csr := bits(instr.csr, 0, 12) << 20;
         imm := bits(instr.imm, 0, 5) << 15;
         return mask | rd | imm | csr;
     default:
@@ -421,19 +422,73 @@ func encode_instruction(instr: Instruction): uint32 {
     }
 }
 
-struct Hart {
-    pc: uint32;
-    regs: uint32[32];
+struct Bus {
     ram: uint8*;
-    ram_size: uint32;
+    ram_start: uint32;
+    ram_end: uint32;
 }
 
-func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.ram_size - 3) {
-        return *(:uint32*)(hart.ram + addr);
+const GETCHAR_ADDR = 0xFFFFFF00;
+const PUTCHAR_ADDR = 0xFFFFFF04;
+
+func bus_load_word(bus: Bus*, addr: uint32): uint32 {
+    if (bus.ram_start <= addr && addr + 4 <= bus.ram_end) {
+        return *(:uint32*)(bus.ram + addr - bus.ram_start);
+    } else if (addr == GETCHAR_ADDR) {
+        c := 0;
+        do {
+            c = getchar();
+        } while (c == '\n');
+        return c;
     } else {
         return 0;
     }
+}
+
+func bus_load_halfword(bus: Bus*, addr: uint32): uint16 {
+    if (bus.ram_start <= addr && addr + 2 <= bus.ram_end) {
+        return *(:uint16*)(bus.ram + addr - bus.ram_start);
+    } else {
+        return 0;
+    }
+}
+
+func bus_load_byte(bus: Bus*, addr: uint32): uint8 {
+    if (bus.ram_start <= addr && addr + 1 <= bus.ram_end) {
+        return *(:uint8*)(bus.ram + addr - bus.ram_start);
+    } else {
+        return 0;
+    }
+}
+
+func bus_store_word(bus: Bus*, addr: uint32, data: uint32) {
+    if (bus.ram_start <= addr && addr + 4 <= bus.ram_end) {
+        *(:uint32*)(bus.ram + addr - bus.ram_start) = data;
+    } else if (addr == PUTCHAR_ADDR) {
+        putchar(data);
+    }
+}
+
+func bus_store_halfword(bus: Bus*, addr: uint32, data: uint16) {
+    if (bus.ram_start <= addr && addr + 2 <= bus.ram_end) {
+        *(:uint16*)(bus.ram + addr - bus.ram_start) = data;
+    }
+}
+
+func bus_store_byte(bus: Bus*, addr: uint32, data: uint8) {
+    if (bus.ram_start <= addr && addr + 1 <= bus.ram_end) {
+        *(:uint8*)(bus.ram + addr - bus.ram_start) = data;
+    }
+}
+
+struct Hart {
+    pc: uint32;
+    regs: uint32[32];
+    bus: Bus*;
+}
+
+func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
+    return bus_load_word(hart.bus, addr);
 }
 
 func read_reg(hart: Hart*, reg: Reg): uint32 {
@@ -447,45 +502,27 @@ func write_reg(hart: Hart*, reg: Reg, val: uint32) {
 }
 
 func load_word(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.ram_size - 3) {
-        return *(:uint32*)(hart.ram + addr);
-    } else {
-        return 0;
-    }
+    return bus_load_word(hart.bus, addr);
 }
 
 func load_halfword(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.ram_size - 1) {
-        return *(:uint16*)(hart.ram + addr);
-    } else {
-        return 0;
-    }
+    return bus_load_halfword(hart.bus, addr);
 }
 
 func load_byte(hart: Hart*, addr: uint32): uint32 {
-    if (addr < hart.ram_size) {
-        return *(hart.ram + addr);
-    } else {
-        return 0;
-    }
+    return bus_load_byte(hart.bus, addr);
 }
 
-func store_word(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.ram_size - 3) {
-        *(:uint32*)(hart.ram + addr) = val;
-    }
+func store_word(hart: Hart*, addr: uint32, data: uint32) {
+    bus_store_word(hart.bus, addr, data);
 }
 
-func store_halfword(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.ram_size - 1) {
-        *(:uint16*)(hart.ram + addr) = uint16(val);
-    }
+func store_halfword(hart: Hart*, addr: uint32, data: uint32) {
+    bus_store_halfword(hart.bus, addr, data);
 }
 
-func store_byte(hart: Hart*, addr: uint32, val: uint32) {
-    if (addr < hart.ram_size) {
-        *(hart.ram + addr) = uint8(val);
-    }
+func store_byte(hart: Hart*, addr: uint32, data: uint32) {
+    bus_store_byte(hart.bus, addr, data);
 }
 
 func read_csr(hart: Hart*, csr: Csr): uint32 {
@@ -824,63 +861,110 @@ struct Sym {
     ref: SymRef*;
 }
 
+const NUM_SYMS_PER_ALLOC = 128;
+const NUM_SYM_REFS_PER_ALLOC = 128;
+
 struct Asm {
     buf: uint8*;
     buf_size: uint32;
     error: AsmError;
     addr: uint32;
+    free_sym: Sym*;
+    free_ref: SymRef*;
 }
 
 func new_sym(asm: Asm*): Sym* {
-    sym: Sym* = malloc(sizeof(Sym));
+    if (!asm.free_sym) {
+        syms: Sym* = calloc(NUM_SYMS_PER_ALLOC, sizeof(Sym));
+        next := NULL;
+        for (i := 0; i < NUM_SYMS_PER_ALLOC; i++) {
+            sym := syms + i;
+            sym.ref = next;
+            next = sym;
+        }
+        asm.free_sym = next;
+    }
+    sym := asm.free_sym;
+    asm.free_sym = (:Sym*)sym.ref;
     *sym = {};
     return sym;
+}
+
+func free_sym(asm: Asm*, sym: Sym*) {
+    sym.ref = (:SymRef*)asm.free_sym;
+    asm.free_sym = sym;
+}
+
+func new_sym_ref(asm: Asm*): SymRef* {
+    if (!asm.free_ref) {
+        refs: SymRef* = calloc(NUM_SYM_REFS_PER_ALLOC, sizeof(SymRef));
+        next := NULL;
+        for (i := 0; i < NUM_SYM_REFS_PER_ALLOC ; i++) {
+            ref := refs + i;
+            ref.next = next;
+            next = ref;
+        }
+        asm.free_ref = next;
+    }
+    ref := asm.free_ref;
+    asm.free_ref = ref.next;
+    *ref = {};
+    return ref;
+}
+
+func free_sym_ref(asm: Asm*, ref: SymRef*) {
+    ref.next = asm.free_ref;
+    asm.free_ref = ref;
 }
 
 func resolve_sym_ref(asm: Asm*, sym: Sym const*, ref: SymRef const*) {
     instr_ptr := (:uint32*)(asm.buf + ref.addr);
     instr := decode_instruction(*instr_ptr);
     @complete
-        switch (ref.kind) {
-        case REF_LO_OFFSET:
-            instr.imm = imm_lo(sym.addr - ref.base);
-        case REF_HI_OFFSET:
-            instr.imm = imm_hi(sym.addr - ref.base);
-        }
+    switch (ref.kind) {
+    case REF_LO_OFFSET:
+        instr.imm = imm_lo(sym.addr - ref.base);
+    case REF_HI_OFFSET:
+        instr.imm = imm_hi(sym.addr - ref.base);
+    }
     *instr_ptr = encode_instruction(instr);
 }
 
-func resolve_sym_here(asm: Asm*, sym: Sym*) {
+func set_sym_here(asm: Asm*, sym: Sym*) {
     #assert(sym.state == SYM_UNRESOLVED);
     addr := asm.addr;
     sym.state = SYM_RESOLVED;
     sym.addr = addr;
-    for (ref := sym.ref; ref; ref = ref.next) {
+    next: SymRef*;
+    for (ref := sym.ref; ref; ref = next) {
         resolve_sym_ref(asm, sym, ref);
+        next = ref.next;
+        free_sym_ref(asm, ref);
     }
 }
 
 func new_sym_here(asm: Asm*): Sym* {
     sym := new_sym(asm);
-    resolve_sym_here(asm, sym);
+    set_sym_here(asm, sym);
     return sym;
 }
 
-func ref_sym_offset(asm: Asm*, sym: Sym*, kind: SymRefKind, base: uint32) {
+func asm_ref_offset(asm: Asm*, sym: Sym*, kind: SymRefKind, base: uint32) {
     addr := asm.addr - 4;
     if (sym.state == SYM_UNRESOLVED) {
-        ref: SymRef* = malloc(sizeof(SymRef));
-        ref.kind = kind;
-        ref.addr = addr;
-        ref.base = base;
-        ref.next = sym.ref;
+        ref := new_sym_ref(asm);
+        *ref = {kind = kind, addr = addr, base = base, next = sym.ref};
         sym.ref = ref;
     } else {
         resolve_sym_ref(asm, sym, &{kind = kind, addr = addr, base = base});
     }
 }
 
-func emit_bytes(asm: Asm*, data: void const*, size: uint32) {
+func asm_align(asm: Asm*, align: uint32) {
+    asm.addr = ((asm.addr + align - 1) / align) * align;
+}
+
+func asm_bytes(asm: Asm*, data: void const*, size: uint32) {
     if (asm.addr + size <= asm.buf_size) {
         memcpy(asm.buf + asm.addr, data, size);
         asm.addr += size;
@@ -890,128 +974,226 @@ func emit_bytes(asm: Asm*, data: void const*, size: uint32) {
     }
 }
 
-func emit_uint8(asm: Asm*, data: uint8) {
-    emit_bytes(asm, &data, 1);
+func asm_uint8(asm: Asm*, data: uint8) {
+    asm_bytes(asm, &data, 1);
 }
 
-func emit_uint16(asm: Asm*, data: uint16) {
-    emit_bytes(asm, &data, 2);
+func asm_uint16(asm: Asm*, data: uint16) {
+    asm_bytes(asm, &data, 2);
 }
 
-func emit_uint32(asm: Asm*, data: uint32) {
-    emit_bytes(asm, &data, 4);
+func asm_uint32(asm: Asm*, data: uint32) {
+    asm_bytes(asm, &data, 4);
 }
 
-func emit_str(asm: Asm*, str: char const*) {
-    emit_bytes(asm, str, strlen(str) + 1);
+func asm_str(asm: Asm*, str: char const*) {
+    asm_bytes(asm, str, strlen(str) + 1);
 }
 
-func emit_instr(asm: Asm*, instr: Instruction) {
-    emit_uint32(asm, encode_instruction(instr));
+func asm_instr(asm: Asm*, instr: Instruction) {
+    asm_uint32(asm, encode_instruction(instr));
 }
 
-func emit_add(asm: Asm*, rd: Reg, rs1: Reg, rs2: Reg) {
-    emit_instr(asm, {op = ADD, rd = rd, rs1 = rs1, rs2 = rs2});
+func asm_reg_op(asm: Asm*, op: Op, rd: Reg, rs1: Reg, rs2: Reg) {
+    asm_instr(asm, {op = op, rd = rd, rs1 = rs1, rs2 = rs2});
 }
 
-func emit_addi(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
-    emit_instr(asm, {op = ADDI, rd = rd, rs1 = rs1, imm = imm});
+func asm_imm_op(asm: Asm*, op: Op, rd: Reg, rs1: Reg, imm: uint32) {
+    asm_instr(asm, {op = op, rd = rd, rs1 = rs1, imm = imm});
 }
 
-func emit_slli(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
-    emit_instr(asm, {op = SLLI, rd = rd, rs1 = rs1, imm = imm});
+func asm_mv(asm: Asm*, dest: Reg, src: Reg) {
+    asm_reg_op(asm, ADD, dest, src, X0);
 }
 
-func emit_auipc(asm: Asm*, rd: Reg, imm: uint32) {
-    emit_instr(asm, {op = AUIPC, rd = rd, imm = imm});
+func asm_li(asm: Asm*, dest: Reg, imm: uint32) {
+    #assert(I_IMMEDIATE_MIN <= int32(imm) && int32(imm) <= I_IMMEDIATE_MAX);
+    asm_imm_op(asm, ADDI, dest, X0, imm);
 }
 
-func emit_lw_reg(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
-    emit_instr(asm, {op = LW, rd = rd, rs1 = rs1, imm = imm});
+func asm_auipc(asm: Asm*, rd: Reg, imm: uint32) {
+    asm_instr(asm, {op = AUIPC, rd = rd, imm = imm});
 }
 
-func emit_lw(asm: Asm*, dest: Reg, src: Sym*) {
+func asm_lui(asm: Asm*, rd: Reg, imm: uint32) {
+    asm_instr(asm, {op = LUI, rd = rd, imm = imm});
+}
+
+func asm_lw_reg(asm: Asm*, rd: Reg, rs1: Reg, imm: uint32) {
+    asm_instr(asm, {op = LW, rd = rd, rs1 = rs1, imm = imm});
+}
+
+func asm_lw(asm: Asm*, dest: Reg, src: Sym*) {
     base := asm.addr;
-    emit_auipc(asm, dest, 0);
-    ref_sym_offset(asm, src, REF_HI_OFFSET, base);
-    emit_lw_reg(asm, dest, dest, 0);
-    ref_sym_offset(asm, src, REF_LO_OFFSET, base);
+    asm_auipc(asm, dest, 0);
+    asm_ref_offset(asm, src, REF_HI_OFFSET, base);
+    asm_lw_reg(asm, dest, dest, 0);
+    asm_ref_offset(asm, src, REF_LO_OFFSET, base);
 }
 
-func emit_la(asm: Asm*, rd: Reg, src: Sym*) {
+func asm_lw_imm(asm: Asm*, dest: Reg, src: uint32) {
+    asm_lui(asm, dest, imm_hi(src));
+    asm_lw_reg(asm, dest, dest, imm_lo(src));
+}
+
+func asm_la(asm: Asm*, rd: Reg, src: Sym*) {
     base := asm.addr;
-    emit_auipc(asm, rd, 0);
-    ref_sym_offset(asm, src, REF_HI_OFFSET, base);
-    emit_addi(asm, rd, rd, 0);
-    ref_sym_offset(asm, src, REF_LO_OFFSET, base);
+    asm_auipc(asm, rd, 0);
+    asm_ref_offset(asm, src, REF_HI_OFFSET, base);
+    asm_imm_op(asm, ADDI, rd, rd, 0);
+    asm_ref_offset(asm, src, REF_LO_OFFSET, base);
 }
 
-func emit_sw_reg(asm: Asm*, rs1: Reg, rs2: Reg, imm: uint32) {
-    emit_instr(asm, {op = SW, rs1 = rs1, rs2 = rs2, imm = imm});
+func asm_sw_reg(asm: Asm*, rs1: Reg, rs2: Reg, imm: uint32) {
+    asm_instr(asm, {op = SW, rs1 = rs1, rs2 = rs2, imm = imm});
 }
 
-func emit_sw(asm: Asm*, dest: Sym*, src: Reg, temp: Reg) {
+func asm_sw_imm(asm: Asm*, dest: uint32, src: Reg, temp: Reg) {
+    asm_lui(asm, temp, imm_hi(dest));
+    asm_sw_reg(asm, temp, src, imm_lo(dest));
+}
+
+func asm_sw(asm: Asm*, dest: Sym*, src: Reg, temp: Reg) {
     base := asm.addr;
-    emit_auipc(asm, temp, 0);
-    ref_sym_offset(asm, dest, REF_HI_OFFSET, base);
-    emit_sw_reg(asm, temp, src, 0);
-    ref_sym_offset(asm, dest, REF_LO_OFFSET, base);
+    asm_auipc(asm, temp, 0);
+    asm_ref_offset(asm, dest, REF_HI_OFFSET, base);
+    asm_sw_reg(asm, temp, src, 0);
+    asm_ref_offset(asm, dest, REF_LO_OFFSET, base);
 }
 
-func emit_beq(asm: Asm*, rs1: Reg, rs2: Reg, target: Sym*) {
+func asm_branch(asm: Asm*, op: Op, rs1: Reg, rs2: Reg, target: Sym*) {
     base := asm.addr;
-    emit_instr(asm, {op = BEQ, rs1 = rs1, rs2 = rs2});
-    ref_sym_offset(asm, target, REF_LO_OFFSET, base);
+    asm_instr(asm, {op = op, rs1 = rs1, rs2 = rs2});
+    asm_ref_offset(asm, target, REF_LO_OFFSET, base);
 }
 
-func emit_jal(asm: Asm*, rd: Reg, target: Sym*) {
+func asm_jal(asm: Asm*, rd: Reg, target: Sym*) {
     base := asm.addr;
-    emit_instr(asm, {op = JAL, rd = rd});
-    ref_sym_offset(asm, target, REF_LO_OFFSET, base);
+    asm_instr(asm, {op = JAL, rd = rd});
+    asm_ref_offset(asm, target, REF_LO_OFFSET, base);
 }
 
-func emit_j(asm: Asm*, target: Sym*) {
-    emit_jal(asm, X0, target);
+func asm_j(asm: Asm*, target: Sym*) {
+    asm_jal(asm, X0, target);
+}
+
+func asm_getchar(asm: Asm*, dest: Reg) {
+    asm_lw_imm(asm, dest, GETCHAR_ADDR);
+}
+
+func asm_putchar(asm: Asm*, src: Reg, temp: Reg) {
+    asm_sw_imm(asm, PUTCHAR_ADDR, src, temp);
+}
+
+func gen_pop_reg(asm: Asm*, dest: Reg) {
+    asm_imm_op(asm, ADDI, X1, X1, -4);
+    asm_lw_reg(asm, dest, X1, 0);
+}
+
+func gen_push_reg(asm: Asm*, src: Reg) {
+    asm_sw_reg(asm, X1, src, 0);
+    asm_imm_op(asm, ADDI, X1, X1, 4);
+}
+
+func gen_push_imm(asm: Asm*, imm: uint32) {
+    asm_li(asm, X2, imm);
+    gen_push_reg(asm, X2);
+}
+
+func gen_bin_op(asm: Asm*, op: Op) {
+    gen_pop_reg(asm, X2);
+    gen_pop_reg(asm, X3);
+    asm_reg_op(asm, op, X2, X2, X3);
+    gen_push_reg(asm, X2);
+}
+
+func gen_rpn(asm: Asm*, str: char const*, stack_size: uint32): Sym* {
+    asm_align(asm, 4);
+    stack := new_sym_here(asm);
+    asm.addr += stack_size;
+    asm_align(asm, 4);
+    start := new_sym_here(asm);
+    asm_la(asm, X1, stack);
+    while (*str) {
+        switch (*str) {
+        case 'd':
+            gen_pop_reg(asm, X2);
+            gen_push_reg(asm, X2);
+            gen_push_reg(asm, X2);
+        case '+':
+            gen_bin_op(asm, ADD);
+        case '-':
+            gen_bin_op(asm, SUB);
+        case '?':
+            asm_getchar(asm, X2);
+            asm_imm_op(asm, ADDI, X2, X2, -'0');
+            gen_push_reg(asm, X2);
+        case '!':
+            gen_pop_reg(asm, X2);
+            asm_imm_op(asm, ADDI, X2, X2, '0');
+            asm_putchar(asm, X2, X3);
+            asm_li(asm, X2, '\n');
+            asm_putchar(asm, X2, X3);
+        case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+            gen_push_imm(asm, *str - '0');
+        }
+        str++;
+    }
+    asm_j(asm, start);
+    return start;
 }
 
 func main(argc: int, argv: char**): int {
     ram: uint8[256 * 1024];
     asm := &Asm{buf = ram, buf_size = sizeof(ram)};
 
+    start := gen_rpn(asm, "??+!", 1024);
+
+ /*
     count := new_sym_here(asm);
-    emit_uint32(asm, 10);
+    asm_uint32(asm, 10);
     result := new_sym(asm);
-    emit_uint32(asm, 0);
+    asm_uint32(asm, 0);
 
     start := new_sym_here(asm);
-    emit_lw(asm, X1, count);
+
+    repeat := new_sym_here(asm);
+    asm_getchar(asm, X5);
+    asm_putchar(asm, X5, X6);
+    asm_j(asm, repeat);
+
+    asm_lw(asm, X1, count);
     loop := new_sym_here(asm);
     done := new_sym(asm);
-    emit_beq(asm, X1, X0, done);
-    emit_add(asm, X2, X2, X1);
-    emit_addi(asm, X1, X1, -1);
-    emit_j(asm, loop);
-    resolve_sym_here(asm, done);
-    emit_sw(asm, result, X2, X1);
+    asm_branch(asm, BEQ, X1, X0, done);
+    asm_reg_op(asm, ADD, X2, X2, X1);
+    asm_imm_op(asm, ADDI, X1, X1, -1);
+    asm_j(asm, loop);
+    set_sym_here(asm, done);
+    asm_sw(asm, result, X2, X1);
 
     global := new_sym(asm);
-    emit_la(asm, X4, global);
+    asm_la(asm, X4, global);
 
-    emit_lw(asm, X1, global);
-    emit_add(asm, X1, X1, X1);
-    emit_sw(asm, global, X1, X2);
-    emit_lw(asm, X2, global);
-    for (i := 0; i < 1024; i++) {
-        emit_uint8(asm, 0);
+    asm_lw(asm, X1, global);
+    asm_reg_op(asm, ADD, X1, X1, X1);
+    asm_imm_op(asm, SLLI, X1, X1, 2);
+    asm_sw(asm, global, X1, X2);
+    asm_lw(asm, X2, global);
+    for (i := 0; i < 1001; i++) {
+        asm_uint8(asm, 0);
     }
-    resolve_sym_here(asm, global);
-    emit_uint32(asm, 12345678);
+    asm_align(asm, 4);
+    set_sym_here(asm, global);
+    asm_uint32(asm, 12345678);
+*/
 
-    hart := Hart{pc = start.addr, ram = ram, ram_size = sizeof(ram)};
+    bus := &Bus{ram = ram, ram_start = 0, ram_end = sizeof(ram)};
+    hart := Hart{pc = start.addr, bus = bus};
     for (;;) {
-        getchar();
+//        getchar();
         step(&hart);
-        print_hart_state(&hart);
+//        print_hart_state(&hart);
     }
     return 0;
 }
