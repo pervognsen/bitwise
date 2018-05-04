@@ -435,11 +435,7 @@ func bus_load_word(bus: Bus*, addr: uint32): uint32 {
     if (bus.ram_start <= addr && addr + 4 <= bus.ram_end) {
         return *(:uint32*)(bus.ram + addr - bus.ram_start);
     } else if (addr == GETCHAR_ADDR) {
-        c := 0;
-        do {
-            c = getchar();
-        } while (c == '\n');
-        return c;
+        return getchar();
     } else {
         return 0;
     }
@@ -1107,6 +1103,22 @@ func gen_bin_op(asm: Asm*, op: Op) {
     gen_push_reg(asm, X2);
 }
 
+func gen_getdigit(asm: Asm*, dest: Reg) {
+    repeat := new_sym_here(asm);
+    asm_getchar(asm, dest);
+    asm_branch(asm, BLT, X9, dest, repeat);
+    asm_imm_op(asm, ADDI, dest, dest, -'0');
+    asm_branch(asm, BLT, dest, X0, repeat);
+}
+
+func gen_putdigit(asm: Asm*, src: Reg) {
+    asm_imm_op(asm, ADDI, src, src, '0');
+    asm_putchar(asm, src, X3);
+    asm_li(asm, src, '\n');
+    asm_putchar(asm, src, X3);
+}
+
+// x1 is the stack pointer, x9 contains ASCII '9', x2 and x3 are temp registers
 func gen_rpn(asm: Asm*, str: char const*, stack_size: uint32): Sym* {
     asm_align(asm, 4);
     stack := new_sym_here(asm);
@@ -1114,6 +1126,7 @@ func gen_rpn(asm: Asm*, str: char const*, stack_size: uint32): Sym* {
     asm_align(asm, 4);
     start := new_sym_here(asm);
     asm_la(asm, X1, stack);
+    asm_li(asm, X9, '9');
     while (*str) {
         switch (*str) {
         case 'd':
@@ -1125,15 +1138,11 @@ func gen_rpn(asm: Asm*, str: char const*, stack_size: uint32): Sym* {
         case '-':
             gen_bin_op(asm, SUB);
         case '?':
-            asm_getchar(asm, X2);
-            asm_imm_op(asm, ADDI, X2, X2, -'0');
+            gen_getdigit(asm, X2);
             gen_push_reg(asm, X2);
         case '!':
             gen_pop_reg(asm, X2);
-            asm_imm_op(asm, ADDI, X2, X2, '0');
-            asm_putchar(asm, X2, X3);
-            asm_li(asm, X2, '\n');
-            asm_putchar(asm, X2, X3);
+            gen_putdigit(asm, X2);
         case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
             gen_push_imm(asm, *str - '0');
         }
