@@ -567,8 +567,7 @@ func print_typeinfo(type: typeid) {
     print_type(type);
     printf(" size=%d align=%d", typeinfo.size, typeinfo.align);
     switch (typeinfo.kind) {
-    case TYPE_STRUCT:
-    case TYPE_UNION:
+    case TYPE_STRUCT, TYPE_UNION:
         printf(" %s={ ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union");
         for (i := 0; i < typeinfo.num_fields; i++) {
             field := typeinfo.fields[i];

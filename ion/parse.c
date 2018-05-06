@@ -483,8 +483,13 @@ Stmt *parse_stmt_for(SrcPos pos) {
 SwitchCase parse_stmt_switch_case(void) {
     Expr **exprs = NULL;
     bool is_default = false;
+    bool is_first_case = true;
     while (is_keyword(case_keyword) || is_keyword(default_keyword)) {
         if (match_keyword(case_keyword)) {
+            if (!is_first_case) {
+                warning_here("Use comma-separated expressions to match multiple values with one case label");
+            }
+            is_first_case = false;
             buf_push(exprs, parse_expr());
             while (match_token(TOKEN_COMMA)) {
                 buf_push(exprs, parse_expr());
