@@ -208,7 +208,7 @@ char *type_to_cdecl(Type *type, const char *str) {
         if (type->num_elems == 0) {
             return type_to_cdecl(type->base, cdecl_paren(strf("%s[]", str), *str));
         } else {
-            return type_to_cdecl(type->base, cdecl_paren(strf("%s[%llu]", str, type->num_elems), *str));
+            return type_to_cdecl(type->base, cdecl_paren(strf("%s[%zu]", str, type->num_elems), *str));
         }
     case TYPE_FUNC: {
         char *result = NULL;

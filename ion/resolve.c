@@ -264,7 +264,7 @@ void put_type_name(char **buf, Type *type) {
             break;
         case TYPE_ARRAY:
             put_type_name(buf, type->base);
-            buf_printf(*buf, "[%llu]", type->num_elems);
+            buf_printf(*buf, "[%zu]", type->num_elems);
             break;
         case TYPE_FUNC:
             buf_printf(*buf, "func(");
