@@ -64,7 +64,7 @@ func init_audio(): bool {
     };
     obtained_spec: SDL_AudioSpec;
     sdl_device := SDL_OpenAudioDevice(NULL, 0, &desired_spec, &obtained_spec, 0);
-    if (sdl_device < 0) {
+    if (sdl_device == 0) {
         sdl_error("SDL_OpenAudioDevice");
         return false;
     }
