@@ -40,7 +40,7 @@ const char *gen_preamble_str =
     "#define alignof(x) __alignof__(x)\n"
     "#endif\n"
     "\n"
-    "#define va_start_ptr(args, arg) (va_start(*(args), *(arg)))\n"
+    "#define va_start_ptr(args, arg) (va_start(*(args), arg))\n"
     "#define va_copy_ptr(dest, src) (va_copy(*(dest), *(src)))\n"
     "#define va_end_ptr(args) (va_end(*(args)))\n"
     "\n"
