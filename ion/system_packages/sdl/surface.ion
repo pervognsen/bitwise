@@ -1,0 +1,104 @@
+@foreign
+struct SDL_Surface {
+    flags: Uint32;
+    format: SDL_PixelFormat*;
+    w: int;
+    h: int;
+    pitch: int;
+    pixels: void*;
+    userdata: void*;
+    locked: int;
+    lock_data: void*;
+    clip_rect: SDL_Rect;
+    refcount: int;
+}
+
+@foreign
+typedef SDL_blit = func(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_CreateRGBSurface(flags: Uint32, width: int, height: int, depth: int, Rmask: Uint32, Gmask: Uint32, Bmask: Uint32, Amask: Uint32): SDL_Surface*;
+
+@foreign
+func SDL_CreateRGBSurfaceFrom(pixels: void*, width: int, height: int, depth: int, pitch: int, Rmask: Uint32, Gmask: Uint32, Bmask: Uint32, Amask: Uint32): SDL_Surface*;
+
+@foreign
+func SDL_FreeSurface(surface: SDL_Surface*);
+
+@foreign
+func SDL_SetSurfacePalette(surface: SDL_Surface*, palette: SDL_Palette*): int;
+
+@foreign
+func SDL_LockSurface(surface: SDL_Surface*): int;
+
+@foreign
+func SDL_UnlockSurface(surface: SDL_Surface*);
+
+@foreign
+func SDL_LoadBMP_RW(src: SDL_RWops*, freesrc: int): SDL_Surface*;
+
+@foreign
+func SDL_SaveBMP_RW(surface: SDL_Surface*, dst: SDL_RWops*, freedst: int): int;
+
+@foreign
+func SDL_SetSurfaceRLE(surface: SDL_Surface*, flag: int): int;
+
+@foreign
+func SDL_SetColorKey(surface: SDL_Surface*, flag: int, key: Uint32): int;
+
+@foreign
+func SDL_GetColorKey(surface: SDL_Surface*, key: Uint32*): int;
+
+@foreign
+func SDL_SetSurfaceColorMod(surface: SDL_Surface*, r: Uint8, g: Uint8, b: Uint8): int;
+
+@foreign
+func SDL_GetSurfaceColorMod(surface: SDL_Surface*, r: Uint8*, g: Uint8*, b: Uint8*): int;
+
+@foreign
+func SDL_SetSurfaceAlphaMod(surface: SDL_Surface*, alpha: Uint8): int;
+
+@foreign
+func SDL_GetSurfaceAlphaMod(surface: SDL_Surface*, alpha: Uint8*): int;
+
+@foreign
+func SDL_SetSurfaceBlendMode(surface: SDL_Surface*, blendMode: SDL_BlendMode): int;
+
+@foreign
+func SDL_GetSurfaceBlendMode(surface: SDL_Surface*, blendMode: SDL_BlendMode*): int;
+
+@foreign
+func SDL_SetClipRect(surface: SDL_Surface*, rect: SDL_Rect*): SDL_bool;
+
+@foreign
+func SDL_GetClipRect(surface: SDL_Surface*, rect: SDL_Rect*);
+
+@foreign
+func SDL_ConvertSurface(src: SDL_Surface*, fmt: SDL_PixelFormat*, flags: Uint32): SDL_Surface*;
+
+@foreign
+func SDL_ConvertSurfaceFormat(src: SDL_Surface*, pixel_format: Uint32, flags: Uint32): SDL_Surface*;
+
+@foreign
+func SDL_ConvertPixels(width: int, height: int, src_format: Uint32, src: void const*, src_pitch: int, dst_format: Uint32, dst: void*, dst_pitch: int): int;
+
+@foreign
+func SDL_FillRect(dst: SDL_Surface*, rect: SDL_Rect*, color: Uint32): int;
+
+@foreign
+func SDL_FillRects(dst: SDL_Surface*, rects: SDL_Rect*, count: int, color: Uint32): int;
+
+@foreign
+func SDL_UpperBlit(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_LowerBlit(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_SoftStretch(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_UpperBlitScaled(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_LowerBlitScaled(src: SDL_Surface*, srcrect: SDL_Rect*, dst: SDL_Surface*, dstrect: SDL_Rect*): int;
