@@ -385,12 +385,3 @@ func SDL_GL_SwapWindow(window: SDL_Window*);
 
 @foreign
 func SDL_GL_DeleteContext(context: SDL_GLContext);
-
-@foreign
-func SDL_SetClipboardText(text: char const*): int;
-
-@foreign
-func SDL_HasClipboardText(): bool;
-
-@foreign
-func SDL_GetClipboardText(): char*;
