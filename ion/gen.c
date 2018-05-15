@@ -20,6 +20,9 @@ const char *gen_preamble_str =
     "#error \"C11 support required or Visual Studio 2015 or later\"\n"
     "#endif\n"
     "\n"
+    "#pragma GCC diagnostic push\n"
+    "#pragma GCC diagnostic ignored \"-Wvarargs\"\n"
+    "\n"
     "#include <stdbool.h>\n"
     "#include <stdint.h>\n"
     "#include <stddef.h>\n"
@@ -103,6 +106,8 @@ const char *gen_postamble_str =
     "        break;\n"
     "    }\n"
     "}\n"
+    "\n"
+    "#pragma GCC diagnostic pop\n"
     ;
 
 void genln(void) {
