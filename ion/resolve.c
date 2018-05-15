@@ -810,6 +810,63 @@ typedef struct StmtCtx {
     bool is_continue_legal;
 } StmtCtx;
 
+typedef enum LabelState {
+    LABEL_NONE,
+    LABEL_REFERENCED,
+    LABEL_DEFINED,
+} LabelState;
+
+typedef struct Label {
+    const char *name;
+    LabelState state;
+    SrcPos pos;
+} Label;
+
+enum { MAX_LABELS = 256 };
+
+Label labels[MAX_LABELS];
+Label *labels_end = labels;
+
+Label *get_label(SrcPos pos, const char *name) {
+    Label *label;
+    for (label = labels; label != labels_end; label++) {
+        if (label->name == name) {
+            return label;
+        }
+    }
+    if (label == labels + MAX_LABELS) {
+        fatal_error(pos, "Too many labels");
+        return NULL;
+    }
+    *label = (Label){.name = name, .state = LABEL_NONE, .pos = pos};
+    labels_end++;
+    return label;
+}
+
+void reference_label(SrcPos pos, const char *name) {
+    Label *label = get_label(pos, name);
+    if (label->state != LABEL_DEFINED) {
+        label->state = LABEL_REFERENCED;
+    }
+}
+
+void define_label(SrcPos pos, const char *name) {
+    Label *label = get_label(pos, name);
+    if (label->state == LABEL_DEFINED) {
+        fatal_error(pos, "Multiple definitions of label '%s'", name);
+    }
+    label->state = LABEL_DEFINED;
+}
+
+void resolve_labels(void) {
+    for (Label *label = labels; label != labels_end; label++) {
+        if (label->state == LABEL_REFERENCED) {
+            fatal_error(label->pos, "Label '%s' referenced but not defined", label->name);
+        }
+    }
+    labels_end = labels;
+}
+
 bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx);
 
 bool is_cond_operand(Operand operand) {
@@ -1015,6 +1072,12 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
     case STMT_EXPR:
         resolve_expr(stmt->expr);
         return false;
+    case STMT_LABEL:
+        define_label(stmt->pos, stmt->label);
+        return false;
+    case STMT_GOTO:
+        reference_label(stmt->pos, stmt->label);
+        return false;
     default:
         assert(0);
         return false;
@@ -1041,6 +1104,7 @@ void resolve_func_body(Sym *sym) {
     Type *ret_type = resolve_typespec(decl->func.ret_type);
     assert(!is_array_type(ret_type));
     bool returns = resolve_stmt_block(decl->func.block, ret_type, (StmtCtx){0});
+    resolve_labels();
     sym_leave(scope);
     if (ret_type != type_void && !returns) {
         fatal_error(decl->pos, "Not all control paths return values");
@@ -1456,12 +1520,29 @@ Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Op
             fatal_error(pos, "Operands of %s must both have integer type", op_name);
         }
         break;
+    case TOKEN_EQ:
+    case TOKEN_NOTEQ:
+        if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
+            Operand result = resolve_binary_arithmetic_op(op, left, right);
+            cast_operand(&result, type_int);
+            return result;
+        } else if (is_ptr_type(left.type) && is_ptr_type(right.type)) {
+            Type *unqual_left_base = unqualify_type(left.type->base);
+            Type *unqual_right_base = unqualify_type(right.type->base);
+            if (unqual_left_base != unqual_right_base && unqual_left_base != type_void && unqual_right_base != type_void) {
+                fatal_error(pos, "Cannot compare pointers to different types");
+            }
+            return operand_rvalue(type_int);
+        } else if ((is_null_ptr(left) && is_ptr_type(right.type)) || (is_null_ptr(right) && is_ptr_type(left.type))) {
+            return operand_rvalue(type_int);
+        } else {
+            fatal_error(pos, "Operands of %s must be arithmetic types or compatible pointer types", op_name);
+        }
+        break;
     case TOKEN_LT:
     case TOKEN_LTEQ:
     case TOKEN_GT:
     case TOKEN_GTEQ:
-    case TOKEN_EQ:
-    case TOKEN_NOTEQ:
         if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
             Operand result = resolve_binary_arithmetic_op(op, left, right);
             cast_operand(&result, type_int);

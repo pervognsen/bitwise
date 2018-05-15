@@ -340,6 +340,18 @@ Stmt *new_stmt(StmtKind kind, SrcPos pos) {
     return s;
 }
 
+Stmt *new_stmt_label(SrcPos pos, const char *label) {
+    Stmt *s = new_stmt(STMT_LABEL, pos);
+    s->label = label;
+    return s;
+}
+
+Stmt *new_stmt_goto(SrcPos pos, const char *label) {
+    Stmt *s = new_stmt(STMT_GOTO, pos);
+    s->label = label;
+    return s;
+}
+
 Stmt *new_stmt_note(SrcPos pos, Note note) {
     Stmt *s = new_stmt(STMT_NOTE, pos);
     s->note = note;

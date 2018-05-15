@@ -810,6 +810,12 @@ void gen_stmt(Stmt *stmt) {
         genlnf("}");
         break;
     }
+    case STMT_LABEL:
+        genlnf("%s: ;", stmt->label);
+        break;
+    case STMT_GOTO:
+        genlnf("goto %s;", stmt->label);
+        break;
     default:
         genln();
         gen_simple_stmt(stmt);

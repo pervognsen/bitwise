@@ -284,6 +284,8 @@ typedef enum StmtKind {
     STMT_INIT,
     STMT_EXPR,
     STMT_NOTE,
+    STMT_LABEL,
+    STMT_GOTO,
 } StmtKind;
 
 struct Stmt {
@@ -328,5 +330,6 @@ struct Stmt {
             Typespec *type;
             Expr *expr;
         } init;
+        const char *label;
     };
 };

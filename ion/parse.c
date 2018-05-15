@@ -488,8 +488,8 @@ SwitchCase parse_stmt_switch_case(void) {
         if (match_keyword(case_keyword)) {
             if (!is_first_case) {
                 warning_here("Use comma-separated expressions to match multiple values with one case label");
+                is_first_case = false;
             }
-            is_first_case = false;
             buf_push(exprs, parse_expr());
             while (match_token(TOKEN_COMMA)) {
                 buf_push(exprs, parse_expr());
@@ -558,6 +558,11 @@ Stmt *parse_stmt(void) {
         Note note = parse_note();
         expect_token(TOKEN_SEMICOLON);
         stmt = new_stmt_note(pos, note);
+    } else if (match_token(TOKEN_COLON)) {
+        stmt = new_stmt_label(pos, parse_name());
+    } else if (match_keyword(goto_keyword)) {
+        stmt = new_stmt_goto(pos, parse_name());
+        expect_token(TOKEN_SEMICOLON);
     } else {
         stmt = parse_simple_stmt();
         expect_token(TOKEN_SEMICOLON);
