@@ -114,9 +114,6 @@ void init_target(void) {
         break;
     case OS_OSX:
         switch (target_arch) {
-        case ARCH_X86:
-            type_metrics = ilp32_metrics;
-            break;
         case ARCH_X64:
             type_metrics = lp64_metrics;
             break;
