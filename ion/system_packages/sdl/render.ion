@@ -1,0 +1,220 @@
+@foreign
+enum SDL_RendererFlags {
+    SDL_RENDERER_SOFTWARE = 1,
+    SDL_RENDERER_ACCELERATED = 2,
+    SDL_RENDERER_PRESENTVSYNC = 4,
+    SDL_RENDERER_TARGETTEXTURE = 8,
+}
+
+@foreign
+struct SDL_RendererInfo {
+    name: char const*;
+    flags: Uint32;
+    num_texture_formats: Uint32;
+    texture_formats: Uint32[16];
+    max_texture_width: int;
+    max_texture_height: int;
+}
+
+@foreign
+enum SDL_TextureAccess {
+    SDL_TEXTUREACCESS_STATIC,
+    SDL_TEXTUREACCESS_STREAMING,
+    SDL_TEXTUREACCESS_TARGET,
+}
+
+@foreign
+enum SDL_TextureModulate {
+    SDL_TEXTUREMODULATE_NONE = 0,
+    SDL_TEXTUREMODULATE_COLOR = 1,
+    SDL_TEXTUREMODULATE_ALPHA = 2,
+}
+
+@foreign
+enum SDL_RendererFlip {
+    SDL_FLIP_NONE = 0,
+    SDL_FLIP_HORIZONTAL = 1,
+    SDL_FLIP_VERTICAL = 2,
+}
+
+@foreign
+enum SDL_BlendMode {
+    SDL_BLENDMODE_NONE = 0,
+    SDL_BLENDMODE_BLEND = 1,
+    SDL_BLENDMODE_ADD = 2,
+    SDL_BLENDMODE_MOD = 4,
+}
+
+@foreign
+struct SDL_Renderer;
+
+@foreign
+struct SDL_Texture;
+
+@foreign
+func SDL_GetNumRenderDrivers(): int;
+
+@foreign
+func SDL_GetRenderDriverInfo(index: int, info: SDL_RendererInfo*): int;
+
+@foreign
+func SDL_CreateWindowAndRenderer(width: int, height: int, window_flags: Uint32, window: SDL_Window**, renderer: SDL_Renderer**): int;
+
+@foreign
+func SDL_CreateRenderer(window: SDL_Window*, index: int, flags: Uint32): SDL_Renderer*;
+
+@foreign
+func SDL_CreateSoftwareRenderer(surface: SDL_Surface*): SDL_Renderer*;
+
+@foreign
+func SDL_GetRenderer(window: SDL_Window*): SDL_Renderer*;
+
+@foreign
+func SDL_GetRendererInfo(renderer: SDL_Renderer*, info: SDL_RendererInfo*): int;
+
+@foreign
+func SDL_GetRendererOutputSize(renderer: SDL_Renderer*, w: int*, h: int*): int;
+
+@foreign
+func SDL_CreateTexture(renderer: SDL_Renderer*, format: Uint32, access: int, w: int, h: int): SDL_Texture*;
+
+@foreign
+func SDL_CreateTextureFromSurface(renderer: SDL_Renderer*, surface: SDL_Surface*): SDL_Texture*;
+
+@foreign
+func SDL_QueryTexture(texture: SDL_Texture*, format: Uint32*, access: int*, w: int*, h: int*): int;
+
+@foreign
+func SDL_SetTextureColorMod(texture: SDL_Texture*, r: Uint8, g: Uint8, b: Uint8): int;
+
+@foreign
+func SDL_GetTextureColorMod(texture: SDL_Texture*, r: Uint8*, g: Uint8*, b: Uint8*): int;
+
+@foreign
+func SDL_SetTextureAlphaMod(texture: SDL_Texture*, alpha: Uint8): int;
+
+@foreign
+func SDL_GetTextureAlphaMod(texture: SDL_Texture*, alpha: Uint8*): int;
+
+@foreign
+func SDL_SetTextureBlendMode(texture: SDL_Texture*, blendMode: SDL_BlendMode): int;
+
+@foreign
+func SDL_GetTextureBlendMode(texture: SDL_Texture*, blendMode: SDL_BlendMode*): int;
+
+@foreign
+func SDL_UpdateTexture(texture: SDL_Texture*, rect: SDL_Rect*, pixels: void const*, pitch: int): int;
+
+@foreign
+func SDL_UpdateYUVTexture(texture: SDL_Texture*, rect: SDL_Rect*, Yplane: Uint8*, Ypitch: int, Uplane: Uint8*, Upitch: int, Vplane: Uint8*, Vpitch: int): int;
+
+@foreign
+func SDL_LockTexture(texture: SDL_Texture*, rect: SDL_Rect*, pixels: void**, pitch: int*): int;
+
+@foreign
+func SDL_UnlockTexture(texture: SDL_Texture*);
+
+@foreign
+func SDL_RenderTargetSupported(renderer: SDL_Renderer*): SDL_bool;
+
+@foreign
+func SDL_SetRenderTarget(renderer: SDL_Renderer*, texture: SDL_Texture*): int;
+
+@foreign
+func SDL_GetRenderTarget(renderer: SDL_Renderer*): SDL_Texture*;
+
+@foreign
+func SDL_RenderSetLogicalSize(renderer: SDL_Renderer*, w: int, h: int): int;
+
+@foreign
+func SDL_RenderGetLogicalSize(renderer: SDL_Renderer*, w: int*, h: int*);
+
+@foreign
+func SDL_RenderSetIntegerScale(renderer: SDL_Renderer*, enable: SDL_bool): int;
+
+@foreign
+func SDL_RenderGetIntegerScale(renderer: SDL_Renderer*): SDL_bool;
+
+@foreign
+func SDL_RenderSetViewport(renderer: SDL_Renderer*, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_RenderGetViewport(renderer: SDL_Renderer*, rect: SDL_Rect*);
+
+@foreign
+func SDL_RenderSetClipRect(renderer: SDL_Renderer*, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_RenderGetClipRect(renderer: SDL_Renderer*, rect: SDL_Rect*);
+
+@foreign
+func SDL_RenderIsClipEnabled(renderer: SDL_Renderer*): SDL_bool;
+
+@foreign
+func SDL_RenderSetScale(renderer: SDL_Renderer*, scaleX: float, scaleY: float): int;
+
+@foreign
+func SDL_RenderGetScale(renderer: SDL_Renderer*, scaleX: float*, scaleY: float*);
+
+@foreign
+func SDL_SetRenderDrawColor(renderer: SDL_Renderer*, r: Uint8, g: Uint8, b: Uint8, a: Uint8): int;
+
+@foreign
+func SDL_GetRenderDrawColor(renderer: SDL_Renderer*, r: Uint8*, g: Uint8*, b: Uint8*, a: Uint8*): int;
+
+@foreign
+func SDL_SetRenderDrawBlendMode(renderer: SDL_Renderer*, blendMode: SDL_BlendMode): int;
+
+@foreign
+func SDL_GetRenderDrawBlendMode(renderer: SDL_Renderer*, blendMode: SDL_BlendMode*): int;
+
+@foreign
+func SDL_RenderClear(renderer: SDL_Renderer*): int;
+
+@foreign
+func SDL_RenderDrawPoint(renderer: SDL_Renderer*, x: int, y: int): int;
+
+@foreign
+func SDL_RenderDrawPoints(renderer: SDL_Renderer*, points: SDL_Point*, count: int): int;
+
+@foreign
+func SDL_RenderDrawLine(renderer: SDL_Renderer*, x1: int, y1: int, x2: int, y2: int): int;
+
+@foreign
+func SDL_RenderDrawLines(renderer: SDL_Renderer*, points: SDL_Point*, count: int): int;
+
+@foreign
+func SDL_RenderDrawRect(renderer: SDL_Renderer*, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_RenderDrawRects(renderer: SDL_Renderer*, rects: SDL_Rect*, count: int): int;
+
+@foreign
+func SDL_RenderFillRect(renderer: SDL_Renderer*, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_RenderFillRects(renderer: SDL_Renderer*, rects: SDL_Rect*, count: int): int;
+
+@foreign
+func SDL_RenderCopy(renderer: SDL_Renderer*, texture: SDL_Texture*, srcrect: SDL_Rect*, dstrect: SDL_Rect*): int;
+
+@foreign
+func SDL_RenderCopyEx(renderer: SDL_Renderer*, texture: SDL_Texture*, srcrect: SDL_Rect*, dstrect: SDL_Rect*, angle: double const, center: SDL_Point*, flip: SDL_RendererFlip): int;
+
+@foreign
+func SDL_RenderReadPixels(renderer: SDL_Renderer*, rect: SDL_Rect*, format: Uint32, pixels: void*, pitch: int): int;
+
+@foreign
+func SDL_RenderPresent(renderer: SDL_Renderer*);
+
+@foreign
+func SDL_DestroyTexture(texture: SDL_Texture*);
+
+@foreign
+func SDL_DestroyRenderer(renderer: SDL_Renderer*);
+
+@foreign
+func SDL_GL_BindTexture(texture: SDL_Texture*, texw: float*, texh: float*): int;
+
+@foreign
+func SDL_GL_UnbindTexture(texture: SDL_Texture*): int;

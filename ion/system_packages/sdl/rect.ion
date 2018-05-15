@@ -1,0 +1,28 @@
+@foreign
+struct SDL_Point {
+    x: int;
+    y: int;
+}
+
+@foreign
+struct SDL_Rect {
+    x: int;
+    y: int;
+    w: int;
+    h: int;
+}
+
+@foreign
+func SDL_HasIntersection(A: SDL_Rect*, B: SDL_Rect*): SDL_bool;
+
+@foreign
+func SDL_IntersectRect(A: SDL_Rect*, B: SDL_Rect*, result: SDL_Rect*): SDL_bool;
+
+@foreign
+func SDL_UnionRect(A: SDL_Rect*, B: SDL_Rect*, result: SDL_Rect*);
+
+@foreign
+func SDL_EnclosePoints(points: SDL_Point*, count: int, clip: SDL_Rect*, result: SDL_Rect*): SDL_bool;
+
+@foreign
+func SDL_IntersectRectAndLine(rect: SDL_Rect*, X1: int*, Y1: int*, X2: int*, Y2: int*): SDL_bool;
