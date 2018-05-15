@@ -228,7 +228,6 @@ var escape_to_char: char const[256] = {
     ['v'] = '\v',
     ['b'] = '\b',
     ['a'] = '\a',
-    ['0'] = 0,
 };
 
 var a2: int[] = {1, 2, 3, [10]=4};

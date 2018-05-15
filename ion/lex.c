@@ -461,7 +461,6 @@ char escape_to_char[256] = {
     ['v'] = '\v',
     ['b'] = '\b',
     ['a'] = '\a',
-    ['0'] = 0,
 };
 
 int scan_hex_escape(void) {
