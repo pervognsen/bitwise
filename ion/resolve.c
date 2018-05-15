@@ -1406,8 +1406,16 @@ Operand resolve_expr_binary_op(TokenKind op, const char *op_name, SrcPos pos, Op
         if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
             return resolve_binary_arithmetic_op(op, left, right);
         } else if (is_ptr_type(left.type) && is_integer_type(right.type)) {
+            complete_type(left.type->base);
+            if (type_sizeof(left.type->base) == 0) {
+                fatal_error(pos, "Cannot do pointer arithmetic with size 0 base type");
+            }
             return operand_rvalue(left.type);
         } else if (is_ptr_type(right.type) && is_integer_type(left.type)) {
+            complete_type(right.type->base);
+            if (type_sizeof(right.type->base) == 0) {
+                fatal_error(pos, "Cannot do pointer arithmetic with size 0 base type");
+            }
             return operand_rvalue(right.type);
         } else {
             fatal_error(pos, "Operands of + must both have arithmetic type, or pointer and integer type");
@@ -1648,15 +1656,19 @@ Operand resolve_expr_ternary(Expr *expr, Type *expected_type) {
     }
     Operand left = resolve_expected_expr_rvalue(expr->ternary.then_expr, expected_type);
     Operand right = resolve_expected_expr_rvalue(expr->ternary.else_expr, expected_type);
-    if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
+    if (left.type == right.type) {
+        return operand_rvalue(left.type);
+    } else if (is_arithmetic_type(left.type) && is_arithmetic_type(right.type)) {
         unify_arithmetic_operands(&left, &right);
         if (cond.is_const && left.is_const && right.is_const) {
             return operand_const(left.type, cond.val.i ? left.val : right.val);
         } else {
             return operand_rvalue(left.type);
         }
-    } else if (left.type == right.type) {
+    } else if (is_ptr_type(left.type) && is_null_ptr(right)) {
         return operand_rvalue(left.type);
+    } else if (is_ptr_type(right.type) && is_null_ptr(left)) {
+        return operand_rvalue(right.type);
     } else {
         fatal_error(expr->pos, "Left and right operands of ternary expression must have arithmetic types or identical types");
     }

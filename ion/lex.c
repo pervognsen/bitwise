@@ -565,7 +565,6 @@ void scan_str(void) {
             buf_push(str, val);
         }
         if (*stream) {
-            assert(*stream == '"');
             stream++;
         } else {
             error_here("Unexpected end of file within string literal");

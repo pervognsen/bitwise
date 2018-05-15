@@ -1,0 +1,8 @@
+@foreign
+func SDL_SetClipboardText(text: char const*): int;
+
+@foreign
+func SDL_GetClipboardText(): char*;
+
+@foreign
+func SDL_HasClipboardText(): SDL_bool;

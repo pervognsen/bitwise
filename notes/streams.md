@@ -1,3 +1,10 @@
+# Bitwise, Day 26: RISC-V Static Assembler
+- Video: https://www.youtube.com/watch?v=zd91F4_UdyE
+- Annotated guide: https://bitwise.handmade.network/episode/bitwise
+- Supporting Miblo: https://miblodelcarpio.co.uk/cinera/#pledge
+- Roadmap for next few weeks
+- Start working on static assembler
+
 # Bitwise, Day 25: RISC-V Dynamic Assembler, Part 2
 - Video: https://www.youtube.com/watch?v=ISNB7ARzUiE
 - Review changes
