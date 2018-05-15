@@ -810,16 +810,11 @@ typedef struct StmtCtx {
     bool is_continue_legal;
 } StmtCtx;
 
-typedef enum LabelState {
-    LABEL_NONE,
-    LABEL_REFERENCED,
-    LABEL_DEFINED,
-} LabelState;
-
 typedef struct Label {
     const char *name;
-    LabelState state;
     SrcPos pos;
+    bool referenced;
+    bool defined;
 } Label;
 
 enum { MAX_LABELS = 256 };
@@ -838,30 +833,31 @@ Label *get_label(SrcPos pos, const char *name) {
         fatal_error(pos, "Too many labels");
         return NULL;
     }
-    *label = (Label){.name = name, .state = LABEL_NONE, .pos = pos};
+    *label = (Label){.name = name, .pos = pos};
     labels_end++;
     return label;
 }
 
 void reference_label(SrcPos pos, const char *name) {
     Label *label = get_label(pos, name);
-    if (label->state != LABEL_DEFINED) {
-        label->state = LABEL_REFERENCED;
-    }
+    label->referenced = true;
 }
 
 void define_label(SrcPos pos, const char *name) {
     Label *label = get_label(pos, name);
-    if (label->state == LABEL_DEFINED) {
+    if (label->defined) {
         fatal_error(pos, "Multiple definitions of label '%s'", name);
     }
-    label->state = LABEL_DEFINED;
+    label->defined = true;
 }
 
 void resolve_labels(void) {
     for (Label *label = labels; label != labels_end; label++) {
-        if (label->state == LABEL_REFERENCED) {
+        if (label->referenced && !label->defined) {
             fatal_error(label->pos, "Label '%s' referenced but not defined", label->name);
+        }
+        if (label->defined && !label->referenced) {
+            warning(label->pos, "Label '%s' defined but not referenced", label->name);
         }
     }
     labels_end = labels;
