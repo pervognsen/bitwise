@@ -64,7 +64,7 @@ func init_audio(): bool {
     };
     obtained_spec: SDL_AudioSpec;
     sdl_device := SDL_OpenAudioDevice(NULL, 0, &desired_spec, &obtained_spec, 0);
-    if (sdl_device < 0) {
+    if (sdl_device == 0) {
         sdl_error("SDL_OpenAudioDevice");
         return false;
     }
@@ -166,8 +166,7 @@ func update_events() {
             pos := int2{event.motion.x, event.motion.y};
             delta_pos := int2{event.motion.xrel, event.motion.yrel};
             push_event(EVENT_MOUSE_MOVE, EventData{mouse_move = {pos = pos, delta_pos = delta_pos}});
-        case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
+        case SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP:
             button: MouseButton;
             if (event.button.button == SDL_BUTTON_LEFT) {
                 update_digital_button(&app.mouse.left_button, event.button.state == SDL_PRESSED);
@@ -183,8 +182,7 @@ func update_events() {
                 kind := event.type == SDL_MOUSEBUTTONDOWN ? EVENT_MOUSE_BUTTON_DOWN : EVENT_MOUSE_BUTTON_UP;
                 push_event(kind, EventData{mouse_button = {button = button, pos = {event.button.x, event.button.y}}});
             }
-        case SDL_KEYDOWN:
-        case SDL_KEYUP:
+        case SDL_KEYDOWN, SDL_KEYUP:
             key := sdl_scancode_to_noir_key[event.key.keysym.scancode];
             if (key) {
                 if (!event.key.repeat) {

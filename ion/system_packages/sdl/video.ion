@@ -137,10 +137,6 @@ enum SDL_HitTestResult {
     SDL_HITTEST_RESIZE_LEFT
 }
 
-@foreign struct SDL_Rect;
-@foreign struct SDL_Point;
-@foreign struct SDL_Surface;
-
 @foreign
 func SDL_GetNumVideoDrivers(): int;
 
@@ -389,4 +385,3 @@ func SDL_GL_SwapWindow(window: SDL_Window*);
 
 @foreign
 func SDL_GL_DeleteContext(context: SDL_GLContext);
-
