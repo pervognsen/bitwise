@@ -831,7 +831,6 @@ Label *get_label(SrcPos pos, const char *name) {
     }
     if (label == labels + MAX_LABELS) {
         fatal_error(pos, "Too many labels");
-        return NULL;
     }
     *label = (Label){.name = name, .pos = pos};
     labels_end++;
@@ -946,7 +945,7 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
     switch (stmt->kind) {
     case STMT_RETURN:
         if (stmt->expr) {
-            Operand operand = resolve_expected_expr(stmt->expr, ret_type);
+            Operand operand = resolve_expected_expr_rvalue(stmt->expr, ret_type);
             if (!convert_operand(&operand, ret_type)) {
                 fatal_error(stmt->pos, "Invalid type in return expression. Expected %s, got %s", get_type_name(ret_type), get_type_name(operand.type));
             }
@@ -1927,10 +1926,9 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = operand_const(expr->float_lit.suffix == SUFFIX_D ? type_double : type_float, (Val){0});
         break;
     case EXPR_STR:
-        result = operand_rvalue(type_ptr(type_char));
+        result = operand_rvalue(type_array(type_char, strlen(expr->str_lit.val) + 1));
         break;
     case EXPR_NAME:
-        // HACK
         result = resolve_expr_name(expr);
         set_resolved_sym(expr, resolve_name(expr->name));
         break;
