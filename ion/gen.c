@@ -475,7 +475,7 @@ const char *typeid_kind_name(Type *type) {
 }
 
 bool is_excluded_typeinfo(Type *type) {
-    if (type->kind == TYPE_ARRAY || type->kind == TYPE_CONST) {
+    while (type->kind == TYPE_ARRAY || type->kind == TYPE_CONST || type->kind == TYPE_PTR) {
         type = type->base;
     }
     return type->sym && !gen_reachable(type->sym);
@@ -668,6 +668,10 @@ void gen_simple_stmt(Stmt *stmt) {
     }
 }
 
+static bool is_char_lit(Expr *expr) {
+    return expr->kind == EXPR_INT && expr->int_lit.mod == MOD_CHAR;
+}
+
 void gen_stmt(Stmt *stmt) {
     gen_sync_pos(stmt->pos);
     switch (stmt->kind) {
@@ -776,11 +780,33 @@ void gen_stmt(Stmt *stmt) {
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
-            for (size_t j = 0; j < switch_case.num_exprs; j++) {
-                genlnf("case ");
-                gen_expr(switch_case.exprs[j]);
-                genf(":");
-
+            for (size_t j = 0; j < switch_case.num_patterns; j++) {
+                SwitchCasePattern pattern = switch_case.patterns[j];
+                if (pattern.end) {
+                    Val start_val = get_resolved_val(pattern.start);
+                    Val end_val = get_resolved_val(pattern.end);
+                    if (is_char_lit(pattern.start) && is_char_lit(pattern.end)) {
+                        genln();
+                        for (int c = (int)start_val.ll; c <= (int)end_val.ll; c++) {
+                            genf("case ");
+                            gen_char(c);
+                            genf(": ");
+                        } 
+                    } else {
+                        genlnf("// ");
+                        gen_expr(pattern.start);
+                        genf("...");
+                        gen_expr(pattern.end);
+                        genln();
+                        for (long long ll = start_val.ll; ll <= end_val.ll; ll++) {
+                            genf("case %lld: ", ll);
+                        }
+                    }
+                } else {
+                    genlnf("case ");
+                    gen_expr(pattern.start);
+                    genf(":");
+                }
             }
             if (switch_case.is_default) {
                 has_default = true;

@@ -261,9 +261,14 @@ typedef struct ElseIf {
     StmtList block;
 } ElseIf;
 
+typedef struct SwitchCasePattern {
+    Expr *start;
+    Expr *end;
+} SwitchCasePattern;
+
 typedef struct SwitchCase {
-    Expr **exprs;
-    size_t num_exprs;
+    SwitchCasePattern *patterns;
+    size_t num_patterns;
     bool is_default;
     StmtList block;
 } SwitchCase;

@@ -772,7 +772,6 @@ bool is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
-
 bool is_token_eof(void) {
     return token.kind == TOKEN_EOF;
 }

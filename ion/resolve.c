@@ -557,6 +557,23 @@ void unify_arithmetic_operands(Operand *left, Operand *right) {
     assert(left->type == right->type);
 }
 
+Map resolved_val_map;
+
+Val get_resolved_val(void *ptr) {
+    uint64_t u64 = map_get_uint64(&resolved_val_map, ptr);
+    Val val;
+    assert(sizeof(val) == sizeof(u64));
+    memcpy(&val, &u64, sizeof(u64));
+    return val;
+}
+
+void set_resolved_val(void *ptr, Val val) {
+    uint64_t u64;
+    assert(sizeof(val) == sizeof(u64));
+    memcpy(&u64, &val, sizeof(val));
+    map_put_uint64(&resolved_val_map, ptr, u64);
+}
+
 Map resolved_type_map;
 
 Type *get_resolved_type(void *ptr) {
@@ -1035,11 +1052,29 @@ bool resolve_stmt(Stmt *stmt, Type *ret_type, StmtCtx ctx) {
         bool has_default = false;
         for (size_t i = 0; i < stmt->switch_stmt.num_cases; i++) {
             SwitchCase switch_case = stmt->switch_stmt.cases[i];
-            for (size_t j = 0; j < switch_case.num_exprs; j++) {
-                Expr *case_expr = switch_case.exprs[j];
-                Operand case_operand = resolve_expr(case_expr);
-                if (!convert_operand(&case_operand, operand.type)) {
-                    fatal_error(case_expr->pos, "Invalid type in switch case expression. Expected %s, got %s", get_type_name(operand.type), get_type_name(case_operand.type));
+            for (size_t j = 0; j < switch_case.num_patterns; j++) {
+                SwitchCasePattern pattern = switch_case.patterns[j];
+                Expr *start_expr = pattern.start;
+                Operand start_operand = resolve_const_expr(start_expr);
+                if (!convert_operand(&start_operand, operand.type)) {
+                    fatal_error(start_expr->pos, "Invalid type in switch case expression. Expected %s, got %s", get_type_name(operand.type), get_type_name(start_operand.type));
+                }
+                Expr *end_expr = pattern.end;
+                if (end_expr) {
+                    Operand end_operand = resolve_const_expr(end_expr);
+                    if (!convert_operand(&end_operand, operand.type)) {
+                        fatal_error(end_expr->pos, "Invalid type in switch case expression. Expected %s, got %s", get_type_name(operand.type), get_type_name(end_operand.type));
+                    }
+                    convert_operand(&start_operand, type_llong);
+                    set_resolved_val(start_expr, start_operand.val);
+                    convert_operand(&end_operand, type_llong);
+                    set_resolved_val(end_expr, end_operand.val);
+                    if (end_operand.val.ll < start_operand.val.ll) {
+                        fatal_error(start_expr->pos, "Case range end value cannot be less thn start value");
+                    }
+                    if (end_operand.val.ll - start_operand.val.ll >= 256) {
+                        fatal_error(start_expr->pos, "Case range cannot span more than 256 values");
+                    }
                 }
             }
             if (switch_case.is_default) {

@@ -285,7 +285,9 @@ void map_grow(Map *map, size_t new_cap) {
 
 void map_put_uint64_from_uint64(Map *map, uint64_t key, uint64_t val) {
     assert(key);
-    assert(val);
+    if (!val) {
+        return;
+    }
     if (2*map->len >= map->cap) {
         map_grow(map, 2*map->cap);
     }
@@ -321,6 +323,14 @@ void *map_get_from_uint64(Map *map, uint64_t key) {
 
 void map_put_from_uint64(Map *map, uint64_t key, void *val) {
     map_put_uint64_from_uint64(map, key, (uint64_t)(uintptr_t)val);
+}
+
+uint64_t map_get_uint64(Map *map, void *key) {
+    return map_get_uint64_from_uint64(map, (uint64_t)(uintptr_t)key);
+}
+
+void map_put_uint64(Map *map, void *key, uint64_t val) {
+    map_put_uint64_from_uint64(map, (uint64_t)(uintptr_t)key, val);
 }
 
 void map_test(void) {

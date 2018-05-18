@@ -480,8 +480,17 @@ Stmt *parse_stmt_for(SrcPos pos) {
     return new_stmt_for(pos, init, cond, next, parse_stmt_block());
 }
 
+SwitchCasePattern parse_switch_case_pattern(void) {
+    Expr *start = parse_expr();
+    Expr *end = NULL;
+    if (match_token(TOKEN_ELLIPSIS)) {
+        end = parse_expr();
+    }
+    return (SwitchCasePattern){start, end};
+}
+
 SwitchCase parse_stmt_switch_case(void) {
-    Expr **exprs = NULL;
+    SwitchCasePattern *patterns = NULL;
     bool is_default = false;
     bool is_first_case = true;
     while (is_keyword(case_keyword) || is_keyword(default_keyword)) {
@@ -490,9 +499,9 @@ SwitchCase parse_stmt_switch_case(void) {
                 warning_here("Use comma-separated expressions to match multiple values with one case label");
                 is_first_case = false;
             }
-            buf_push(exprs, parse_expr());
+            buf_push(patterns, parse_switch_case_pattern());
             while (match_token(TOKEN_COMMA)) {
-                buf_push(exprs, parse_expr());
+                buf_push(patterns, parse_switch_case_pattern());
             }
         } else {
             assert(is_keyword(default_keyword));
@@ -509,7 +518,7 @@ SwitchCase parse_stmt_switch_case(void) {
     while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(case_keyword) && !is_keyword(default_keyword)) {
         buf_push(stmts, parse_stmt());
     }
-    return (SwitchCase){exprs, buf_len(exprs), is_default, new_stmt_list(pos, stmts, buf_len(stmts))};
+    return (SwitchCase){patterns, buf_len(patterns), is_default, new_stmt_list(pos, stmts, buf_len(stmts))};
 }
 
 Stmt *parse_stmt_switch(SrcPos pos) {
