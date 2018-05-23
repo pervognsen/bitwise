@@ -1,3 +1,6 @@
+@foreign const SDL_ALPHA_OPAQUE = 255;
+@foreign const SDL_ALPHA_TRANSPARENT = 0;
+
 @foreign
 enum {
     SDL_PIXELTYPE_UNKNOWN,
