@@ -552,10 +552,12 @@ void gen_expr(Expr *expr) {
         gen_expr(expr->index.index);
         genf("]");
         break;
-    case EXPR_FIELD:
+    case EXPR_FIELD: {
         gen_expr(expr->field.expr);
-        genf("%s%s", get_resolved_type(expr->field.expr)->kind == TYPE_PTR ? "->" : ".", expr->field.name);
+        Type *type = unqualify_type(get_resolved_type(expr->field.expr));
+        genf("%s%s", type->kind == TYPE_PTR ? "->" : ".", expr->field.name);
         break;
+    }
     case EXPR_COMPOUND:
         gen_expr_compound(expr);
         break;

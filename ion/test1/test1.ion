@@ -789,10 +789,25 @@ func test_os_arch() {
     printf("Target machine architecture: %s\n", IONARCH);
 }
 
+struct Bar {
+    rc: int;
+}
+
+struct Foo {
+    bar: Bar* const;
+}
+
+func test_const_ptr_deref() {
+    bar := Bar{rc = 42};
+    foo := Foo{bar = &bar};
+    i := foo.bar.rc;
+}
+
 func main(argc: int, argv: char**): int {
     if (argv == 0) {
         printf("argv is null\n");
     }
+    test_const_ptr_deref();
     test_limits();
     test_va_list("whatever", char(123), int(123123), llong(123123123123));
     test_os_arch();
