@@ -1,3 +1,17 @@
+# Bitwise, Day 29: More Assembler Hacking
+- Video: https://www.youtube.com/watch?v=_6zAlm0Edrw
+- Continue coding
+
+# Bitwise, Day 28: RISC-V Static Assembler, Part 3
+- Video: https://www.youtube.com/watch?v=CRAMT1QRRjo
+- Continue coding
+
+# Bitwise, Day 27: RISC-V Static Assembler, Part 2
+- Video: https://www.youtube.com/watch?v=t6diq8J9W0E
+- Extra: https://www.youtube.com/watch?v=DRKUJBc4y6A
+- Review changes
+- Continue where we left off
+
 # Bitwise, Day 26: RISC-V Static Assembler
 - Video: https://www.youtube.com/watch?v=zd91F4_UdyE
 - Annotated guide: https://bitwise.handmade.network/episode/bitwise
