@@ -406,10 +406,11 @@ enum TokenKind {
     TOKEN_INT,
     TOKEN_STR,
     TOKEN_NAME,
-    TOKEN_QUOTED_NAME,
+    TOKEN_DOLLAR_NAME,
     TOKEN_XREG,
     TOKEN_INSTR,
     // ...
+    TOKEN_DOLLAR,
     TOKEN_DIV,
     TOKEN_COMMA,
     TOKEN_LT,
@@ -737,10 +738,10 @@ func scan_token(asm: Assembler*): Token {
         token = scan_char(asm);
     case '"':
         token = scan_str(asm);
-    case 'a'...'z', 'A'...'Z', '_', '.', '`':
-        quoted := false;
-        if (*asm.str == '`') {
-            quoted = true;
+    case 'a'...'z', 'A'...'Z', '_', '.', '$':
+        dollar := false;
+        if (*asm.str == '$') {
+            dollar = true;
             asm.str++;
         }
         start := asm.str;
@@ -748,7 +749,7 @@ func scan_token(asm: Assembler*): Token {
         while (isalnum(*asm.str) || *asm.str == '_') {
             asm.str++;
         }
-        token.kind = quoted ? TOKEN_QUOTED_NAME : TOKEN_NAME;
+        token.kind = dollar ? TOKEN_DOLLAR_NAME : TOKEN_NAME;
         token.data.str = str_intern_range(&asm.interns, start, asm.str);
     case '(':
         token.kind = TOKEN_LPAREN;
@@ -840,14 +841,12 @@ func next_raw_token(asm: Assembler*) {
 func next_token(asm: Assembler*) {
     :repeat
     next_raw_token(asm);
-    if (asm.token.kind == TOKEN_NAME) {
+    if (asm.token.kind == TOKEN_DOLLAR_NAME) {
         if (sym := get_sym(asm, asm.token.data.str); sym && sym.kind == SYM_MACRO) {
             macro := sym.data.macro;
             push_token_list(asm, macro.tokens, macro.num_tokens);
             goto repeat;
         }
-    } else if (asm.token.kind == TOKEN_QUOTED_NAME) {
-        asm.token.kind = TOKEN_NAME;
     }
 }
 
@@ -1636,10 +1635,10 @@ func asm_test() {
     lex_test();
     asm := &Assembler{};
     src := """
-        .define `GETCHAR 0xFFFFFF00
-
-        // lw x1, [GETCHAR]
-        lw x1, [0xFFFFFF00]
+        .define GETCHAR 0xFFFFFF00
+ 
+        lw x1, [$GETCHAR]
+        // lw x1, [0xFFFFFF00]
         sub x1, 48
         mov x2, 0
         jmp >2
@@ -1647,18 +1646,18 @@ func asm_test() {
         sub x1, 1
 2:      bne x1, 0, <1
 
-        .define `x1_comma x1,
-        .define `x1_plus_4 [x1_comma 4]
+        .define x1_comma x1,
+        .define x1_plus_4 [$x1_comma 4]
         mov x1, 0x1000000
         // lw x2, val
-        lw x2, x1_plus_4 // [x1, 4]
+        lw x2, $x1_plus_4 // [x1, 4]
         add x2, x2
         // sw [x1], x2
         sw val, x2, x3
         lw x3, val
         // .fill 0x1000000, 1, 0
 
-        la x2, `getchar
+        la x2, getchar
         lw x2, [x2]
         sub x2, 48
         lw x3, getchar
