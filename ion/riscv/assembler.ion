@@ -341,19 +341,63 @@ func str_intern(interns: Interns*, str: char const*): char const* {
     return str_intern_range(interns, str, str + strlen(str));
 }
 
+struct AnonLabel {
+    index: int;
+    addr: uint32;
+}
+
 struct Assembler {
     input: char const*;
     str: char const*;
     filename: char const*;
     line: int;
-    line_start: char const*;
     token: Token;
+    token_list: TokenList*;
+    token_list_stack: TokenListStack;
     interns: Interns;
     arena: Arena;
     syms: Map;
     addr: uint32;
     buf: uint8*;
     buf_size: uint32;
+    anon_labels: AnonLabel*;
+    next_anon_label: int;
+}
+
+func set_anon_label(asm: Assembler*, index: int) {
+    label := AnonLabel{index = index, addr = asm.addr};
+    if (asm.next_anon_label == buf_len(asm.anon_labels)) {
+        buf_push(&asm.anon_labels, &label, sizeof(label));
+    } else {
+        asm.anon_labels[asm.next_anon_label] = label;
+    }
+    asm.next_anon_label++;
+}
+
+func get_forward_anon_label(asm: Assembler*, index: int, count: int): uint32 {
+    for (i := asm.next_anon_label; i < buf_len(asm.anon_labels); i++) {
+        label := asm.anon_labels[i];
+        if (label.index == index) {
+            count--;
+            if (count == 0) {
+                return label.addr;
+            }
+        }
+    }
+    return 0;
+}
+
+func get_backward_anon_label(asm: Assembler*, index: int, count: int): uint32 {
+    for (i := asm.next_anon_label - 1; i >= 0; i--) {
+        label := asm.anon_labels[i];
+        if (label.index == index) {
+            count--;
+            if (count == 0) {
+                return label.addr;
+            }
+        }
+    }
+    return 0;
 }
 
 enum TokenKind {
@@ -362,11 +406,14 @@ enum TokenKind {
     TOKEN_INT,
     TOKEN_STR,
     TOKEN_NAME,
+    TOKEN_QUOTED_NAME,
     TOKEN_XREG,
     TOKEN_INSTR,
     // ...
     TOKEN_DIV,
     TOKEN_COMMA,
+    TOKEN_LT,
+    TOKEN_GT,
     TOKEN_COLON,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
@@ -383,6 +430,20 @@ union TokenData {
 struct Token {
     kind: TokenKind;
     data: TokenData;
+    line: int;
+}
+
+struct TokenList {
+    tokens: Token*;
+    index: int;
+    num_tokens: int;
+}
+
+const MAX_TOKEN_LIST_STACK = 128;
+
+struct TokenListStack {
+    token_lists: TokenList[MAX_TOKEN_LIST_STACK];
+    num_token_lists: int;
 }
 
 var token_kind_names: char const*[] = {
@@ -437,7 +498,7 @@ var char_to_digit: uint8[256] = {
 };
 
 func asm_verror(asm: Assembler*, fmt: char const*, args: va_list) {
-    printf("%s(%d): error: ", asm.filename, asm.line);
+    printf("%s(%d): error: ", asm.filename, asm.token.line);
     vprintf(fmt, args);
     printf("\n");
 }
@@ -450,7 +511,21 @@ func asm_error(asm: Assembler*, fmt: char const*, ...) {
     exit(1);
 }
 
-func scan_int(asm: Assembler*) {
+func asm_vscan_error(asm: Assembler*, fmt: char const*, args: va_list) {
+    printf("%s(%d): error: ", asm.filename, asm.line);
+    vprintf(fmt, args);
+    printf("\n");
+}
+
+func asm_scan_error(asm: Assembler*, fmt: char const*, ...) {
+    args: va_list;
+    va_start(&args, &fmt);
+    asm_vscan_error(asm, fmt, args);
+    va_end(&args);
+    exit(1);
+}
+
+func scan_int(asm: Assembler*): Token {
     neg: bool;
     if (*asm.str == '-') {
         neg = true;
@@ -484,11 +559,11 @@ func scan_int(asm: Assembler*) {
             break;
         }
         if (digit >= base) {
-            asm_error(asm, "Digit '%c' out of range for base %d", *asm.str, base);
+            asm_scan_error(asm, "Digit '%c' out of range for base %d", *asm.str, base);
             digit = 0;
         }
         if (val > (LLONG_MAX - digit)/base) {
-            asm_error(asm, "Integer literal overflow");
+            asm_scan_error(asm, "Integer literal overflow");
             while (isdigit(*asm.str)) {
                 asm.str++;
             }
@@ -499,10 +574,12 @@ func scan_int(asm: Assembler*) {
         asm.str++;
     }
     if (asm.str == start_digits) {
-        asm_error(asm, "Expected base %d digit, got '%c'", base, *asm.str);
+        asm_scan_error(asm, "Expected base %d digit, got '%c'", base, *asm.str);
     }
-    asm.token.kind = TOKEN_INT;
-    asm.token.data.val = neg ? -val : val;
+    return {
+        kind = TOKEN_INT,
+        data = {val = neg ? -val : val},
+    };
 }
 
 var escape_to_char: char[256] = {
@@ -524,7 +601,7 @@ func scan_hex_escape(asm: Assembler*): int {
     asm.str++;
     val := char_to_digit[uchar(*asm.str)];
     if (!val && *asm.str != '0') {
-        asm_error(asm, "\\x needs at least 1 hex digit");
+        asm_scan_error(asm, "\\x needs at least 1 hex digit");
     }
     asm.str++;
     digit := char_to_digit[uchar(*asm.str)];
@@ -532,7 +609,7 @@ func scan_hex_escape(asm: Assembler*): int {
         val *= 16;
         val += digit;
         if (val > 0xFF) {
-            asm_error(asm, "\\x argument out of range");
+            asm_scan_error(asm, "\\x argument out of range");
             val = 0xFF;
         }
         asm.str++;
@@ -540,15 +617,15 @@ func scan_hex_escape(asm: Assembler*): int {
     return val;
 }
 
-func scan_char(asm: Assembler*) {
+func scan_char(asm: Assembler*): Token {
     #assert(*asm.str == '\'');
     asm.str++;
     val := 0;
     if (*asm.str == '\'') {
-        asm_error(asm, "Char literal cannot be empty");
+        asm_scan_error(asm, "Char literal cannot be empty");
         asm.str++;
     } else if (*asm.str == '\n') {
-        asm_error(asm, "Char literal cannot contain newline");
+        asm_scan_error(asm, "Char literal cannot contain newline");
     } else if (*asm.str == '\\') {
         asm.str++;
         if (*asm.str == 'x') {
@@ -556,7 +633,7 @@ func scan_char(asm: Assembler*) {
         } else {
             val = escape_to_char[uchar(*asm.str)];
             if (val == 0 && *asm.str != '0') {
-                asm_error(asm, "Invalid char literal escape '\\%c'", *asm.str);
+                asm_scan_error(asm, "Invalid char literal escape '\\%c'", *asm.str);
             }
             asm.str++;
         }
@@ -565,15 +642,17 @@ func scan_char(asm: Assembler*) {
         asm.str++;
     }
     if (*asm.str != '\'') {
-        asm_error(asm, "Expected closing char quote, got '%c'", *asm.str);
+        asm_scan_error(asm, "Expected closing char quote, got '%c'", *asm.str);
     } else {
         asm.str++;
     }
-    asm.token.kind = TOKEN_INT;
-    asm.token.data.val = val;
+    return {
+        kind = TOKEN_INT,
+        data = {val = val},
+    };
 }
 
-func scan_str(asm: Assembler*) {
+func scan_str(asm: Assembler*): Token {
     #assert(*asm.str == '"');
     asm.str++;
     buf: char*;
@@ -593,13 +672,13 @@ func scan_str(asm: Assembler*) {
             asm.str++;
         }
         if (!*asm.str) {
-            asm_error(asm, "Unexpected end of file within multi-line string literal");
+            asm_scan_error(asm, "Unexpected end of file within multi-line string literal");
         }
     } else {
         while (*asm.str && *asm.str != '"') {
             val := *asm.str;
             if (val == '\n') {
-                asm_error(asm, "String literal cannot contain newline");
+                asm_scan_error(asm, "String literal cannot contain newline");
                 break;
             } else if (val == '\\') {
                 asm.str++;
@@ -621,68 +700,82 @@ func scan_str(asm: Assembler*) {
             #assert(*asm.str == '"');
             asm.str++;
         } else {
-            asm_error(asm, "Unexpected end of file within string literal");
+            asm_scan_error(asm, "Unexpected end of file within string literal");
         }
     }
     strbuf_push(&buf, 0);
-    asm.token.kind = TOKEN_STR;
-    asm.token.data.str = buf;
+    return {
+        kind = TOKEN_STR,
+        data = {str = buf},
+    };
 }
 
-func next_token(asm: Assembler*) {
+func scan_token(asm: Assembler*): Token {
     :repeat
-    start := asm.str;
+    line := asm.line;
+    token: Token;
     switch (*asm.str) {
     case '\0':
-        asm.token.kind = TOKEN_EOF;
+        token.kind = TOKEN_EOF;
     case ' ', '\n', '\r', '\t', '\v':
         newline := false;
         while (isspace(*asm.str)) {
             if (*asm.str == '\n') {
-                asm.line_start = asm.str + 1;
                 asm.line++;
                 newline = true;
             }
             asm.str++;
         }
         if (newline) {
-            asm.token.kind = TOKEN_NEWLINE;
+            token.kind = TOKEN_NEWLINE;
         } else {
             goto repeat;
         }
     case '0'...'9', '-':
-        scan_int(asm);
+        token = scan_int(asm);
     case '\'':
-        scan_char(asm);
+        token = scan_char(asm);
     case '"':
-        scan_str(asm);
-    case 'a'...'z', 'A'...'Z', '_', '.':
+        token = scan_str(asm);
+    case 'a'...'z', 'A'...'Z', '_', '.', '`':
+        quoted := false;
+        if (*asm.str == '`') {
+            quoted = true;
+            asm.str++;
+        }
+        start := asm.str;
         asm.str++;
         while (isalnum(*asm.str) || *asm.str == '_') {
             asm.str++;
         }
-        asm.token.kind = TOKEN_NAME;
-        asm.token.data.str = str_intern_range(&asm.interns, start, asm.str);
+        token.kind = quoted ? TOKEN_QUOTED_NAME : TOKEN_NAME;
+        token.data.str = str_intern_range(&asm.interns, start, asm.str);
     case '(':
-        asm.token.kind = TOKEN_LPAREN;
+        token.kind = TOKEN_LPAREN;
         asm.str++;
     case ')':
-        asm.token.kind = TOKEN_RPAREN;
+        token.kind = TOKEN_RPAREN;
         asm.str++;
     case '[':
-        asm.token.kind = TOKEN_LBRACKET;
+        token.kind = TOKEN_LBRACKET;
         asm.str++;
     case ']':
-        asm.token.kind = TOKEN_RBRACKET;
+        token.kind = TOKEN_RBRACKET;
         asm.str++;
     case ',':
-        asm.token.kind = TOKEN_COMMA;
+        token.kind = TOKEN_COMMA;
+        asm.str++;
+    case '<':
+        token.kind = TOKEN_LT;
+        asm.str++;
+    case '>':
+        token.kind = TOKEN_GT;
         asm.str++;
     case ':':
-        asm.token.kind = TOKEN_COLON;
+        token.kind = TOKEN_COLON;
         asm.str++;
     case '/':
-        asm.token.kind = TOKEN_DIV;
+        token.kind = TOKEN_DIV;
         asm.str++;
         if (*asm.str == '/') {
             asm.str++;
@@ -710,7 +803,51 @@ func next_token(asm: Assembler*) {
             goto repeat;
         }
     default:
-        asm_error(asm, "Unexpected character '%c'", *asm.str);
+        asm_scan_error(asm, "Unexpected character '%c'", *asm.str);
+    }
+    token.line = line;
+    return token;
+}
+
+func push_token_list(asm: Assembler*, tokens: Token*, num_tokens: int) {
+    i := asm.token_list_stack.num_token_lists++;
+    if (i == MAX_TOKEN_LIST_STACK) {
+        asm_error(asm, "Macro expansion stack overflow");
+    }
+    asm.token_list = &asm.token_list_stack.token_lists[i];
+    *asm.token_list = {
+        tokens = tokens,
+        num_tokens = num_tokens,
+        index = 0,
+    };
+}
+
+func pop_token_list(asm: Assembler*) {
+    n := --asm.token_list_stack.num_token_lists;
+    #assert(n > 0);
+    asm.token_list = &asm.token_list_stack.token_lists[n - 1];
+}
+
+func next_raw_token(asm: Assembler*) {
+    while (asm.token_list.index == asm.token_list.num_tokens) {
+        pop_token_list(asm);
+    }
+    #assert(asm.token_list.index < asm.token_list.num_tokens);
+    i := asm.token_list.index++;
+    asm.token = asm.token_list.tokens[i];
+}
+
+func next_token(asm: Assembler*) {
+    :repeat
+    next_raw_token(asm);
+    if (asm.token.kind == TOKEN_NAME) {
+        if (sym := get_sym(asm, asm.token.data.str); sym && sym.kind == SYM_MACRO) {
+            macro := sym.data.macro;
+            push_token_list(asm, macro.tokens, macro.num_tokens);
+            goto repeat;
+        }
+    } else if (asm.token.kind == TOKEN_QUOTED_NAME) {
+        asm.token.kind = TOKEN_NAME;
     }
 }
 
@@ -722,14 +859,25 @@ func init_assembler(asm: Assembler*, filename: char const*, input: char const*) 
     init_instrs(asm);
     init_regs(asm);
     init_cmds(asm);
-    init_pass(asm);
+}
+
+func init_scan(asm: Assembler*) {
+    asm.str = asm.input;
+    asm.line = 1;
+    token := scan_token(asm);
+    tokens: Token*;
+    while (token.kind != TOKEN_EOF) {
+        buf_push(&tokens, &token, sizeof(token));
+        token = scan_token(asm);
+    }
+    buf_push(&tokens, &token, sizeof(token));
+    push_token_list(asm, tokens, buf_len(tokens));
 }
 
 func init_pass(asm: Assembler*) {
-    asm.str = asm.input;
-    asm.line_start = asm.str;
-    asm.line = 1;
+    init_scan(asm);
     asm.addr = 0;
+    asm.next_anon_label = 0;
     next_token(asm);
 }
 
@@ -783,6 +931,7 @@ struct InstrDef {
 
 enum SymKind = uint8 {
     SYM_NONE,
+    SYM_MACRO,
     SYM_LABEL,
     SYM_XREG,
     SYM_INSTR,
@@ -791,11 +940,17 @@ enum SymKind = uint8 {
 
 typedef Cmd = func(asm: Assembler*);
 
+struct MacroDef {
+    tokens: Token*;
+    num_tokens: int;
+}
+
 union SymData {
     xreg: Reg;
     instr: InstrDef*;
     addr: uint32;
     cmd: Cmd;
+    macro: MacroDef;
 }
 
 struct Sym {
@@ -807,6 +962,19 @@ struct Sym {
 func get_sym(asm: Assembler*, name: char const*): Sym* {
     return map_get(&asm.syms, name);
 }
+
+var reg_to_imm_op: Op[NUM_OPS] = {
+    [ADD] = ADDI,
+    [SUB] = ADDI,
+    [SLT] = SLTI,
+    [SLTU] = SLTIU,
+    [SLL] = SLLI,
+    [SRL] = SRLI,
+    [SRA] = SRAI,
+    [AND] = ANDI,
+    [OR] =  ORI,
+    [XOR] = XORI,
+};
 
 var instr_defs: InstrDef[] = {
     {"lui", INSTR_UPPER_IMM, LUI},
@@ -870,6 +1038,7 @@ var cmd_defs: CmdDef[] = {
     {".uint8", cmd_uint8},
     {".uint16", cmd_uint16},
     {".uint32", cmd_uint32},
+    {".define", cmd_define},
     {"li", cmd_li},
     {"la", cmd_la},
     {"jmp", cmd_jmp},
@@ -908,6 +1077,17 @@ func init_regs(asm: Assembler*) {
         sym.kind = SYM_XREG;
         sym.data.xreg = i;
     }
+}
+
+func cmd_define(asm: Assembler*) {
+    sym := parse_sym(asm);
+    tokens: Token*;
+    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        buf_push(&tokens, &asm.token, sizeof(asm.token));
+        next_token(asm);
+    }
+    sym.kind = SYM_MACRO;
+    sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
 }
 
 func cmd_uint8(asm: Assembler*) {
@@ -1000,7 +1180,7 @@ func asm_jmp(asm: Assembler*, addr: Addr) {
         } else {
             asm_error(asm, "Jump target is out of range");
         }
-    } else if (addr.kind == ADDR_REG) {
+    } else if (addr.kind == ADDR_REG_OFFSET) {
         imm := int32(addr.val);
         if (I_IMMEDIATE_MIN <= imm && imm <= I_IMMEDIATE_MAX) {
             asm_instr(asm, {op = JALR, rd = X0, rs1 = addr.reg, imm = imm});
@@ -1017,7 +1197,7 @@ func cmd_jmp(asm: Assembler*) {
 
 func cmd_jmp_reg(asm: Assembler*) {
     addr := parse_addr(asm);
-    if (addr.kind != ADDR_REG) {
+    if (addr.kind != ADDR_REG_OFFSET) {
         asm_error(asm, "Jump target must be register-based");
     }
     asm_jmp(asm, addr);
@@ -1045,6 +1225,38 @@ func cmd_mov(asm: Assembler*) {
         asm_li(asm, rd, int32(imm));
     }
 }
+
+func cmd_sub(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    expect_token(asm, TOKEN_COMMA);
+    if (is_token(asm, TOKEN_NAME)) {
+        rs := parse_xreg(asm);
+        rs1: Reg;
+        rs2: Reg;
+        if (match_token(asm, TOKEN_COMMA)) {
+            rs1 = rs;
+            if (!is_token(asm, TOKEN_NAME)) {
+                imm := -parse_imm(asm);
+                if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+                    asm_error(asm, "Immediate is out of range");
+                }
+                asm_imm_op(asm, ADDI, rd, rs1, uint32(imm));
+                return;
+            }
+            rs2 = parse_xreg(asm);
+        } else {
+            rs1 = rd;
+            rs2 = rs;
+        }
+        asm_reg_op(asm, SUB, rd, rs1, rs2);
+    } else {
+        rs1 := rd;
+        imm := -parse_imm(asm);
+        if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+            asm_error(asm, "Immediate is out of range");
+        }
+        asm_imm_op(asm, ADDI, rd, rs1, uint32(imm));
+    }}
 
 func init_cmds(asm: Assembler*) {
     num_cmds := sizeof(cmd_defs) / sizeof(*cmd_defs);
@@ -1092,7 +1304,9 @@ func parse_imm(asm: Assembler*): llong {
 }
 
 enum AddrKind {
-    ADDR_REG,
+    ADDR_NONE,
+    ADDR_REG_OFFSET,
+    ADDR_IMM,
     ADDR_LABEL,
 }
 
@@ -1105,17 +1319,22 @@ struct Addr {
 func parse_addr(asm: Assembler*): Addr {
     addr: Addr;
     if (match_token(asm, TOKEN_LBRACKET)) {
-        sym := parse_sym(asm);
-        if (sym.kind != SYM_XREG) {
-            asm_error(asm, "Expected register");
-        }
-        reg := sym.data.xreg;
         imm: uint32;
-        if (match_token(asm, TOKEN_COMMA)) {
+        if (is_token(asm, TOKEN_NAME)) {
+            sym := parse_sym(asm);
+            if (sym.kind != SYM_XREG) {
+                asm_error(asm, "Expected register");
+            }
+            reg := sym.data.xreg;
+            if (match_token(asm, TOKEN_COMMA)) {
+                imm = uint32(parse_imm(asm));
+            }
+            addr.kind = ADDR_REG_OFFSET;
+            addr.reg = reg;
+        } else {
+            addr.kind = ADDR_IMM;
             imm = uint32(parse_imm(asm));
         }
-        addr.kind = ADDR_REG;
-        addr.reg = reg;
         addr.val = imm;
         expect_token(asm, TOKEN_RBRACKET);
     } else {
@@ -1126,32 +1345,80 @@ func parse_addr(asm: Assembler*): Addr {
 }
 
 func parse_label(asm: Assembler*): uint32 {
-    sym := parse_sym(asm);
-    if (sym.kind == SYM_NONE) {
-        sym.kind = SYM_LABEL;
-        sym.data.addr = 0;
-    } else if (sym.kind != SYM_LABEL) {
-        asm_error(asm, "Expected label");
+    if (is_token(asm, TOKEN_GT)) {
+        count := 0;
+        while (match_token(asm, TOKEN_GT)) {
+            count++;
+        }
+        index := -1;
+        if (is_token(asm, TOKEN_INT)) {
+            index = int(asm.token.data.val);
+            next_token(asm);
+        }
+        return get_forward_anon_label(asm, index, count);
+    } else if (is_token(asm, TOKEN_LT)) {
+        count := 0;
+        while (match_token(asm, TOKEN_LT)) {
+            count++;
+        }
+        index := -1;
+        if (is_token(asm, TOKEN_INT)) {
+            index = int(asm.token.data.val);
+            next_token(asm);
+        }
+        return get_backward_anon_label(asm, index, count);
+    } else {
+        sym := parse_sym(asm);
+        if (sym.kind == SYM_NONE) {
+            sym.kind = SYM_LABEL;
+            sym.data.addr = 0;
+        } else if (sym.kind != SYM_LABEL) {
+            asm_error(asm, "Expected label");
+        }
+        return sym.data.addr;
     }
-    return sym.data.addr;
+}
+
+func parse_reg_to_imm_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg) {
+    imm := parse_imm(asm);
+    if (op == SUB) {
+        imm = -imm;
+    }
+    if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+        asm_error(asm, "Immediate is out of range");
+    }
+    imm_op := reg_to_imm_op[op];
+    if (!imm_op) {
+        asm_error(asm, "Instruction does not have immediate variant");
+    }
+    asm_imm_op(asm, imm_op, rd, rs1, uint32(imm));
 }
 
 func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
+    op := instr_def.op;
     switch (instr_def.kind) {
     case INSTR_REG:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
-        rs := parse_xreg(asm);
-        rs1: Reg;
-        rs2: Reg;
-        if (match_token(asm, TOKEN_COMMA)) {
-            rs1 = rs;
-            rs2 = parse_xreg(asm);
+        if (is_token(asm, TOKEN_NAME)) {
+            rs := parse_xreg(asm);
+            rs1: Reg;
+            rs2: Reg;
+            if (match_token(asm, TOKEN_COMMA)) {
+                rs1 = rs;
+                if (!is_token(asm, TOKEN_NAME)) {
+                    parse_reg_to_imm_op(asm, op, rd, rs1);
+                    return;
+                }
+                rs2 = parse_xreg(asm);
+            } else {
+                rs1 = rd;
+                rs2 = rs;
+            }
+            asm_reg_op(asm, op, rd, rs1, rs2);
         } else {
-            rs1 = rd;
-            rs2 = rs;
+            parse_reg_to_imm_op(asm, op, rd, rd);
         }
-        asm_reg_op(asm, instr_def.op, rd, rs1, rs2);
     case INSTR_IMM:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
@@ -1164,32 +1431,42 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
         if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
             asm_error(asm, "Immediate is out of range");
         }
-        asm_imm_op(asm, instr_def.op, rd, rs1, uint32(imm));
+        asm_imm_op(asm, op, rd, rs1, uint32(imm));
     case INSTR_LOAD:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
         addr := parse_addr(asm);
         @complete
-        if (addr.kind == ADDR_REG) {
-            asm_instr(asm, {op = instr_def.op, rd = rd, rs1 = addr.reg, imm = addr.val});
-        } else if (addr.kind == ADDR_LABEL) {
+        switch (addr.kind) {
+        case ADDR_REG_OFFSET:
+            asm_instr(asm, {op = op, rd = rd, rs1 = addr.reg, imm = addr.val});
+        case ADDR_LABEL:
             offset := addr.val - asm.addr;
             asm_instr(asm, {op = AUIPC, rd = rd, imm = imm_hi(offset)});
-            asm_instr(asm, {op = instr_def.op, rd = rd, rs1 = rd, imm = imm_lo(offset)});
+            asm_instr(asm, {op = op, rd = rd, rs1 = rd, imm = imm_lo(offset)});
+        case ADDR_IMM:
+            asm_li(asm, rd, addr.val);
+            asm_instr(asm, {op = op, rd = rd, rs1 = rd});
         }
     case INSTR_STORE:
         addr := parse_addr(asm);
         expect_token(asm, TOKEN_COMMA);
         rs2 := parse_xreg(asm);
         @complete
-        if (addr.kind == ADDR_REG) {
-            asm_instr(asm, {op = instr_def.op, rs1 = addr.reg, rs2 = rs2, imm = addr.val});
-        } else if (addr.kind == ADDR_LABEL) {
+        switch (addr.kind) {
+        case ADDR_REG_OFFSET:
+            asm_instr(asm, {op = op, rs1 = addr.reg, rs2 = rs2, imm = addr.val});
+        case ADDR_LABEL:
             expect_token(asm, TOKEN_COMMA);
             rt := parse_xreg(asm);
             offset := addr.val - asm.addr;
             asm_instr(asm, {op = AUIPC, rd = rt, imm = imm_hi(offset)});
-            asm_instr(asm, {op = instr_def.op, rs1 = rt, rs2 = rs2, imm = imm_lo(offset)});
+            asm_instr(asm, {op = op, rs1 = rt, rs2 = rs2, imm = imm_lo(offset)});
+        case ADDR_IMM:
+            expect_token(asm, TOKEN_COMMA);
+            rt := parse_xreg(asm);
+            asm_li(asm, rt, addr.val);
+            asm_instr(asm, {op = op, rs1 = rt, rs2 = rs2});
         }
     case INSTR_BRANCH:
         rs1 := parse_xreg(asm);
@@ -1199,7 +1476,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
         addr := parse_label(asm);
         offset: int32 = addr - asm.addr;
         if (B_IMMEDIATE_MIN <= offset && offset <= B_IMMEDIATE_MAX) {
-            asm_instr(asm, {op = instr_def.op, rs1 = rs1, rs2 = rs2, imm = offset});
+            asm_instr(asm, {op = op, rs1 = rs1, rs2 = rs2, imm = offset});
         } else {
             asm_error(asm, "Branch target is out of range");
         }
@@ -1217,7 +1494,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
         addr := parse_addr(asm);
-        if (addr.kind != ADDR_REG) {
+        if (addr.kind != ADDR_REG_OFFSET) {
             asm_error(asm, "Jump target must be register-based");
         }
         imm: int32 = addr.val;
@@ -1230,7 +1507,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
         imm := parse_imm(asm);
-        asm_instr(asm, {op = instr_def.op, rd = rd, imm = uint32(imm)});
+        asm_instr(asm, {op = op, rd = rd, imm = uint32(imm)});
     }
 }
 
@@ -1285,32 +1562,49 @@ func asm_mv(asm: Assembler*, dest: Reg, src: Reg) {
     asm_reg_op(asm, ADD, dest, src, X0);
 }
 
-func parse_line(asm: Assembler*) {
-    match_token(asm, TOKEN_NEWLINE);
-    sym := parse_sym(asm);
-    while (match_token(asm, TOKEN_COLON)) {
-        if (sym.kind != SYM_NONE && sym.kind != SYM_LABEL) {
-            asm_error(asm, "Label already defined");
-        }
-        sym.kind = SYM_LABEL;
-        sym.data.addr = asm.addr;
-        if (match_token(asm, TOKEN_NEWLINE)) {
-            return;
-        }
-        sym = parse_sym(asm);
+func parse_newlines(asm: Assembler*) {
+    while (match_token(asm, TOKEN_NEWLINE)) {
     }
-    switch (sym.kind) {
-    case SYM_INSTR:
-        parse_instr(asm, sym.data.instr);
-    case SYM_CMD:
-        sym.data.cmd(asm);
-    default:
-        asm_error(asm, "Expected instruction");
-    }
-    expect_token(asm, TOKEN_NEWLINE);
 }
 
-func parse_lines(asm: Assembler*) {
+func parse_line(asm: Assembler*) {
+    parse_newlines(asm);
+    if (match_token(asm, TOKEN_COLON)) {
+        set_anon_label(asm, -1);
+    }
+    while (is_token(asm, TOKEN_INT)) {
+        index := int(asm.token.data.val);
+        next_token(asm);
+        set_anon_label(asm, index);
+        expect_token(asm, TOKEN_COLON);
+    }
+    if (is_token(asm, TOKEN_NAME)) {
+        sym := parse_sym(asm);
+        while (match_token(asm, TOKEN_COLON)) {
+            if (sym.kind != SYM_NONE && sym.kind != SYM_LABEL) {
+                asm_error(asm, "Label already defined");
+            }
+            sym.kind = SYM_LABEL;
+            sym.data.addr = asm.addr;
+            if (match_token(asm, TOKEN_NEWLINE)) {
+                return;
+            }
+            sym = parse_sym(asm);
+        }
+        switch (sym.kind) {
+        case SYM_INSTR:
+            parse_instr(asm, sym.data.instr);
+        case SYM_CMD:
+            sym.data.cmd(asm);
+        default:
+            asm_error(asm, "Expected instruction");
+        }
+    }
+    parse_newlines(asm);
+}
+
+func parse_file(asm: Assembler*) {
+    init_pass(asm);
     while (asm.token.kind) {
         parse_line(asm);
     }
@@ -1319,6 +1613,7 @@ func parse_lines(asm: Assembler*) {
 func lex_test() {
     asm := &Assembler{};
     init_assembler(asm, "<string>", "  123\n 0xffff\n x0 x32 0b1111 1/2 // 987123987123\n '\\n' \"helloworld\" asdf Foo asdf /* whatever */ Hello_world");
+    init_scan(asm);
     next_token(asm);
     while (asm.token.kind) {
         printf("%d: ", asm.line);
@@ -1341,50 +1636,54 @@ func asm_test() {
     lex_test();
     asm := &Assembler{};
     src := """
-            la x2, getchar
-            lw x2, [x2]
-            addi x2, -48
-            lw x3, getchar
-            addi x3, -48
-            call mul
+        .define `GETCHAR 0xFFFFFF00
 
-            lw x1, getchar
-            addi x1, -48
-            mov x2, 0
-            jmp check
-loop:       add x2, x1
-            addi x1, -1
-check:      bne x1, 0, loop
+        // lw x1, [GETCHAR]
+        lw x1, [0xFFFFFF00]
+        sub x1, 48
+        mov x2, 0
+        jmp >2
+1:      add x2, x1
+        sub x1, 1
+2:      bne x1, 0, <1
 
-            mov x1, 0x1000000
-            // lw x2, val
-            lw x2, [x1, 4]
-            add x2, x2
-            // sw [x1], x2
-            sw val, x2, x3
-            lw x3, val
-            // .fill 0x1000000, 1, 0
+        .define `x1_comma x1,
+        .define `x1_plus_4 [x1_comma 4]
+        mov x1, 0x1000000
+        // lw x2, val
+        lw x2, x1_plus_4 // [x1, 4]
+        add x2, x2
+        // sw [x1], x2
+        sw val, x2, x3
+        lw x3, val
+        // .fill 0x1000000, 1, 0
 
-mul:        mov x4, 0
-            jmp mul_check
-mul_loop:   add x4, x3
-            addi x2, -1
-mul_check:  bne x2, 0, mul_loop
-            ret
+        la x2, `getchar
+        lw x2, [x2]
+        sub x2, 48
+        lw x3, getchar
+        sub x3, 48
+        call mul
 
-            .org 0x1000004
-val:        .uint8 42
-            .uint8 0
-            .uint8 0
-            .uint8 0
+mul:    mov x4, 0
+        jmp >>
+:       add x4, x3
+        sub x2, 1
+:       bne x2, 0, <<
+        ret
 
-            .org 0xFFFFFF00
+        .org 0x1000004
+val:    .uint8 42
+        .uint8 0
+        .uint8 0
+        .uint8 0
+
+        .org 0xFFFFFF00
 getchar:
     """;
     init_assembler(asm, "<string>", src);
-    parse_lines(asm);
-    init_pass(asm);
-    parse_lines(asm);
+    parse_file(asm);
+    parse_file(asm);
     bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
     hart := Hart{pc = 0, bus = bus};
     for (;;) {
