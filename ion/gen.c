@@ -235,10 +235,6 @@ char *type_to_cdecl(Type *type, const char *str) {
         buf_printf(result, ")");
         return type_to_cdecl(type->func.ret, result);
     }
-    case TYPE_STRUCT:
-        return strf("struct %s%s%s", cdecl_name(type), *str ? " " : "", str);
-    case TYPE_UNION:
-        return strf("union %s%s%s", cdecl_name(type), *str ? " " : "", str);
     default:
         return strf("%s%s%s", cdecl_name(type), *str ? " " : "", str);
     }
