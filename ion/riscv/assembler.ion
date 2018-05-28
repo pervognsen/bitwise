@@ -362,6 +362,7 @@ struct Assembler {
     arena: Arena;
     syms: Map;
     local_syms: Sym[MAX_LOCAL_SYMS];
+    local_syms_start: Sym*;
     local_syms_end: Sym*;
     temp_tokens: Token[MAX_TEMP_TOKENS];
     temp_tokens_end: Token*;
@@ -440,8 +441,9 @@ struct TokenList {
     tokens: Token*;
     index: int;
     num_tokens: int;
-    saved_temp_tokens: Token*;
-    saved_local_syms: Sym*;
+    temp_tokens_end: Token*;
+    local_syms_start: Sym*;
+    local_syms_end: Sym*;
 }
 
 const MAX_TOKEN_LIST_STACK = 128;
@@ -814,7 +816,7 @@ func scan_token(asm: Assembler*): Token {
     return token;
 }
 
-func push_token_list(asm: Assembler*, tokens: Token*, num_tokens: int, saved_temp_tokens: Token*, saved_local_syms: Sym*) {
+func push_token_list(asm: Assembler*, tokens: Token*, num_tokens: int, temp_tokens_end: Token*, local_syms_start: Sym*, local_syms_end: Sym*) {
     i := asm.token_list_stack.num_token_lists++;
     if (i == MAX_TOKEN_LIST_STACK) {
         asm_error(asm, "Macro expansion stack overflow");
@@ -824,16 +826,18 @@ func push_token_list(asm: Assembler*, tokens: Token*, num_tokens: int, saved_tem
         tokens = tokens,
         num_tokens = num_tokens,
         index = 0,
-        saved_temp_tokens = saved_temp_tokens,
-        saved_local_syms = saved_local_syms,
+        temp_tokens_end = temp_tokens_end,
+        local_syms_start = local_syms_start,
+        local_syms_end = local_syms_end,
     };
 }
 
 func pop_token_list(asm: Assembler*) {
     n := --asm.token_list_stack.num_token_lists;
     #assert(n > 0);
-    asm.temp_tokens_end = asm.token_list.saved_temp_tokens;
-    asm.local_syms_end = asm.token_list.saved_local_syms;
+    asm.temp_tokens_end = asm.token_list.temp_tokens_end;
+    asm.local_syms_start = asm.token_list.local_syms_start;
+    asm.local_syms_end = asm.token_list.local_syms_end;
     asm.token_list = &asm.token_list_stack.token_lists[n - 1];
 }
 
@@ -872,7 +876,7 @@ func parse_macro_arg(asm: Assembler*): MacroArg {
 
 func expand_macro(asm: Assembler*, sym: Sym*) {
     macro := sym.data.macro;
-    saved_temp_tokens := asm.temp_tokens_end;
+    temp_tokens_end := asm.temp_tokens_end;
     args: MacroArg[MAX_MACRO_PARAMS];
     if (macro.num_params) {
         next_token(asm);
@@ -882,11 +886,13 @@ func expand_macro(asm: Assembler*, sym: Sym*) {
             args[i] = parse_macro_arg(asm);
         }
     }
-    saved_local_syms := asm.local_syms_end;
+    local_syms_start := asm.local_syms_start;
+    local_syms_end := asm.local_syms_end;
+    asm.local_syms_start = asm.local_syms_end;
     for (i := 0; i < macro.num_params; i++) {
-        push_sym(asm, macro.params[i], args[i].tokens, args[i].num_tokens);
+        push_local_sym(asm, macro.params[i], args[i].tokens, args[i].num_tokens);
     }
-    push_token_list(asm, macro.tokens, macro.num_tokens, saved_temp_tokens, saved_local_syms);
+    push_token_list(asm, macro.tokens, macro.num_tokens, temp_tokens_end, local_syms_start, local_syms_end);
 }
 
 func next_token(asm: Assembler*) {
@@ -907,6 +913,7 @@ func init_assembler(asm: Assembler*, filename: char const*, input: char const*) 
     *asm = {
         input = input,
         filename = filename,
+        local_syms_start = asm.local_syms,
         local_syms_end = asm.local_syms,
         temp_tokens_end = asm.temp_tokens,
     };
@@ -925,7 +932,7 @@ func init_scan(asm: Assembler*) {
         token = scan_token(asm);
     }
     buf_push(&tokens, &token, sizeof(token));
-    push_token_list(asm, tokens, buf_len(tokens), asm.temp_tokens, asm.local_syms);
+    push_token_list(asm, tokens, buf_len(tokens), asm.temp_tokens_end, asm.local_syms_start, asm.local_syms_end);
 }
 
 func init_pass(asm: Assembler*) {
@@ -1016,7 +1023,7 @@ struct Sym {
 }
 
 func get_sym(asm: Assembler*, name: char const*): Sym* {
-    for (it := asm.local_syms_end; it != asm.local_syms; it--) {
+    for (it := asm.local_syms_end; it != asm.local_syms_start; it--) {
         sym := it - 1;
         if (sym.name == name) {
             return sym;
@@ -1025,7 +1032,7 @@ func get_sym(asm: Assembler*, name: char const*): Sym* {
     return map_get(&asm.syms, name);
 }
 
-func push_sym(asm: Assembler*, name: char const*, tokens: Token*, num_tokens: int) {
+func push_local_sym(asm: Assembler*, name: char const*, tokens: Token*, num_tokens: int) {
     if (asm.local_syms_end == asm.local_syms + MAX_LOCAL_SYMS) {
         asm_error(asm, "Local symbol stack overflow");
     }
@@ -1743,15 +1750,17 @@ func asm_test() {
         .define y 2
         li x1, $arg1
         li x2, $arg2
+        // li x3, $arg3
         .endmacro
 
-        .macro test arg1, arg2
+        .macro test arg1, arg2, arg3
         $test1 $arg2, $arg1
+        li x3, $arg3
         .endmacro
 
         .define x 42
         .define y 84
-        $test $x, $y
+        $test $x, $y, 123
         // li x3, $arg1
 
         .macro do_mul
