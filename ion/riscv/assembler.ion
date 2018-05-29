@@ -1274,15 +1274,22 @@ func init_regs(asm: Assembler*) {
 }
 
 func cmd_print(asm: Assembler*) {
-    expr := parse_expr(asm);
-    if (asm.pass != 1) {
-        return;
-    }
-    @complete
-    if (expr.kind == EXPR_CONST) {
-        printf("Constant: %lld\n", expr.val);
-    } else if (expr.kind == EXPR_ADDR) {
-        printf("Address: 0x%x\n", expr.addr);
+    if (is_token(asm, TOKEN_STR)) {
+        str := asm.token.data.str;
+        next_token(asm);
+        if (asm.pass == 1) {
+            printf("String: %s\n", str);
+        }
+    } else {
+        expr := parse_expr(asm);
+        if (asm.pass == 1) {
+            @complete
+            if (expr.kind == EXPR_CONST) {
+                printf("Constant: %lld (0x%llx)\n", expr.val, expr.val);
+            } else if (expr.kind == EXPR_ADDR) {
+                printf("Address: %d (0x%x)\n", expr.addr, expr.addr);
+            }
+        }
     }
 }
 
@@ -1350,31 +1357,31 @@ func cmd_set(asm: Assembler*) {
 }
 
 func cmd_uint8(asm: Assembler*) {
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     asm_uint8(asm, uint8(imm));
 }
 
 func cmd_uint16(asm: Assembler*) {
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     asm_uint16(asm, uint16(imm));
 }
 
 func cmd_uint32(asm: Assembler*) {
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     asm_uint32(asm, uint32(imm));
 }
 
 func cmd_fill(asm: Assembler*) {
-    repeat := parse_imm(asm);
+    repeat := parse_const(asm);
     if (repeat <= 0) {
         asm_error(asm, "fill's repeat argument must be positive");
     }
     size: llong = 1;
     value: llong = 0;
     if (match_token(asm, TOKEN_COMMA)) {
-        size = parse_imm(asm);
+        size = parse_const(asm);
         if (match_token(asm, TOKEN_COMMA)) {
-            value = parse_imm(asm);
+            value = parse_const(asm);
         }
     }
     if (size <= 0) {
@@ -1389,12 +1396,12 @@ func cmd_fill(asm: Assembler*) {
 }
 
 func cmd_org(asm: Assembler*) {
-    addr := parse_imm(asm);
+    addr := parse_const(asm);
     asm.addr = uint32(addr);
 }
 
 func cmd_align(asm: Assembler*) {
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     if (imm <= 0) {
         asm_error(asm, "Alignment must be positive");
     }
@@ -1426,7 +1433,7 @@ func cmd_la(asm: Assembler*) {
 func cmd_li(asm: Assembler*) {
     rd := parse_xreg(asm);
     expect_token(asm, TOKEN_COMMA);
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     asm_li(asm, rd, int32(imm));
 }
 
@@ -1480,7 +1487,7 @@ func cmd_mov(asm: Assembler*) {
         rs1 := parse_xreg(asm);
         asm_instr(asm, {op = ADDI, rd = rd, rs1 = rs1});
     } else {
-        imm := parse_imm(asm);
+        imm := parse_const(asm);
         asm_li(asm, rd, int32(imm));
     }
 }
@@ -1495,7 +1502,7 @@ func cmd_sub(asm: Assembler*) {
         if (match_token(asm, TOKEN_COMMA)) {
             rs1 = rs;
             if (!is_token(asm, TOKEN_NAME)) {
-                imm := -parse_imm(asm);
+                imm := -parse_const(asm);
                 if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
                     asm_error(asm, "Immediate is out of range");
                 }
@@ -1510,7 +1517,7 @@ func cmd_sub(asm: Assembler*) {
         asm_reg_op(asm, SUB, rd, rs1, rs2);
     } else {
         rs1 := rd;
-        imm := -parse_imm(asm);
+        imm := -parse_const(asm);
         if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
             asm_error(asm, "Immediate is out of range");
         }
@@ -1545,17 +1552,20 @@ func parse_expr_base(asm: Assembler*): Expr {
         expr.val = asm.token.data.val;
         next_token(asm);
     } else if (is_token(asm, TOKEN_NAME)) {
-        name := asm.token.data.str;
-        next_token(asm);
-        sym := get_sym(asm, name);
-        if (sym && sym.kind == SYM_CONST) {
+        sym := parse_sym(asm);
+        if (sym.kind == SYM_CONST) {
             expr.kind = EXPR_CONST;
             expr.val = sym.data.val;
-        } else if (sym && sym.kind == SYM_LABEL) {
+        } else if (sym.kind == SYM_LABEL) {
             expr.kind = EXPR_ADDR;
             expr.addr = sym.data.addr;
+        } else if (sym.kind == SYM_NONE) {
+            sym.kind = SYM_LABEL;
+            sym.data.addr = -1;
+            expr.kind = EXPR_ADDR;
+            expr.addr = -1;
         } else {
-            asm_error(asm, "No constant named '%s'", name);
+            asm_error(asm, "No constant named '%s'", sym.name);
         }
     } else if (match_token(asm, TOKEN_DOLLAR)) {
         expr.kind = EXPR_ADDR;
@@ -1786,7 +1796,7 @@ func parse_xreg(asm: Assembler*): Reg {
     }
 }
 
-func parse_imm(asm: Assembler*): llong {
+func parse_const(asm: Assembler*): llong {
     expr := parse_expr(asm);
     if (expr.kind != EXPR_CONST) {
         asm_error(asm, "Operand must be constant");
@@ -1811,23 +1821,19 @@ struct Addr {
 func parse_addr(asm: Assembler*): Addr {
     addr: Addr;
     if (match_token(asm, TOKEN_LBRACKET)) {
-        imm: uint32;
-        if (is_token(asm, TOKEN_NAME)) {
-            sym := parse_sym(asm);
-            if (sym.kind != SYM_XREG) {
-                asm_error(asm, "Expected register");
-            }
-            reg := sym.data.xreg;
+        if (is_xreg(asm)) {
+            reg := parse_xreg(asm);
+            val: uint32;
             if (match_token(asm, TOKEN_COMMA)) {
-                imm = uint32(parse_imm(asm));
+                val = uint32(parse_const(asm));
             }
             addr.kind = ADDR_REG_OFFSET;
             addr.reg = reg;
+            addr.val = val;
         } else {
             addr.kind = ADDR_IMM;
-            imm = uint32(parse_imm(asm));
+            addr.val = uint32(parse_const(asm));
         }
-        addr.val = imm;
         expect_token(asm, TOKEN_RBRACKET);
     } else {
         addr.kind = ADDR_LABEL;
@@ -1837,28 +1843,15 @@ func parse_addr(asm: Assembler*): Addr {
 }
 
 func parse_label(asm: Assembler*): uint32 {
-    if (match_token(asm, TOKEN_GT)) {
-        index := int(asm.token.data.val);
-        expect_token(asm, TOKEN_INT);
-        return get_forward_anon_label(asm, index);
-    } else if (match_token(asm, TOKEN_LT)) {
-        index := int(asm.token.data.val);
-        expect_token(asm, TOKEN_INT);
-        return get_backward_anon_label(asm, index);
-    } else {
-        sym := parse_sym(asm);
-        if (sym.kind == SYM_NONE) {
-            sym.kind = SYM_LABEL;
-            sym.data.addr = 0;
-        } else if (sym.kind != SYM_LABEL) {
-            asm_error(asm, "Expected label");
-        }
-        return sym.data.addr;
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_ADDR) {
+        asm_error(asm, "Expected address operand");
     }
+    return expr.addr;
 }
 
 func parse_reg_to_imm_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg) {
-    imm := parse_imm(asm);
+    imm := parse_const(asm);
     if (op == SUB) {
         imm = -imm;
     }
@@ -1914,7 +1907,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
             rs1 = parse_xreg(asm);
             expect_token(asm, TOKEN_COMMA);
         }
-        imm := parse_imm(asm);
+        imm := parse_const(asm);
         if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
             asm_error(asm, "Immediate is out of range");
         }
@@ -1993,7 +1986,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
     case INSTR_UPPER_IMM:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
-        imm := parse_imm(asm);
+        imm := parse_const(asm);
         asm_instr(asm, {op = op, rd = rd, imm = uint32(imm)});
     }
 }
@@ -2108,6 +2101,18 @@ func parse_file(asm: Assembler*) {
     asm.pass++;
 }
 
+func check_undefined_syms(asm: Assembler*) {
+    syms := &asm.syms;
+    for (i := 0; i < syms.cap; i++) {
+        if (syms.keys[i]) {
+            sym: Sym* = (:Sym*) syms.vals[i];
+            if (sym.kind == SYM_NONE || (sym.kind == SYM_LABEL && sym.data.addr == -1)) {
+                asm_error(asm, "Symbol '%s' referenced but never defined", sym.name);
+            }
+        }
+    }
+}
+
 func lex_test() {
     asm := &Assembler{};
     init_assembler(asm, "<string>", "  123\n 0xffff\n x0 x32 0b1111 1/2 // 987123987123\n '\\n' \"helloworld\" asdf Foo asdf /* whatever */ Hello_world");
@@ -2134,12 +2139,18 @@ func asm_test() {
     lex_test();
     asm := &Assembler{};
     src := """
-        .uint32 0
-1:      .print $
-        .fill 1024
-        here = $
-        .print here
-        .print $ - <1
+        .define GETCHAR 0xFFFFFF00
+        .print $GETCHAR
+
+        lw x1, [$GETCHAR]
+        // lw x1, [0xFFFFFF00]
+        .print $
+        sub x1, 48
+        mov x2, 0
+        jmp >2
+1:      add x2, x1
+        sub x1, 1
+2:      bne x1, 0, <1
 
         .macro test1 arg1, arg2
         .define x 1
@@ -2175,27 +2186,15 @@ func asm_test() {
         call mul
         .endmacro
 
+        .print "Before"
+        .print $
         $do_mul
+        .print "After"
+        .print $
 
-mul:    mov x4, 0
-        jmp >2
-1:      add x4, x3
-        sub x2, 1
-2:      bne x2, 0, <1
-        ret
+        lw x3, getchar
 
-        .define GETCHAR 0xFFFFFF00
-        .print <1
-        .print $GETCHAR
-
-        lw x1, [$GETCHAR]
-        // lw x1, [0xFFFFFF00]
-        sub x1, 48
-        mov x2, 0
-        jmp >2
-1:      add x2, x1
-        sub x1, 1
-2:      bne x1, 0, <1
+        .print $
 
         .define x1_comma x1,
         .define x1_plus_4 [$x1_comma 4]
@@ -2207,6 +2206,20 @@ mul:    mov x4, 0
         sw val, x2, x3
         lw x3, val
         // .fill 0x1000000, 1, 0
+
+        .uint32 0
+1:      .print $
+        .fill 1024
+        here = $
+        .print here
+        .print $ - <1
+
+        mul:    mov x4, 0
+        jmp >2
+1:      add x4, x3
+        sub x2, 1
+2:      bne x2, 0, <1
+        ret
 
         .org 0x1000004
 val:    .uint8 42
@@ -2220,6 +2233,7 @@ getchar:
     init_assembler(asm, "<string>", src);
     parse_file(asm);
     parse_file(asm);
+    check_undefined_syms(asm);
     bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
     hart := Hart{pc = 0, bus = bus};
     for (;;) {
