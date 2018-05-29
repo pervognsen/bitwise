@@ -677,3 +677,48 @@ enum SDL_Keymod {
     KMOD_MODE = 16384,
     KMOD_RESERVED = 32768,
 }
+
+@foreign
+func SDL_GetKeyboardFocus(): SDL_Window*;
+
+@foreign
+func SDL_GetKeyboardState(numkeys: int*): Uint8*;
+
+@foreign
+func SDL_GetModState(): SDL_Keymod;
+
+@foreign
+func SDL_SetModState(modstate: SDL_Keymod);
+
+@foreign
+func SDL_GetKeyFromScancode(scancode: SDL_Scancode): SDL_Keycode;
+
+@foreign
+func SDL_GetScancodeFromKey(key: SDL_Keycode): SDL_Scancode;
+
+@foreign
+func SDL_GetScancodeName(scancode: SDL_Scancode): char const*;
+
+@foreign
+func SDL_GetKeyName(key: SDL_Keycode): char const*;
+
+@foreign
+func SDL_GetKeyFromName(name: char const*): SDL_Keycode;
+
+@foreign
+func SDL_StartTextInput();
+
+@foreign
+func SDL_IsTextInputActive(): SDL_bool;
+
+@foreign
+func SDL_StopTextInput();
+
+@foreign
+func SDL_SetTextInputRect(rect: SDL_Rect*);
+
+@foreign
+func SDL_HasScreenKeyboardSupport(): SDL_bool;
+
+@foreign
+func SDL_IsScreenKeyboardShown(window: SDL_Window*): SDL_bool;
