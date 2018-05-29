@@ -354,6 +354,7 @@ struct Assembler {
     input: char const*;
     str: char const*;
     filename: char const*;
+    disable_expansion: bool;
     line: int;
     token: Token;
     token_list: TokenList*;
@@ -414,15 +415,42 @@ enum TokenKind {
     TOKEN_INSTR,
     // ...
     TOKEN_DOLLAR,
-    TOKEN_DIV,
     TOKEN_COMMA,
-    TOKEN_LT,
-    TOKEN_GT,
     TOKEN_COLON,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
     TOKEN_LBRACKET,
     TOKEN_RBRACKET,
+    TOKEN_ASSIGN,
+    TOKEN_NEG,
+    TOKEN_NOT,
+    // Multiplicative precedence
+    TOKEN_FIRST_MUL,
+    TOKEN_MUL = TOKEN_FIRST_MUL,
+    TOKEN_DIV,
+    TOKEN_MOD,
+    TOKEN_AND,
+    TOKEN_LSHIFT,
+    TOKEN_RSHIFT,
+    TOKEN_LAST_MUL = TOKEN_RSHIFT,
+    // Additive precedence
+    TOKEN_FIRST_ADD,
+    TOKEN_ADD = TOKEN_FIRST_ADD,
+    TOKEN_SUB,
+    TOKEN_XOR,
+    TOKEN_OR,
+    TOKEN_LAST_ADD = TOKEN_OR,
+    // Comparative precedence
+    TOKEN_FIRST_CMP,
+    TOKEN_EQ = TOKEN_FIRST_CMP,
+    TOKEN_NOTEQ,
+    TOKEN_LT,
+    TOKEN_GT,
+    TOKEN_LTEQ,
+    TOKEN_GTEQ,
+    TOKEN_LAST_CMP = TOKEN_GTEQ,
+    TOKEN_AND_AND,
+    TOKEN_OR_OR,
     NUM_TOKENS,
 }
 
@@ -455,7 +483,6 @@ struct TokenListStack {
 
 var token_kind_names: char const*[] = {
     [TOKEN_EOF] = "end of file",
-    [TOKEN_DIV] = "/",
     [TOKEN_LPAREN] = "(",
     [TOKEN_RPAREN] = ")",
     [TOKEN_LBRACKET] = "[",
@@ -467,6 +494,27 @@ var token_kind_names: char const*[] = {
     [TOKEN_NAME] = "name",
     [TOKEN_INT] ="integer",
     [TOKEN_XREG] = "x-register",
+    [TOKEN_ASSIGN] = "=",
+    [TOKEN_NEG] = "~",
+    [TOKEN_NOT] = "!",
+    [TOKEN_MUL] = "*",
+    [TOKEN_DIV] = "/",
+    [TOKEN_MOD] = "%",
+    [TOKEN_AND] = "&",
+    [TOKEN_LSHIFT] = "<<",
+    [TOKEN_RSHIFT] = ">>",
+    [TOKEN_ADD] = "+",
+    [TOKEN_SUB] = "-",
+    [TOKEN_OR] = "|",
+    [TOKEN_XOR] = "^",
+    [TOKEN_EQ] = "==",
+    [TOKEN_NOTEQ] = "!=",
+    [TOKEN_LT] = "<",
+    [TOKEN_GT] = ">",
+    [TOKEN_LTEQ] = "<=",
+    [TOKEN_GTEQ] = ">=",
+    [TOKEN_AND_AND] = "&&",
+    [TOKEN_OR_OR] = "||",
 };
 
 func token_kind_name(kind: TokenKind): char const* {
@@ -533,11 +581,6 @@ func scan_error(asm: Assembler*, fmt: char const*, ...) {
 }
 
 func scan_int(asm: Assembler*): Token {
-    neg: bool;
-    if (*asm.str == '-') {
-        neg = true;
-        asm.str++;
-    }
     base := 10;
     start_digits := asm.str;
     if (*asm.str == '0') {
@@ -585,7 +628,7 @@ func scan_int(asm: Assembler*): Token {
     }
     return {
         kind = TOKEN_INT,
-        data = {val = neg ? -val : val},
+        data = {val = val},
     };
 }
 
@@ -738,7 +781,7 @@ func scan_token(asm: Assembler*): Token {
         } else {
             goto repeat;
         }
-    case '0'...'9', '-':
+    case '0'...'9':
         token = scan_int(asm);
     case '\'':
         token = scan_char(asm);
@@ -775,9 +818,69 @@ func scan_token(asm: Assembler*): Token {
     case '<':
         token.kind = TOKEN_LT;
         asm.str++;
+        if (*asm.str == '<') {
+            token.kind = TOKEN_LSHIFT;
+            asm.str++;
+        } else if (*asm.str == '=') {
+            token.kind = TOKEN_LTEQ;
+            asm.str++;
+        }
     case '>':
         token.kind = TOKEN_GT;
         asm.str++;
+        if (*asm.str == '>') {
+            token.kind = TOKEN_RSHIFT;
+            asm.str++;
+        } else if (*asm.str == '=') {
+            token.kind = TOKEN_GTEQ;
+            asm.str++;
+        }
+    case '!':
+        token.kind = TOKEN_NOT;
+        asm.str++;
+        if (token.kind == '=') {
+            token.kind = TOKEN_NOTEQ;
+            asm.str++;
+        }
+    case '~':
+        token.kind = TOKEN_NEG;
+        asm.str++;
+    case '-':
+        token.kind = TOKEN_SUB;
+        asm.str++;
+    case '+':
+        token.kind = TOKEN_ADD;
+        asm.str++;
+    case '*':
+        token.kind = TOKEN_MUL;
+        asm.str++;
+    case '%':
+        token.kind = TOKEN_MOD;
+        asm.str++;
+    case '^':
+        token.kind = TOKEN_XOR;
+        asm.str++;
+    case '|':
+        token.kind = TOKEN_OR;
+        asm.str++;
+        if (*asm.str == '|') {
+            token.kind = TOKEN_OR_OR;
+            asm.str++;
+        }
+    case '&':
+        token.kind = TOKEN_AND;
+        asm.str++;
+        if (*asm.str == '&') {
+            token.kind = TOKEN_AND_AND;
+            asm.str++;
+        }
+    case '=':
+        token.kind = TOKEN_ASSIGN;
+        asm.str++;
+        if (token.kind == '=') {
+            token.kind = TOKEN_EQ;
+            asm.str++;
+        }
     case ':':
         token.kind = TOKEN_COLON;
         asm.str++;
@@ -898,7 +1001,7 @@ func expand_macro(asm: Assembler*, sym: Sym*) {
 func next_token(asm: Assembler*) {
     :repeat
     next_raw_token(asm);
-    if (asm.token.kind == TOKEN_DOLLAR_NAME) {
+    if (!asm.disable_expansion && asm.token.kind == TOKEN_DOLLAR_NAME) {
         name := asm.token.data.str;
         if (sym := get_sym(asm, name); sym && sym.kind == SYM_MACRO) {
             expand_macro(asm, sym);
@@ -992,6 +1095,7 @@ struct InstrDef {
 
 enum SymKind = uint8 {
     SYM_NONE,
+    SYM_CONST,
     SYM_MACRO,
     SYM_LABEL,
     SYM_XREG,
@@ -1014,6 +1118,7 @@ union SymData {
     addr: uint32;
     cmd: Cmd;
     macro: MacroDef;
+    val: llong;
 }
 
 struct Sym {
@@ -1162,12 +1267,14 @@ func init_regs(asm: Assembler*) {
 }
 
 func cmd_define(asm: Assembler*) {
+    asm.disable_expansion = true;
     sym := parse_sym(asm);
     tokens: Token*;
     while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
         buf_push(&tokens, &asm.token, sizeof(asm.token));
         next_raw_token(asm);
     }
+    asm.disable_expansion = false;
     sym.kind = SYM_MACRO;
     sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
 }
@@ -1177,6 +1284,7 @@ func cmd_endmacro(asm: Assembler*) {
 }
 
 func cmd_macro(asm: Assembler*) {
+    asm.disable_expansion = true;
     sym := parse_sym(asm);
     params: char const**;
     if (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
@@ -1188,6 +1296,10 @@ func cmd_macro(asm: Assembler*) {
             buf_push((:void*)&params, &param, sizeof(param));
         }
     }
+    if (is_token(asm, TOKEN_EOF)) {
+        asm_error(asm, "End of file while parsing .macro parameter list");
+    }
+    next_token(asm);
     if (buf_len((:void*)params) > MAX_MACRO_PARAMS) {
         asm_error(asm, "Too many macro parameters");
     }
@@ -1200,6 +1312,7 @@ func cmd_macro(asm: Assembler*) {
     if (is_token(asm, TOKEN_EOF)) {
         asm_error(asm, "End of file while parsing .macro body");
     }
+    asm.disable_expansion = false;
     next_token(asm);
     sym.kind = SYM_MACRO;
     sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens), params = params, num_params = buf_len((:void*)params)};
@@ -1394,6 +1507,198 @@ func init_cmds(asm: Assembler*) {
     }
 }
 
+enum ExprKind {
+    EXPR_CONST,
+}
+
+struct Expr {
+    kind: ExprKind;
+    val: llong;
+}
+
+func parse_expr_base(asm: Assembler*): Expr {
+    expr: Expr;
+    if (is_token(asm, TOKEN_INT)) {
+        expr.kind = EXPR_CONST;
+        expr.val = asm.token.data.val;
+        next_token(asm);
+    } else if (is_token(asm, TOKEN_NAME)) {
+        name := asm.token.data.str;
+        next_token(asm);
+        sym := get_sym(asm, name);
+        if (sym && sym.kind == SYM_CONST) {
+            expr.kind = EXPR_CONST;
+            expr.val = sym.data.val;
+        } else {
+            asm_error(asm, "No constant named '%s'", name);
+        }
+    } else if (match_token(asm, TOKEN_LPAREN)) {
+        expr = parse_expr(asm);
+        expect_token(asm, TOKEN_RPAREN);
+    } else {
+        asm_error(asm, "Unexpected token %s in expression", token_kind_name(asm.token.kind));
+    }
+    return expr;
+}
+
+func is_unary_op(asm: Assembler*): bool {
+    return is_token(asm, TOKEN_ADD) || is_token(asm, TOKEN_SUB) || is_token(asm, TOKEN_NEG) || is_token(asm, TOKEN_NOT);
+}
+
+func parse_expr_unary(asm: Assembler*): Expr {
+    expr: Expr;
+    if (match_token(asm, TOKEN_ADD)) {
+        expr = parse_expr_unary(asm);
+    } else if (match_token(asm, TOKEN_SUB)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary - must be constant");
+        }
+        expr.val = -expr.val;
+    } else if (match_token(asm, TOKEN_NEG)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary ~ must be constant");
+        }
+        expr.val = ~expr.val;
+    } else if (match_token(asm, TOKEN_NOT)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary ! must be constant");
+        }
+        expr.val = ~expr.val;
+    } else {
+        expr = parse_expr_base(asm);
+    }
+    return expr;
+}
+
+func is_mul_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_MUL <= asm.token.kind && asm.token.kind <= TOKEN_LAST_MUL;
+}
+
+func parse_expr_mul(asm: Assembler*): Expr {
+    expr := parse_expr_unary(asm);
+    while (is_mul_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+        @complete
+        switch (op) {
+        case TOKEN_MUL:
+            expr.val *= expr2.val;
+        case TOKEN_DIV:
+            if (expr2.val == 0) {
+                asm_error(asm, "Division by 0");
+            }
+            expr.val /= expr2.val;
+        case TOKEN_MOD:
+            if (expr2.val == 0) {
+                asm_error(asm, "Division by 0");
+            }
+            expr.val %= expr2.val;
+        case TOKEN_AND:
+            expr.val &= expr2.val;
+        case TOKEN_LSHIFT:
+            expr.val <<= expr2.val;
+        case TOKEN_RSHIFT:
+            expr.val >>= expr2.val;
+        }
+    }
+    return expr;
+}
+
+func is_add_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_ADD <= asm.token.kind && asm.token.kind <= TOKEN_LAST_ADD;
+}
+
+func parse_expr_add(asm: Assembler*): Expr {
+    expr := parse_expr_mul(asm);
+    while (is_add_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_mul(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+        @complete
+        switch (op) {
+        case TOKEN_ADD:
+            expr.val += expr2.val;
+        case TOKEN_SUB:
+            expr.val -= expr2.val;
+        case TOKEN_XOR:
+            expr.val ^= expr2.val;
+        case TOKEN_OR:
+            expr.val |= expr2.val;
+        }
+    }
+    return expr;
+}
+
+func is_cmp_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_CMP <= asm.token.kind && asm.token.kind <= TOKEN_LAST_CMP;
+}
+
+func parse_expr_cmp(asm: Assembler*): Expr {
+    expr := parse_expr_add(asm);
+    while (is_cmp_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_add(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+        @complete
+        switch (op) {
+        case TOKEN_EQ:
+            expr.val = expr.val == expr2.val;
+        case TOKEN_NOTEQ:
+            expr.val = expr.val != expr2.val;
+        case TOKEN_LT:
+            expr.val = expr.val < expr2.val;
+        case TOKEN_GT:
+            expr.val = expr.val > expr2.val;
+        case TOKEN_LTEQ:
+            expr.val = expr.val <= expr2.val;
+        case TOKEN_GTEQ:
+            expr.val = expr.val >= expr2.val;
+        }
+    }
+    return expr;
+}
+
+func parse_expr_and(asm: Assembler*): Expr {
+    expr := parse_expr_cmp(asm);
+    while (match_token(asm, TOKEN_AND_AND)) {
+        expr2 := parse_expr_and(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of || must be constant");
+        }
+        expr.val = expr.val && expr2.val;
+    }
+    return expr;
+}
+
+func parse_expr_or(asm: Assembler*): Expr {
+    expr := parse_expr_and(asm);
+    while (match_token(asm, TOKEN_OR_OR)) {
+        expr2 := parse_expr_and(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of || must be constant");
+        }
+        expr.val = expr.val || expr2.val;
+    }
+    return expr;
+}
+
+func parse_expr(asm: Assembler*): Expr {
+    return parse_expr_or(asm);
+}
+
 func parse_name(asm: Assembler*): char const* {
     token := asm.token;
     expect_token(asm, TOKEN_NAME);
@@ -1424,8 +1729,11 @@ func parse_xreg(asm: Assembler*): Reg {
 }
 
 func parse_imm(asm: Assembler*): llong {
-    val := asm.token.data.val;
-    expect_token(asm, TOKEN_INT);
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_CONST) {
+        asm_error(asm, "Operand must be constant");
+    }
+    val := expr.val;
     return val;
 }
 
@@ -1506,23 +1814,32 @@ func parse_reg_to_imm_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg) {
     asm_imm_op(asm, imm_op, rd, rs1, uint32(imm));
 }
 
+func is_xreg(asm: Assembler*): bool {
+    if (!is_token(asm, TOKEN_NAME)) {
+        return false;
+    }
+    sym := get_sym(asm, asm.token.data.str);
+    return sym && sym.kind == SYM_XREG;
+}
+
 func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
     op := instr_def.op;
     switch (instr_def.kind) {
     case INSTR_REG:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
-        if (is_token(asm, TOKEN_NAME)) {
+        if (is_xreg(asm)) {
             rs := parse_xreg(asm);
             rs1: Reg;
             rs2: Reg;
             if (match_token(asm, TOKEN_COMMA)) {
                 rs1 = rs;
-                if (!is_token(asm, TOKEN_NAME)) {
+                if (is_xreg(asm)) {
+                    rs2 = parse_xreg(asm);
+                } else {
                     parse_reg_to_imm_op(asm, op, rd, rs1);
                     return;
                 }
-                rs2 = parse_xreg(asm);
             } else {
                 rs1 = rd;
                 rs2 = rs;
@@ -1535,7 +1852,7 @@ func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
         rs1 := rd;
-        if (is_token(asm, TOKEN_NAME)) {
+        if (is_xreg(asm)) {
             rs1 = parse_xreg(asm);
             expect_token(asm, TOKEN_COMMA);
         }
@@ -1700,13 +2017,22 @@ func parse_line(asm: Assembler*) {
             }
             sym = parse_sym(asm);
         }
-        switch (sym.kind) {
-        case SYM_INSTR:
-            parse_instr(asm, sym.data.instr);
-        case SYM_CMD:
-            sym.data.cmd(asm);
-        default:
-            asm_error(asm, "Expected instruction");
+        if (match_token(asm, TOKEN_ASSIGN)) {
+            expr := parse_expr(asm);
+            if (expr.kind != EXPR_CONST) {
+                asm_error(asm, "Right-hand side of assignment must be constant");
+            }
+            sym.kind = SYM_CONST;
+            sym.data.val = expr.val;
+        } else {
+            switch (sym.kind) {
+            case SYM_INSTR:
+                parse_instr(asm, sym.data.instr);
+            case SYM_CMD:
+                sym.data.cmd(asm);
+            default:
+                asm_error(asm, "Expected instruction");
+            }
         }
     }
     parse_newlines(asm);
@@ -1757,6 +2083,13 @@ func asm_test() {
         $test1 $arg2, $arg1
         li x3, $arg3
         .endmacro
+
+        .macro test2 arg1, arg2
+        $arg1, $arg2
+        .endmacro
+
+        minus_three = 1-4
+        li x1, minus_three
 
         .define x 42
         .define y 84
