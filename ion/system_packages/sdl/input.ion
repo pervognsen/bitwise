@@ -141,3 +141,58 @@ union SDL_Event {
 
 @foreign
 func SDL_PollEvent(event: SDL_Event*): int;
+
+@foreign
+enum SDL_eventaction {
+    SDL_ADDEVENT,
+    SDL_PEEKEVENT,
+    SDL_GETEVENT,
+}
+
+@foreign
+func SDL_PeepEvents(events: SDL_Event*, numevents: int, action: SDL_eventaction, minType: Uint32, maxType: Uint32): int;
+
+@foreign
+func SDL_HasEvent(type: Uint32): SDL_bool;
+
+@foreign
+func SDL_HasEvents(minType: Uint32, maxType: Uint32): SDL_bool;
+
+@foreign
+func SDL_FlushEvent(type: Uint32);
+
+@foreign
+func SDL_FlushEvents(minType: Uint32, maxType: Uint32);
+
+@foreign
+func SDL_WaitEvent(event: SDL_Event*): int;
+
+@foreign
+func SDL_WaitEventTimeout(event: SDL_Event*, timeout: int): int;
+
+@foreign
+func SDL_PushEvent(event: SDL_Event*): int;
+
+@foreign
+typedef SDL_EventFilter = func(userdata: void*, event: SDL_Event*): int;
+
+@foreign
+func SDL_SetEventFilter(filter: SDL_EventFilter, userdata: void*);
+
+@foreign
+func SDL_GetEventFilter(filter: SDL_EventFilter*, userdata: void**): SDL_bool;
+
+@foreign
+func SDL_AddEventWatch(filter: SDL_EventFilter, userdata: void*);
+
+@foreign
+func SDL_DelEventWatch(filter: SDL_EventFilter, userdata: void*);
+
+@foreign
+func SDL_FilterEvents(filter: SDL_EventFilter, userdata: void*);
+
+@foreign
+func SDL_EventState(type: Uint32, state: int): Uint8;
+
+@foreign
+func SDL_RegisterEvents(numevents: int): Uint32;
