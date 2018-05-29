@@ -356,6 +356,7 @@ struct Assembler {
     filename: char const*;
     disable_expansion: bool;
     line: int;
+    pass: int;
     token: Token;
     token_list: TokenList*;
     token_list_stack: TokenListStack;
@@ -488,6 +489,7 @@ var token_kind_names: char const*[] = {
     [TOKEN_LBRACKET] = "[",
     [TOKEN_RBRACKET] = "]",
     [TOKEN_LPAREN] = "(",
+    [TOKEN_DOLLAR] = "$",
     [TOKEN_COMMA] = "comma",
     [TOKEN_COLON] = ":",
     [TOKEN_NEWLINE] = "newline",
@@ -794,12 +796,16 @@ func scan_token(asm: Assembler*): Token {
             asm.str++;
         }
         start := asm.str;
-        asm.str++;
-        while (isalnum(*asm.str) || *asm.str == '_') {
+        while (isalnum(*asm.str) || *asm.str == '_' || *asm.str == '.') {
             asm.str++;
         }
-        token.kind = dollar ? TOKEN_DOLLAR_NAME : TOKEN_NAME;
-        token.data.str = str_intern_range(&asm.interns, start, asm.str);
+        if (asm.str == start) {
+            #assert(dollar);
+            token.kind = TOKEN_DOLLAR;
+        } else {
+            token.kind = dollar ? TOKEN_DOLLAR_NAME : TOKEN_NAME;
+            token.data.str = str_intern_range(&asm.interns, start, asm.str);
+        }
     case '(':
         token.kind = TOKEN_LPAREN;
         asm.str++;
@@ -1223,6 +1229,7 @@ var cmd_defs: CmdDef[] = {
     {".uint16", cmd_uint16},
     {".uint32", cmd_uint32},
     {".define", cmd_define},
+    {".print", cmd_print},
     {".macro", cmd_macro},
     {".endmacro", cmd_endmacro},
     {".set", cmd_set},
@@ -1263,6 +1270,19 @@ func init_regs(asm: Assembler*) {
         sym := add_sym(asm, buf);
         sym.kind = SYM_XREG;
         sym.data.xreg = i;
+    }
+}
+
+func cmd_print(asm: Assembler*) {
+    expr := parse_expr(asm);
+    if (asm.pass != 1) {
+        return;
+    }
+    @complete
+    if (expr.kind == EXPR_CONST) {
+        printf("Constant: %lld\n", expr.val);
+    } else if (expr.kind == EXPR_ADDR) {
+        printf("Address: 0x%x\n", expr.addr);
     }
 }
 
@@ -1509,11 +1529,13 @@ func init_cmds(asm: Assembler*) {
 
 enum ExprKind {
     EXPR_CONST,
+    EXPR_ADDR,
 }
 
 struct Expr {
     kind: ExprKind;
     val: llong;
+    addr: uint32;
 }
 
 func parse_expr_base(asm: Assembler*): Expr {
@@ -1529,9 +1551,25 @@ func parse_expr_base(asm: Assembler*): Expr {
         if (sym && sym.kind == SYM_CONST) {
             expr.kind = EXPR_CONST;
             expr.val = sym.data.val;
+        } else if (sym && sym.kind == SYM_LABEL) {
+            expr.kind = EXPR_ADDR;
+            expr.addr = sym.data.addr;
         } else {
             asm_error(asm, "No constant named '%s'", name);
         }
+    } else if (match_token(asm, TOKEN_DOLLAR)) {
+        expr.kind = EXPR_ADDR;
+        expr.addr = asm.addr;
+    } else if (match_token(asm, TOKEN_GT)) {
+        index := int(asm.token.data.val);
+        expect_token(asm, TOKEN_INT);
+        expr.kind = EXPR_ADDR;
+        expr.addr = get_forward_anon_label(asm, index);
+    } else if (match_token(asm, TOKEN_LT)) {
+        index := int(asm.token.data.val);
+        expect_token(asm, TOKEN_INT);
+        expr.kind = EXPR_ADDR;
+        expr.addr = get_backward_anon_label(asm, index);
     } else if (match_token(asm, TOKEN_LPAREN)) {
         expr = parse_expr(asm);
         expect_token(asm, TOKEN_RPAREN);
@@ -1621,19 +1659,39 @@ func parse_expr_add(asm: Assembler*): Expr {
         op := asm.token.kind;
         next_token(asm);
         expr2 := parse_expr_mul(asm);
-        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+        if (expr.kind == EXPR_CONST && expr2.kind == EXPR_ADDR) {
+            if (op != TOKEN_ADD) {
+                asm_error(asm, "Constants can only be added to addresses");
+            }
+            expr.kind = EXPR_ADDR;
+            expr.addr = uint32(expr2.addr + expr.val);
+        } else if (expr.kind == EXPR_ADDR && expr2.kind == EXPR_CONST) {
+            if (op != TOKEN_ADD) {
+                asm_error(asm, "Addresses can only be added to constants");
+            }
+            expr.kind = EXPR_ADDR;
+            expr.addr = uint32(expr.addr + expr2.val);
+        } else if (expr.kind == EXPR_ADDR && expr2.kind == EXPR_ADDR) {
+            if (op != TOKEN_SUB) {
+                asm_error(asm, "Address operands can only be subtracted");
+            }
+            // With multiple sections, it should only be constant for same-section addresses.
+            expr.kind = EXPR_CONST;
+            expr.val = uint32(expr.addr - expr2.addr);
+        } else if (expr.kind == EXPR_CONST && expr2.kind == EXPR_CONST) {
+            @complete
+            switch (op) {
+            case TOKEN_ADD:
+                expr.val += expr2.val;
+            case TOKEN_SUB:
+                expr.val -= expr2.val;
+            case TOKEN_XOR:
+                expr.val ^= expr2.val;
+            case TOKEN_OR:
+                expr.val |= expr2.val;
+            }
+        } else {
             asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
-        }
-        @complete
-        switch (op) {
-        case TOKEN_ADD:
-            expr.val += expr2.val;
-        case TOKEN_SUB:
-            expr.val -= expr2.val;
-        case TOKEN_XOR:
-            expr.val ^= expr2.val;
-        case TOKEN_OR:
-            expr.val |= expr2.val;
         }
     }
     return expr;
@@ -2019,11 +2077,15 @@ func parse_line(asm: Assembler*) {
         }
         if (match_token(asm, TOKEN_ASSIGN)) {
             expr := parse_expr(asm);
-            if (expr.kind != EXPR_CONST) {
-                asm_error(asm, "Right-hand side of assignment must be constant");
+            if (expr.kind == EXPR_CONST) {
+                sym.kind = SYM_CONST;
+                sym.data.val = expr.val;
+            } else if (expr.kind == EXPR_ADDR) {
+                sym.kind = SYM_LABEL;
+                sym.data.addr = expr.addr;
+            } else {
+                asm_error(asm, "Right-hand side of assignment must be constant or address");
             }
-            sym.kind = SYM_CONST;
-            sym.data.val = expr.val;
         } else {
             switch (sym.kind) {
             case SYM_INSTR:
@@ -2031,7 +2093,7 @@ func parse_line(asm: Assembler*) {
             case SYM_CMD:
                 sym.data.cmd(asm);
             default:
-                asm_error(asm, "Expected instruction");
+                asm_error(asm, "Expected instruction or command");
             }
         }
     }
@@ -2043,6 +2105,7 @@ func parse_file(asm: Assembler*) {
     while (asm.token.kind) {
         parse_line(asm);
     }
+    asm.pass++;
 }
 
 func lex_test() {
@@ -2071,6 +2134,13 @@ func asm_test() {
     lex_test();
     asm := &Assembler{};
     src := """
+        .uint32 0
+1:      .print $
+        .fill 1024
+        here = $
+        .print here
+        .print $ - <1
+
         .macro test1 arg1, arg2
         .define x 1
         .define y 2
@@ -2115,7 +2185,9 @@ mul:    mov x4, 0
         ret
 
         .define GETCHAR 0xFFFFFF00
- 
+        .print <1
+        .print $GETCHAR
+
         lw x1, [$GETCHAR]
         // lw x1, [0xFFFFFF00]
         sub x1, 48
