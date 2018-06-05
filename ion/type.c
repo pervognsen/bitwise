@@ -377,6 +377,7 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
         type->align = MAX(type->align, type_alignof(it->type));
         nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
+    type->size = ALIGN_UP(type->size, type->align);
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
     type->nonmodifiable = nonmodifiable;
@@ -395,6 +396,7 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
         type->align = MAX(type->align, type_alignof(it->type));
         nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
+    type->size = ALIGN_UP(type->size, type->align);
     type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
     type->aggregate.num_fields = num_fields;
     type->nonmodifiable = nonmodifiable;
