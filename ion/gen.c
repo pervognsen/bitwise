@@ -10,6 +10,7 @@ const char **gen_headers_buf;
 
 const char *gen_preamble_str =
     "// Preamble\n"
+    "#define __USE_MINGW_ANSI_STDIO 1\n"
     "#ifndef _CRT_SECURE_NO_WARNINGS\n"
     "#define _CRT_SECURE_NO_WARNINGS\n"
     "#endif\n"

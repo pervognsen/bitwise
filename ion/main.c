@@ -4,7 +4,9 @@
 #error "C11 support required or Visual Studio 2015 or later"
 #endif
 
+#define __USE_MINGW_ANSI_STDIO 1
 #define _CRT_SECURE_NO_WARNINGS
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>

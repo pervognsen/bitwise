@@ -807,8 +807,9 @@ Decl *parse_decl_note(SrcPos pos) {
 
 Decl *parse_decl_import(SrcPos pos) {
     const char *rename_name = NULL;
+    bool is_relative;
     repeat:
-    bool is_relative = false;
+    is_relative = false;
     if (match_token(TOKEN_DOT)) {
         is_relative = true;
     }
