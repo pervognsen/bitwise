@@ -353,15 +353,23 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
     return type;
 }
 
-bool has_duplicate_fields(TypeField *fields, size_t num_fields) {
-    for (size_t i = 0; i < num_fields; i++) {
-        for (size_t j = i+1; j < num_fields; j++) {
-            if (fields[i].name == fields[j].name) {
+bool has_duplicate_fields(Type *type) {
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+        for (size_t j = i+1; j < type->aggregate.num_fields; j++) {
+            if (type->aggregate.fields[i].name == type->aggregate.fields[j].name) {
                 return true;
             }
         }
     }
     return false;
+}
+
+void add_type_fields(TypeField **fields, Type *type, size_t offset) {
+    assert(type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
+    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+        TypeField *field = &type->aggregate.fields[i];
+        buf_push(*fields, (TypeField){field->name, field->type, field->offset + offset});
+    }
 }
 
 void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
@@ -370,16 +378,22 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     type->size = 0;
     type->align = 0;
     bool nonmodifiable = false;
+    TypeField *new_fields = NULL;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(IS_POW2(type_alignof(it->type)));
-        it->offset = type->size;
-        type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
+        if (it->name) {
+            it->offset = type->size;
+            buf_push(new_fields, *it);
+        } else {
+            add_type_fields(&new_fields, it->type, type->size);
+        }
         type->align = MAX(type->align, type_alignof(it->type));
+        type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
         nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
     type->size = ALIGN_UP(type->size, type->align);
-    type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
-    type->aggregate.num_fields = num_fields;
+    type->aggregate.fields = new_fields;
+    type->aggregate.num_fields = buf_len(new_fields);
     type->nonmodifiable = nonmodifiable;
 }
 
@@ -389,16 +403,22 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->size = 0;
     type->align = 0;
     bool nonmodifiable = false;
+    TypeField *new_fields = NULL;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(it->type->kind > TYPE_COMPLETING);
-        it->offset = 0;
+        if (it->name) {
+            it->offset = 0;
+            buf_push(new_fields, *it);
+        } else {
+            add_type_fields(&new_fields, it->type, 0);
+        }
         type->size = MAX(type->size, type_sizeof(it->type));
         type->align = MAX(type->align, type_alignof(it->type));
         nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
     type->size = ALIGN_UP(type->size, type->align);
-    type->aggregate.fields = memdup(fields, num_fields * sizeof(*fields));
-    type->aggregate.num_fields = num_fields;
+    type->aggregate.fields = new_fields;
+    type->aggregate.num_fields = buf_len(new_fields);
     type->nonmodifiable = nonmodifiable;
 }
 
@@ -442,7 +462,7 @@ void init_builtin_types(void) {
     init_builtin_type(type_double);
 }
 
-int aggregate_field_index(Type *type, const char *name) {
+int aggregate_item_field_index(Type *type, const char *name) {
     assert(is_aggregate_type(type));
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         if (type->aggregate.fields[i].name == name) {
@@ -452,18 +472,18 @@ int aggregate_field_index(Type *type, const char *name) {
     return -1;
 }
 
-Type *aggregate_field_type_from_index(Type *type, int index) {
+Type *aggregate_item_field_type_from_index(Type *type, int index) {
     assert(is_aggregate_type(type));
     assert(0 <= index && index < (int)type->aggregate.num_fields);
     return type->aggregate.fields[index].type;
 }
 
-Type *aggregate_field_type_from_name(Type *type, const char *name) {
+Type *aggregate_item_field_type_from_name(Type *type, const char *name) {
     assert(is_aggregate_type(type));
-    int index = aggregate_field_index(type, name);
+    int index = aggregate_item_field_index(type, name);
     if (index < 0) {
         return NULL;
     }
-    return aggregate_field_type_from_index(type, index);
+    return aggregate_item_field_type_from_index(type, index);
 }
 

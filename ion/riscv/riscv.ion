@@ -218,6 +218,56 @@ var op_to_mask: uint32[NUM_OPS] = {
     [EBREAK] = 0b000000000001_00000_000_00000_1110011,
 };
 
+var op_to_name: char const*[NUM_OPS] = {
+    [LUI] = "LUI",
+    [AUIPC] = "AUIPC",
+    [JAL] = "JAL",
+    [JALR] = "JALR",
+    [BEQ] = "BEQ",
+    [BNE] = "BNE",
+    [BLT] = "BLT",
+    [BGE] = "BGE",
+    [BLTU] = "BLTU",
+    [BGEU] = "BGEU",
+    [LB] = "LB",
+    [LH] = "LH",
+    [LW] = "LW",
+    [LBU] = "LBU",
+    [LHU] = "LHU",
+    [SB] = "SB",
+    [SH] = "SH",
+    [SW] = "SW",
+    [ADDI] = "ADDI",
+    [SLTI] = "SLTI",
+    [SLTIU] = "SLTIU",
+    [XORI] = "XORI",
+    [ORI] = "ORI",
+    [ANDI] = "ANDI",
+    [SLLI] = "SLLI",
+    [SRLI] = "SRLI",
+    [SRAI] = "SRAI",
+    [ADD] = "ADD",
+    [SUB] = "SUB",
+    [SLL] = "SLL",
+    [SLT] = "SLT",
+    [SLTU] = "SLTU",
+    [XOR] = "XOR",
+    [SRL] = "SRL",
+    [SRA] = "SRA",
+    [OR] = "OR",
+    [AND] = "AND",
+    [FENCE] = "FENCE",
+    [FENCEI] = "FENCEI",
+    [ECALL] = "ECALL",
+    [EBREAK] = "EBREAK",
+    [CSRRW] = "CSRRW",
+    [CSRRS] = "CSRRS",
+    [CSRRC] = "CSRRC",
+    [CSRRWI] = "CSRRWI",
+    [CSRRSI] = "CSRRSI",
+    [CSRRCI] = "CSRRCI",
+};
+
 const U_IMMEDIATE_MIN = -(1 << 30);
 const U_IMMEDIATE_MAX = 1 << 30 - 1;
 const U_IMMEDIATE_ALIGN = 1 << 12;
@@ -422,6 +472,40 @@ func encode_instruction(instr: Instruction): uint32 {
     }
 }
 
+func print_instruction(buf: char*, pc: uint32, instr: Instruction) {
+    op := instr.op;
+    if (op == ILLEGAL || op >= NUM_OPS) {
+        sprintf(buf, "ILLEGAL");
+        return;
+    }
+    buf += sprintf(buf, "%s", op_to_name[op]);
+    switch (op) {
+    case LUI, AUIPC:
+        sprintf(buf, " x%d, %d", instr.rd, instr.imm);
+    case JAL:
+        sprintf(buf, " x%d, [0x%x]", instr.rd, pc + instr.imm);
+    case JALR:
+        sprintf(buf, " x%d, [x%d, %d]", instr.rd, instr.rs1, instr.imm);
+    case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+        sprintf(buf, " x%d, x%d, [0x%x]", instr.rs1, instr.rs2, pc + instr.imm);
+    case LB, LH, LW, LBU, LHU:
+        sprintf(buf, " x%d, [x%d, %d]", instr.rd, instr.rs1, instr.imm);
+    case SB, SH, SW:
+        sprintf(buf, " [x%d, %d], x%d", instr.rs1, instr.imm, instr.rs2);
+    case ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI:
+        sprintf(buf, " x%d, x%d, %d", instr.rd, instr.rs1, instr.imm);
+    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+        sprintf(buf, " x%d, x%d, x%d", instr.rd, instr.rs1, instr.rs2);
+    case CSRRW, CSRRS, CSRRC:
+        break;
+    case CSRRWI, CSRRSI, CSRRCI:
+        break;
+    case FENCE, FENCEI, ECALL, EBREAK:
+        // No operands to print
+        break;
+    }
+}
+
 struct Bus {
     ram: uint8*;
     ram_start: uint32;
@@ -477,10 +561,21 @@ func bus_store_byte(bus: Bus*, addr: uint32, data: uint8) {
     }
 }
 
+struct Breakpoint {
+    enabled: bool;
+    addr: uint32;
+    callback: func(hart: Hart*, breakpoint: Breakpoint*, instr: Instruction const*);
+}
+
 struct Hart {
     pc: uint32;
     regs: uint32[32];
     bus: Bus*;
+    trace_load_enabled: bool;
+    trace_load_callback: func(hart: Hart*, addr: uint32, size: int);
+    trace_store_enabled: bool;
+    trace_store_callback: func(hart: Hart*, addr: uint32, data: uint32, size: int);
+    breakpoint: Breakpoint;
 }
 
 func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
@@ -498,26 +593,44 @@ func write_reg(hart: Hart*, reg: Reg, val: uint32) {
 }
 
 func load_word(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 4);
+    }
     return bus_load_word(hart.bus, addr);
 }
 
 func load_halfword(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 2);
+    }
     return bus_load_halfword(hart.bus, addr);
 }
 
 func load_byte(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 1);
+    }
     return bus_load_byte(hart.bus, addr);
 }
 
 func store_word(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 4);
+    }
     bus_store_word(hart.bus, addr, data);
 }
 
 func store_halfword(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 2);
+    }
     bus_store_halfword(hart.bus, addr, data);
 }
 
 func store_byte(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 1);
+    }
     bus_store_byte(hart.bus, addr, data);
 }
 
@@ -532,6 +645,9 @@ func step(hart: Hart*) {
     pc := hart.pc;
     instr_data := fetch_instruction(hart, pc);
     instr := decode_instruction(instr_data);
+    if (hart.breakpoint.enabled && hart.breakpoint.addr == pc) {
+        hart.breakpoint.callback(hart, &hart.breakpoint, &instr);
+    }
     rs1 := instr.rs1;
     rs2 := instr.rs2;
     rd := instr.rd;
@@ -680,7 +796,12 @@ func step(hart: Hart*) {
 }
 
 func print_hart_state(hart: Hart*) {
-    printf("pc = %d\n", hart.pc);
+    instr_data := fetch_instruction(hart, hart.pc);
+    instr := decode_instruction(instr_data);
+    instr_str: char[128];
+    print_instruction(instr_str, hart.pc, instr);
+    printf("%s\n\n", instr_str);
+    printf("pc = %d (0x%x)\n", hart.pc, hart.pc);
     for (reg := 1; reg < 32; reg += 4) {
         printf("%2d = %10d | ", reg, hart.regs[reg]);
         printf("%2d = %10d | ", reg+1, hart.regs[reg+1]);
@@ -818,4 +939,3 @@ func test_main() {
     }
     test_random_invertible_codings();
 }
-

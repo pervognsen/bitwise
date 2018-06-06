@@ -1,5 +1,5 @@
 import .subtest1 {subtest1_func1 = func1}
-import libc {gc = getchar, ...}
+import C = libc {gc = getchar, ...}
 
 #static_assert('\xFF' == 255)
 
@@ -767,6 +767,19 @@ func test_lvalue() {
 //    p.a = 42;
 }
 
+struct T1 {
+    a: int;
+    b: char;
+}
+
+#static_assert(sizeof(T1) == 8)
+
+struct T2 {
+    x, y: T1;
+}
+
+#static_assert(sizeof(T2) == 16)
+
 func test_if() {
     if (1) {
     }
@@ -803,6 +816,31 @@ func test_const_ptr_deref() {
     i := foo.bar.rc;
 }
 
+enum TokenKind {
+    TOKEN_NONE,
+    TOKEN_INT,
+    TOKEN_STR,
+}
+
+struct Token {
+    kind: TokenKind;
+    union {
+        struct {
+            val: llong;
+            mod: uint16;
+        }
+        str: char const*;
+    }
+}
+
+func test_token() {
+    t1 := Token{kind = TOKEN_INT, val = 42};
+    t2 := Token{kind = TOKEN_STR, str = "Hello"};
+}
+
+#static_assert(offsetof(Token, val) == offsetof(Token, str))
+#static_assert(sizeof(Token) == 24)
+
 func main(argc: int, argv: char**): int {
     if (argv == 0) {
         printf("argv is null\n");
@@ -833,5 +871,7 @@ func main(argc: int, argv: char**): int {
     test_typeinfo();
     test_reachable();
     gc();
+    C.getchar();
+    subtest1.LIBC.getchar();
     return 0;
 }

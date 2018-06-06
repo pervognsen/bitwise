@@ -58,11 +58,25 @@ typedef struct FuncParam {
     Typespec *type;
 } FuncParam;
 
+typedef enum AggregateItemKind {
+    AGGREGATE_ITEM_NONE,
+    AGGREGATE_ITEM_FIELD,
+    AGGREGATE_ITEM_SUBAGGREGATE,
+} AggregateItemKind;
+
+struct Aggregate;
+
 typedef struct AggregateItem {
     SrcPos pos;
-    const char **names;
-    size_t num_names;
-    Typespec *type;
+    AggregateItemKind kind;
+    union {
+        struct {
+            const char **names;
+            size_t num_names;
+            Typespec *type;
+        };
+        struct Aggregate *subaggregate;
+    };
 } AggregateItem;
 
 typedef struct EnumItem {
@@ -89,6 +103,19 @@ typedef enum DeclKind {
     DECL_IMPORT,
 } DeclKind;
 
+typedef enum AggregateKind {
+    AGGREGATE_NONE,
+    AGGREGATE_STRUCT,
+    AGGREGATE_UNION,
+} AggregateKind;
+
+typedef struct Aggregate {
+    SrcPos pos;
+    AggregateKind kind;
+    AggregateItem *items;
+    size_t num_items;
+} Aggregate;
+
 struct Decl {
     DeclKind kind;
     SrcPos pos;
@@ -102,10 +129,7 @@ struct Decl {
             EnumItem *items;
             size_t num_items;
         } enum_decl;
-        struct {
-            AggregateItem *items;
-            size_t num_items;
-        } aggregate;
+        Aggregate *aggregate;
         struct {
             FuncParam *params;
             size_t num_params;

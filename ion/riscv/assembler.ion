@@ -347,7 +347,7 @@ struct AnonLabel {
 }
 
 const MAX_LOCAL_SYMS = 128;
-const MAX_TEMP_TOKENS = 128;
+const MAX_TEMP_TOKENS = 1024;
 const MAX_MACRO_PARAMS = 16;
 
 struct Assembler {
@@ -373,6 +373,10 @@ struct Assembler {
     buf_size: uint32;
     anon_labels: AnonLabel*;
     next_anon_label: int;
+}
+
+func get_name(asm: Assembler*, str: char const*): char const* {
+    return str_intern(&asm.interns, str);
 }
 
 func set_anon_label(asm: Assembler*, index: int) {
@@ -455,15 +459,13 @@ enum TokenKind {
     NUM_TOKENS,
 }
 
-union TokenData {
-    val: llong;
-    str: char const*;
-}
-
 struct Token {
     kind: TokenKind;
-    data: TokenData;
     line: int;
+    union {
+        val: llong;
+        str: char const*;
+    }
 }
 
 struct TokenList {
@@ -529,7 +531,7 @@ func token_kind_name(kind: TokenKind): char const* {
 
 func token_info(token: Token): char const* {
     if (token.kind == TOKEN_NAME) {
-        return token.data.str;
+        return token.str;
     } else {
         return token_kind_name(token.kind);
     }
@@ -630,7 +632,7 @@ func scan_int(asm: Assembler*): Token {
     }
     return {
         kind = TOKEN_INT,
-        data = {val = val},
+        val = val,
     };
 }
 
@@ -700,7 +702,7 @@ func scan_char(asm: Assembler*): Token {
     }
     return {
         kind = TOKEN_INT,
-        data = {val = val},
+        val = val,
     };
 }
 
@@ -758,7 +760,7 @@ func scan_str(asm: Assembler*): Token {
     strbuf_push(&buf, 0);
     return {
         kind = TOKEN_STR,
-        data = {str = buf},
+        str = buf,
     };
 }
 
@@ -804,7 +806,7 @@ func scan_token(asm: Assembler*): Token {
             token.kind = TOKEN_DOLLAR;
         } else {
             token.kind = dollar ? TOKEN_DOLLAR_NAME : TOKEN_NAME;
-            token.data.str = str_intern_range(&asm.interns, start, asm.str);
+            token.str = str_intern_range(&asm.interns, start, asm.str);
         }
     case '(':
         token.kind = TOKEN_LPAREN;
@@ -1008,7 +1010,7 @@ func next_token(asm: Assembler*) {
     :repeat
     next_raw_token(asm);
     if (!asm.disable_expansion && asm.token.kind == TOKEN_DOLLAR_NAME) {
-        name := asm.token.data.str;
+        name := asm.token.str;
         if (sym := get_sym(asm, name); sym && sym.kind == SYM_MACRO) {
             expand_macro(asm, sym);
             goto repeat;
@@ -1056,11 +1058,20 @@ func is_token(asm: Assembler*, kind: TokenKind): bool {
 }
 
 func is_token_name(asm: Assembler*, name: char const*): bool {
-    return asm.token.kind == TOKEN_NAME && asm.token.data.str == name;
+    return asm.token.kind == TOKEN_NAME && asm.token.str == name;
 }
 
 func match_token(asm: Assembler*, kind: TokenKind): bool {
     if (is_token(asm, kind)) {
+        next_token(asm);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+func match_name(asm: Assembler*, name: char const*): bool {
+    if (is_token_name(asm, name)) {
         next_token(asm);
         return true;
     } else {
@@ -1245,7 +1256,7 @@ var cmd_defs: CmdDef[] = {
 };
 
 func add_sym(asm: Assembler*, name: char const*): Sym* {
-    name = str_intern(&asm.interns, name);
+    name = get_name(asm, name);
     #assert(!get_sym(asm, name));
     sym: Sym* = arena_alloc(&asm.arena, sizeof(Sym));
     *sym = {name = name};
@@ -1275,7 +1286,7 @@ func init_regs(asm: Assembler*) {
 
 func cmd_print(asm: Assembler*) {
     if (is_token(asm, TOKEN_STR)) {
-        str := asm.token.data.str;
+        str := asm.token.str;
         next_token(asm);
         if (asm.pass == 1) {
             printf("String: %s\n", str);
@@ -1293,14 +1304,19 @@ func cmd_print(asm: Assembler*) {
     }
 }
 
-func cmd_define(asm: Assembler*) {
-    asm.disable_expansion = true;
-    sym := parse_sym(asm);
+func parse_line_tokens(asm: Assembler*): Token* {
     tokens: Token*;
     while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
         buf_push(&tokens, &asm.token, sizeof(asm.token));
-        next_raw_token(asm);
+        next_token(asm);
     }
+    return tokens;
+}
+
+func cmd_define(asm: Assembler*) {
+    asm.disable_expansion = true;
+    sym := parse_sym(asm);
+    tokens := parse_line_tokens(asm);
     asm.disable_expansion = false;
     sym.kind = SYM_MACRO;
     sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
@@ -1330,7 +1346,7 @@ func cmd_macro(asm: Assembler*) {
     if (buf_len((:void*)params) > MAX_MACRO_PARAMS) {
         asm_error(asm, "Too many macro parameters");
     }
-    endmacro_name := str_intern(&asm.interns, ".endmacro");
+    endmacro_name := get_name(asm, ".endmacro");
     tokens: Token*;
     while (!is_token(asm, TOKEN_EOF) && !is_token_name(asm, endmacro_name)) {
         buf_push(&tokens, &asm.token, sizeof(asm.token));
@@ -1347,11 +1363,7 @@ func cmd_macro(asm: Assembler*) {
 
 func cmd_set(asm: Assembler*) {
     sym := parse_sym(asm);
-    tokens: Token*;
-    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
-        buf_push(&tokens, &asm.token, sizeof(asm.token));
-        next_token(asm);
-    }
+    tokens := parse_line_tokens(asm);
     sym.kind = SYM_MACRO;
     sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
 }
@@ -1549,7 +1561,7 @@ func parse_expr_base(asm: Assembler*): Expr {
     expr: Expr;
     if (is_token(asm, TOKEN_INT)) {
         expr.kind = EXPR_CONST;
-        expr.val = asm.token.data.val;
+        expr.val = asm.token.val;
         next_token(asm);
     } else if (is_token(asm, TOKEN_NAME)) {
         sym := parse_sym(asm);
@@ -1571,12 +1583,12 @@ func parse_expr_base(asm: Assembler*): Expr {
         expr.kind = EXPR_ADDR;
         expr.addr = asm.addr;
     } else if (match_token(asm, TOKEN_GT)) {
-        index := int(asm.token.data.val);
+        index := int(asm.token.val);
         expect_token(asm, TOKEN_INT);
         expr.kind = EXPR_ADDR;
         expr.addr = get_forward_anon_label(asm, index);
     } else if (match_token(asm, TOKEN_LT)) {
-        index := int(asm.token.data.val);
+        index := int(asm.token.val);
         expect_token(asm, TOKEN_INT);
         expr.kind = EXPR_ADDR;
         expr.addr = get_backward_anon_label(asm, index);
@@ -1744,7 +1756,7 @@ func parse_expr_and(asm: Assembler*): Expr {
     while (match_token(asm, TOKEN_AND_AND)) {
         expr2 := parse_expr_and(asm);
         if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
-            asm_error(asm, "Operand of || must be constant");
+            asm_error(asm, "Operand of && must be constant");
         }
         expr.val = expr.val && expr2.val;
     }
@@ -1770,7 +1782,7 @@ func parse_expr(asm: Assembler*): Expr {
 func parse_name(asm: Assembler*): char const* {
     token := asm.token;
     expect_token(asm, TOKEN_NAME);
-    return token.data.str;
+    return token.str;
 }
 
 func parse_sym(asm: Assembler*): Sym* {
@@ -1783,7 +1795,7 @@ func parse_sym(asm: Assembler*): Sym* {
 }
 
 func parse_xreg(asm: Assembler*): Reg {
-    if (is_token(asm, TOKEN_INT) && asm.token.data.val == 0) {
+    if (is_token(asm, TOKEN_INT) && asm.token.val == 0) {
         next_token(asm);
         return 0;
     } else {
@@ -1869,7 +1881,7 @@ func is_xreg(asm: Assembler*): bool {
     if (!is_token(asm, TOKEN_NAME)) {
         return false;
     }
-    sym := get_sym(asm, asm.token.data.str);
+    sym := get_sym(asm, asm.token.str);
     return sym && sym.kind == SYM_XREG;
 }
 
@@ -2042,6 +2054,32 @@ func asm_mv(asm: Assembler*, dest: Reg, src: Reg) {
     asm_reg_op(asm, ADD, dest, src, X0);
 }
 
+func push_temp_token(asm: Assembler*, token: Token) {
+    if (asm.temp_tokens_end == asm.temp_tokens + MAX_TEMP_TOKENS) {
+        asm_error(asm, "Temp tokens stack overflow");
+    }
+    *asm.temp_tokens_end++ = token;
+}
+
+func parse_block(asm: Assembler*, end_name: char const*) {
+    name_if := get_name(asm, ".if");
+    name_endif := get_name(asm, ".endif");
+    start := asm.temp_tokens_end;
+    next := start;
+    while (!is_token(asm, TOKEN_EOF) && !is_token_name(asm, end_name)) {
+        if (match_name(asm, name_if)) {
+            parse_block(asm, name_endif);
+        } else {
+            push_temp_token(asm, asm.token);
+            next_token(asm);
+        }
+    }
+    if (is_token(asm, TOKEN_EOF)) {
+        asm_error(asm, "End of file while looking for '%s'", end_name);
+    }
+    next_token(asm);
+}
+
 func parse_newlines(asm: Assembler*) {
     while (match_token(asm, TOKEN_NEWLINE)) {
     }
@@ -2050,7 +2088,7 @@ func parse_newlines(asm: Assembler*) {
 func parse_line(asm: Assembler*) {
     parse_newlines(asm);
     while (is_token(asm, TOKEN_INT)) {
-        index := int(asm.token.data.val);
+        index := int(asm.token.val);
         next_token(asm);
         set_anon_label(asm, index);
         expect_token(asm, TOKEN_COLON);
@@ -2123,11 +2161,11 @@ func lex_test() {
         token := asm.token;
         switch (token.kind) {
         case TOKEN_INT:
-            printf("INT: %lld\n", token.data.val);
+            printf("INT: %lld\n", token.val);
         case TOKEN_STR:
-            printf("STR: %s\n", token.data.str);
+            printf("STR: %s\n", token.str);
         case TOKEN_NAME:
-            printf("NAME: %s (%p)\n", token.data.str, token.data.str);
+            printf("NAME: %s (%p)\n", token.str, token.str);
         default:
             printf("%s\n", token_kind_name(token.kind));
         }
@@ -2135,99 +2173,172 @@ func lex_test() {
     }
 }
 
+var is_nested: bool;
+
+func breakpoint_callback(hart: Hart*, breakpoint: Breakpoint*, instr: Instruction const*) {
+    printf("Hit breakpoint: 0x%x\n", breakpoint.addr);
+    is_nested = true;
+    cmd_loop(hart);
+    is_nested = false;
+}
+
+func trace_load_callback(hart: Hart*, addr: uint32, size: int) {
+    printf("Load: addr = %d, size = %d\n", addr, size);
+}
+
+func trace_store_callback(hart: Hart*, addr: uint32, data: uint32, size: int) {
+    printf("Store: addr = %d, data = %d, size = %d\n", addr, data, size);
+}
+
+func getline(buf: char*, buf_size: int) {
+    ptr := buf;
+    while (ptr != buf + buf_size) {
+        c := getchar();
+        if (c == EOF || c == '\n') {
+            break;
+        }
+        *ptr++ = c;
+    }
+    if (ptr == buf + buf_size) {
+        #assert(buf_size);
+        ptr[-1] = 0;
+    } else {
+        *ptr = 0;
+    }
+}
+
+func cmd_loop(hart: Hart*) {
+    for (;;) {
+        line: char[256];
+        getline(line, sizeof(line));
+        if (strcmp(line, "") == 0) {
+            if (is_nested) {
+                return;
+            } else {
+                step(hart);
+                print_hart_state(hart);
+            }
+        } else if (line[0] == 'b') {
+            if (line[1]) {
+                addr := atoi(line + 1);
+                hart.breakpoint.enabled = true;
+                hart.breakpoint.addr = addr;
+                printf("Breakpoint enabled: %d\n", addr);
+            } else {
+                hart.breakpoint.enabled = false;
+                printf("Breakpoint disabled\n");
+            }
+        } else if (strcmp(line, "tl") == 0) {
+            hart.trace_load_enabled = !hart.trace_load_enabled;
+            printf("Load tracing %s\n", hart.trace_load_enabled ? "enabled" : "disabled");
+        } else if (strcmp(line, "ts") == 0) {
+            hart.trace_store_enabled = !hart.trace_store_enabled;
+            printf("Store tracing %s\n", hart.trace_store_enabled ? "enabled" : "disabled");
+        } else if (strcmp(line, "p") == 0) {
+            print_hart_state(hart);
+        } else {
+            printf("Unknown command: %s\n", line);
+        }
+    }
+}
+
 func asm_test() {
     lex_test();
     asm := &Assembler{};
     src := """
-        .define GETCHAR 0xFFFFFF00
-        .print $GETCHAR
+    .define x1_comma x1,
+    .define x1_plus_4 [$x1_comma 4]
+    mov x1, 0x1000000
+    // lw x2, val
+    lw x2, $x1_plus_4 // [x1, 4]
+    add x2, x2
+    // sw [x1], x2
+    sw pad + 4, x2, x3
+    lw x3, val
+    // .fill 0x1000000, 1, 0
 
-        lw x1, [$GETCHAR]
-        // lw x1, [0xFFFFFF00]
-        .print $
-        sub x1, 48
-        mov x2, 0
-        jmp >2
-1:      add x2, x1
-        sub x1, 1
-2:      bne x1, 0, <1
+    .define GETCHAR 0xFFFFFF00
+    .print $GETCHAR
 
-        .macro test1 arg1, arg2
-        .define x 1
-        .define y 2
-        li x1, $arg1
-        li x2, $arg2
-        // li x3, $arg3
-        .endmacro
+    lw x1, [$GETCHAR]
+    // lw x1, [0xFFFFFF00]
+    .print $
+    sub x1, 48
+    mov x2, 0
+    jmp >2
+1:  add x2, x1
+    sub x1, 1
+2:  bne x1, 0, <1
 
-        .macro test arg1, arg2, arg3
-        $test1 $arg2, $arg1
-        li x3, $arg3
-        .endmacro
+    .macro test1 arg1, arg2
+    .define x 1
+    .define y 2
+    li x1, $arg1
+    li x2, $arg2
+    // li x3, $arg3
+    .endmacro
 
-        .macro test2 arg1, arg2
-        $arg1, $arg2
-        .endmacro
+    .macro test arg1, arg2, arg3
+    $test1 $arg2, $arg1
+    li x3, $arg3
+    .endmacro
 
-        minus_three = 1-4
-        li x1, minus_three
+    .macro test2 arg1, arg2
+    $arg1, $arg2
+    .endmacro
 
-        .define x 42
-        .define y 84
-        $test $x, $y, 123
-        // li x3, $arg1
+    minus_three = 1 - 2*2
+    li x1, minus_three
 
-        .macro do_mul
-        la x2, getchar
-        lw x2, [x2]
-        sub x2, 48
-        lw x3, getchar
-        sub x3, 48
-        call mul
-        .endmacro
+    .define x 42
+    .define y 84
+    $test $x, $y, 123
+    // li x3, $arg1
 
-        .print "Before"
-        .print $
-        $do_mul
-        .print "After"
-        .print $
+    .macro do_mul
+    la x2, getchar
+    lw x2, [x2]
+    sub x2, 48
+    lw x3, getchar
+    sub x3, 48
+    call mul
+    .endmacro
 
-        lw x3, getchar
+    .print "Before"
+    .print $
+1:  $do_mul
+2:  .print "After"
+    .print $
 
-        .print $
+    lw x3, getchar
 
-        .define x1_comma x1,
-        .define x1_plus_4 [$x1_comma 4]
-          mov x1, 0x1000000
-        // lw x2, val
-        lw x2, $x1_plus_4 // [x1, 4]
-        add x2, x2
-        // sw [x1], x2
-        sw val, x2, x3
-        lw x3, val
-        // .fill 0x1000000, 1, 0
+    .print $
 
-        .uint32 0
-1:      .print $
-        .fill 1024
-        here = $
-        .print here
-        .print $ - <1
+    .uint32 0
+1:  .print $
+    .fill 1024
+    here = $ + 4
+    .print here
+    .print $ - <1
 
-        mul:    mov x4, 0
-        jmp >2
-1:      add x4, x3
-        sub x2, 1
-2:      bne x2, 0, <1
-        ret
+ mul:
+    mov x4, 0
+    jmp >2
+1:  add x4, x3
+    sub x2, 1
+2:  bne x2, 0, <1
+    ret
 
-        .org 0x1000004
-val:    .uint8 42
-        .uint8 0
-        .uint8 0
-        .uint8 0
+    .org 0x1000000
+pad:
+    .uint32 0
+val:
+    .uint8 42
+    .uint8 0
+    .uint8 0
+    .uint8 0
 
-        .org 0xFFFFFF00
+    .org 0xFFFFFF00
 getchar:
     """;
     init_assembler(asm, "<string>", src);
@@ -2235,10 +2346,13 @@ getchar:
     parse_file(asm);
     check_undefined_syms(asm);
     bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
-    hart := Hart{pc = 0, bus = bus};
-    for (;;) {
-        getchar();
-        step(&hart);
-        print_hart_state(&hart);
-    }
+    hart := &Hart{
+        pc = 0,
+        bus = bus,
+        breakpoint = {callback = breakpoint_callback},
+        trace_load_callback = trace_load_callback,
+        trace_store_callback = trace_store_callback,
+    };
+    cmd_loop(hart);
 }
+

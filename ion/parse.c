@@ -617,34 +617,62 @@ Decl *parse_decl_enum(SrcPos pos) {
     return new_decl_enum(pos, name, type, items, buf_len(items));
 }
 
+Aggregate *parse_aggregate(AggregateKind kind);
+
 AggregateItem parse_decl_aggregate_item(void) {
     SrcPos pos = token.pos;
-    const char **names = NULL;
-    buf_push(names, parse_name());
-    while (match_token(TOKEN_COMMA)) {
+    if (match_keyword(struct_keyword)) {
+        return (AggregateItem){
+            .pos = pos,
+            .kind = AGGREGATE_ITEM_SUBAGGREGATE,
+            .subaggregate = parse_aggregate(AGGREGATE_STRUCT),
+        };
+    } else if (match_keyword(union_keyword)) {
+        return (AggregateItem){
+            .pos = pos,
+            .kind = AGGREGATE_ITEM_SUBAGGREGATE,
+            .subaggregate = parse_aggregate(AGGREGATE_UNION),
+        };
+    } else {
+        const char **names = NULL;
         buf_push(names, parse_name());
+        while (match_token(TOKEN_COMMA)) {
+            buf_push(names, parse_name());
+        }
+        expect_token(TOKEN_COLON);
+        Typespec *type = parse_type();
+        expect_token(TOKEN_SEMICOLON);
+        return (AggregateItem){
+            .pos = pos,
+            .kind = AGGREGATE_ITEM_FIELD,
+            .names = names,
+            .num_names = buf_len(names),
+            .type = type,
+        };
     }
-    expect_token(TOKEN_COLON);
-    Typespec *type = parse_type();
-    expect_token(TOKEN_SEMICOLON);
-    return (AggregateItem){pos, names, buf_len(names), type};
+}
+
+Aggregate *parse_aggregate(AggregateKind kind) {
+    SrcPos pos = token.pos;
+    expect_token(TOKEN_LBRACE);
+    AggregateItem *items = NULL;
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
+        buf_push(items, parse_decl_aggregate_item());
+    }
+    expect_token(TOKEN_RBRACE);
+    return new_aggregate(pos, kind, items, buf_len(items));
 }
 
 Decl *parse_decl_aggregate(SrcPos pos, DeclKind kind) {
     assert(kind == DECL_STRUCT || kind == DECL_UNION);
     const char *name = parse_name();
+    AggregateKind aggregate_kind = kind == DECL_STRUCT ? AGGREGATE_STRUCT : AGGREGATE_UNION;
     if (match_token(TOKEN_SEMICOLON)) {
-        Decl *decl = new_decl_aggregate(pos, kind, name, NULL, 0);
+        Decl *decl = new_decl_aggregate(pos, kind, name, new_aggregate(pos, aggregate_kind, NULL, 0));
         decl->is_incomplete = true;
         return decl;
     } else {
-        expect_token(TOKEN_LBRACE);
-        AggregateItem *items = NULL;
-        while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
-            buf_push(items, parse_decl_aggregate_item());
-        }
-        expect_token(TOKEN_RBRACE);
-        return new_decl_aggregate(pos, kind, name, items, buf_len(items));
+        return new_decl_aggregate(pos, kind, name, parse_aggregate(aggregate_kind));
     }
 }
 
@@ -776,13 +804,23 @@ Decl *parse_decl_note(SrcPos pos) {
 }
 
 Decl *parse_decl_import(SrcPos pos) {
+    const char *rename_name = NULL;
+    repeat:
     bool is_relative = false;
     if (match_token(TOKEN_DOT)) {
         is_relative = true;
     }
-    const char **names = NULL;
-    buf_push(names, token.name);
+    const char *name = token.name;
     expect_token(TOKEN_NAME);
+    if (!is_relative && match_token(TOKEN_ASSIGN)) {
+        if (rename_name) {
+            fatal_error(pos, "Only one import assignment is allowed");
+        }
+        rename_name = name;
+        goto repeat;
+    }
+    const char **names = NULL;
+    buf_push(names, name);
     while (match_token(TOKEN_DOT)) {
         buf_push(names, token.name);
         expect_token(TOKEN_NAME);
@@ -807,7 +845,7 @@ Decl *parse_decl_import(SrcPos pos) {
         }
         expect_token(TOKEN_RBRACE);
     }
-    return new_decl_import(pos, is_relative, names, buf_len(names), import_all, items, buf_len(items));
+    return new_decl_import(pos, rename_name, is_relative, names, buf_len(names), import_all, items, buf_len(items));
 }
 
 Decl *parse_decl_opt(void) {

@@ -13,6 +13,9 @@ const char *gen_preamble_str =
     "#ifndef _CRT_SECURE_NO_WARNINGS\n"
     "#define _CRT_SECURE_NO_WARNINGS\n"
     "#endif\n"
+    "#ifndef _CRT_NONSTDC_NO_DEPRECATE\n"
+    "#define _CRT_NONSTDC_NO_DEPRECATE\n"
+    "#endif\n"
     "\n"
     "#if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L\n"
     "// Visual Studio 2015 supports enough C99/C11 features for us.\n"
@@ -260,8 +263,8 @@ const char *get_gen_name_or_default(const void *ptr, const char *default_name) {
         if (sym) {
             if (sym->external_name) {
                 name = sym->external_name;
-            } else if (sym->package->external_name) {
-                const char *external_name = sym->package->external_name;
+            } else if (sym->home_package->external_name) {
+                const char *external_name = sym->home_package->external_name;
                 char buf[256];
                 if (sym->kind == SYM_CONST) {
                     char *ptr = buf;
@@ -384,21 +387,33 @@ void gen_forward_decls(void) {
     }
 }
 
+void gen_aggregate_items(Aggregate *aggregate) {
+    gen_indent++;
+    for (size_t i = 0; i < aggregate->num_items; i++) {
+        AggregateItem item = aggregate->items[i];
+        if (item.kind == AGGREGATE_ITEM_FIELD) {
+            for (size_t j = 0; j < item.num_names; j++) {
+                gen_sync_pos(item.pos);
+                genlnf("%s;", typespec_to_cdecl(item.type, item.names[j]));
+            }
+        } else if (item.kind == AGGREGATE_ITEM_SUBAGGREGATE) {
+            genlnf("%s {", item.subaggregate->kind == AGGREGATE_STRUCT ? "struct" : "union");
+            gen_aggregate_items(item.subaggregate);
+            genlnf("};");
+        } else {
+            assert(0);
+        }
+    }
+    gen_indent--;
+}
+
 void gen_aggregate(Decl *decl) {
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
     if (decl->is_incomplete) {
         return;
     }
     genlnf("%s %s {", decl->kind == DECL_STRUCT ? "struct" : "union", get_gen_name(decl));
-    gen_indent++;
-    for (size_t i = 0; i < decl->aggregate.num_items; i++) {
-        AggregateItem item = decl->aggregate.items[i];
-        for (size_t j = 0; j < item.num_names; j++) {
-            gen_sync_pos(item.pos);
-            genlnf("%s;", typespec_to_cdecl(item.type, item.names[j]));
-        }
-    }
-    gen_indent--;
+    gen_aggregate_items(decl->aggregate);
     genlnf("};");
 }
 
@@ -478,7 +493,11 @@ bool is_excluded_typeinfo(Type *type) {
     while (type->kind == TYPE_ARRAY || type->kind == TYPE_CONST || type->kind == TYPE_PTR) {
         type = type->base;
     }
-    return type->sym && !gen_reachable(type->sym);
+    if (type->sym) {
+        return !gen_reachable(type->sym);
+    } else {
+        return !type->sym && (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
+    }
 }
 
 void gen_typeid(Type *type) {
@@ -553,9 +572,14 @@ void gen_expr(Expr *expr) {
         genf("]");
         break;
     case EXPR_FIELD: {
-        gen_expr(expr->field.expr);
-        Type *type = unqualify_type(get_resolved_type(expr->field.expr));
-        genf("%s%s", type->kind == TYPE_PTR ? "->" : ".", expr->field.name);
+        Sym *sym = get_resolved_sym(expr);
+        if (sym) {
+            genf("(%s)", get_gen_name(sym));
+        } else {
+            gen_expr(expr->field.expr);
+            Type *type = unqualify_type(get_resolved_type(expr->field.expr));
+            genf("%s%s", type->kind == TYPE_PTR ? "->" : ".", expr->field.name);
+        }
         break;
     }
     case EXPR_COMPOUND:
@@ -896,6 +920,9 @@ void gen_decl(Sym *sym) {
         } else {
             genlnf("typedef int %s;", get_gen_name(decl));
         }
+        break;
+    case DECL_IMPORT:
+        // Do nothing
         break;
     default:
         assert(0);

@@ -109,18 +109,19 @@ Decl *new_decl_enum(SrcPos pos, const char *name, Typespec *type, EnumItem *item
     return d;
 }
 
-Decl *new_decl_aggregate(SrcPos pos, DeclKind kind, const char *name, AggregateItem *items, size_t num_items) {
-    assert(kind == DECL_STRUCT || kind == DECL_UNION);
-    Decl *d = new_decl(kind, pos, name);
-    d->aggregate.items = AST_DUP(items);
-    d->aggregate.num_items = num_items;
-    return d;
+Aggregate *new_aggregate(SrcPos pos, AggregateKind kind, AggregateItem *items, size_t num_items) {
+    Aggregate *aggregate = ast_alloc(sizeof(Aggregate));
+    aggregate->pos = pos;
+    aggregate->kind = kind;
+    aggregate->items = AST_DUP(items);
+    aggregate->num_items = num_items;
+    return aggregate;
 }
 
-Decl *new_decl_union(SrcPos pos, const char *name, AggregateItem *items, size_t num_items) {
-    Decl *d = new_decl(DECL_UNION, pos, name);
-    d->aggregate.items = AST_DUP(items);
-    d->aggregate.num_items = num_items;
+Decl *new_decl_aggregate(SrcPos pos, DeclKind kind, const char *name, Aggregate *aggregate) {
+    assert(kind == DECL_STRUCT || kind == DECL_UNION);
+    Decl *d = new_decl(kind, pos, name);
+    d->aggregate = aggregate;
     return d;
 }
 
@@ -160,8 +161,9 @@ Decl *new_decl_note(SrcPos pos, Note note) {
     return d;
 }
 
-Decl *new_decl_import(SrcPos pos, bool is_relative, const char **names, size_t num_names, bool import_all, ImportItem *items, size_t num_items) {
+Decl *new_decl_import(SrcPos pos, const char *rename_name, bool is_relative, const char **names, size_t num_names, bool import_all, ImportItem *items, size_t num_items) {
     Decl *d = new_decl(DECL_IMPORT, pos, NULL);
+    d->name = rename_name;
     d->import.is_relative = is_relative;
     d->import.names = AST_DUP(names);
     d->import.num_names = num_names;

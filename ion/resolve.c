@@ -4,6 +4,7 @@ typedef enum SymKind {
     SYM_CONST,
     SYM_FUNC,
     SYM_TYPE,
+    SYM_PACKAGE,
 } SymKind;
 
 typedef enum SymState {
@@ -16,14 +17,19 @@ struct Package;
 
 typedef struct Sym {
     const char *name;
-    struct Package *package;
+    struct Package *home_package;
     SymKind kind;
     SymState state;
     uint8_t reachable;
     Decl *decl;
-    Type *type;
-    Val val;
     const char *external_name;
+    union {
+        struct {
+            Type *type;
+            Val val;
+        };
+        struct Package *package;
+    };
 } Sym;
 
 typedef struct Package {
@@ -93,7 +99,7 @@ Sym *sym_new(SymKind kind, const char *name, Decl *decl) {
     sym->kind = kind;
     sym->name = name;
     sym->decl = decl;
-    sym->package = current_package;
+    sym->home_package = current_package;
     set_resolved_sym(sym, sym);
     return sym;
 }
@@ -189,6 +195,9 @@ void sym_global_put(const char *name, Sym *sym) {
     Sym *old_sym = map_get(&current_package->syms_map, name);
     if (old_sym) {
         if (sym == old_sym) {
+            return;
+        }
+        if (sym->kind == SYM_PACKAGE && old_sym->kind == SYM_PACKAGE && sym->package == old_sym->package) {
             return;
         }
         SrcPos pos = sym->decl ? sym->decl->pos : pos_builtin;
@@ -692,6 +701,44 @@ Type *resolve_typespec(Typespec *typespec) {
     return result;
 }
 
+Type *complete_aggregate(Type *type, Aggregate *aggregate) {
+    TypeField *fields = NULL;
+    for (size_t i = 0; i < aggregate->num_items; i++) {
+        AggregateItem item = aggregate->items[i];
+        if (item.kind == AGGREGATE_ITEM_FIELD) {
+            Type *item_type = resolve_typespec(item.type);
+            complete_type(item_type);
+            if (type_sizeof(item_type) == 0) {
+                fatal_error(item.pos, "Field type of size 0 is not allowed");
+            }
+            for (size_t j = 0; j < item.num_names; j++) {
+                buf_push(fields, (TypeField){item.names[j], item_type});
+            }
+        } else {
+            assert(item.kind == AGGREGATE_ITEM_SUBAGGREGATE);
+            Type *item_type = complete_aggregate(NULL, item.subaggregate);
+            buf_push(fields, (TypeField){NULL, item_type});
+        }
+    }
+    if (!type) {
+        type = type_incomplete(NULL);
+        type->kind = TYPE_COMPLETING;
+    }
+    if (aggregate->kind == AGGREGATE_STRUCT) {
+        type_complete_struct(type, fields, buf_len(fields));
+    } else {
+        assert(aggregate->kind == AGGREGATE_UNION);
+        type_complete_union(type, fields, buf_len(fields));
+    }
+    if (type->aggregate.num_fields == 0) {
+        fatal_error(aggregate->pos, "No fields");
+    }
+    if (has_duplicate_fields(type)) {
+        fatal_error(aggregate->pos, "Duplicate fields");
+    }
+    return type;
+}
+
 void complete_type(Type *type) {
     if (type->kind == TYPE_COMPLETING) {
         fatal_error(type->sym->decl->pos, "Type completion cycle");
@@ -700,37 +747,14 @@ void complete_type(Type *type) {
         return;
     }
     Sym *sym = type->sym;
-    Package *old_package = enter_package(sym->package);
+    Package *old_package = enter_package(sym->home_package);
     Decl *decl = sym->decl;
     if (decl->is_incomplete) {
         fatal_error(decl->pos, "Trying to use incomplete type as complete type");
     }
     type->kind = TYPE_COMPLETING;
     assert(decl->kind == DECL_STRUCT || decl->kind == DECL_UNION);
-    TypeField *fields = NULL;
-    for (size_t i = 0; i < decl->aggregate.num_items; i++) {
-        AggregateItem item = decl->aggregate.items[i];
-        Type *item_type = resolve_typespec(item.type);
-        complete_type(item_type);
-        if (type_sizeof(item_type) == 0) {
-            fatal_error(item.pos, "Field type of size 0 is not allowed");
-        }
-        for (size_t j = 0; j < item.num_names; j++) {
-            buf_push(fields, (TypeField){item.names[j], item_type});
-        }
-    }
-    if (buf_len(fields) == 0) {
-        fatal_error(decl->pos, "No fields");
-    }
-    if (has_duplicate_fields(fields, buf_len(fields))) {
-        fatal_error(decl->pos, "Duplicate fields");
-    }
-    if (decl->kind == DECL_STRUCT) {
-        type_complete_struct(type, fields, buf_len(fields));
-    } else {
-        assert(decl->kind == DECL_UNION);
-        type_complete_union(type, fields, buf_len(fields));
-    }
+    complete_aggregate(type, decl->aggregate);
     buf_push(sorted_syms, type->sym);
     leave_package(old_package);
 }
@@ -1121,7 +1145,7 @@ void resolve_func_body(Sym *sym) {
     if (decl->is_incomplete) {
         return;
     }
-    Package *old_package = enter_package(sym->package);
+    Package *old_package = enter_package(sym->home_package);
     Sym *scope = sym_enter();
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];
@@ -1158,7 +1182,7 @@ void resolve_sym(Sym *sym) {
     }
     sym->state = SYM_RESOLVING;
     Decl *decl = sym->decl;
-    Package *old_package = enter_package(sym->package);
+    Package *old_package = enter_package(sym->home_package);
     switch (sym->kind) {
     case SYM_TYPE:
         if (decl && decl->kind == DECL_TYPEDEF) {
@@ -1181,6 +1205,9 @@ void resolve_sym(Sym *sym) {
         break;
     case SYM_FUNC:
         sym->type = resolve_decl_func(decl);
+        break;
+    case SYM_PACKAGE:
+        // Do nothing
         break;
     default:
         assert(0);
@@ -1213,8 +1240,35 @@ Sym *resolve_name(const char *name) {
     return sym;
 }
 
+Package *try_resolve_package(Expr *expr) {
+    if (expr->kind == EXPR_NAME) {
+        Sym *sym = resolve_name(expr->name);
+        if (sym && sym->kind == SYM_PACKAGE) {
+            return sym->package;
+        }
+    } else if (expr->kind == EXPR_FIELD) {
+        Package *package = try_resolve_package(expr->field.expr);
+        if (package) {
+            Sym *sym = get_package_sym(package, expr->field.name);
+            if (sym && sym->kind == SYM_PACKAGE) {
+                return sym->package;
+            }
+        }
+    }
+    return NULL;
+}
+
 Operand resolve_expr_field(Expr *expr) {
     assert(expr->kind == EXPR_FIELD);
+    Package *package = try_resolve_package(expr->field.expr);
+    if (package) {
+        Package *old_package = enter_package(package);
+        Sym *sym = resolve_name(expr->field.name);
+        Operand operand = resolve_name_operand(expr->pos, expr->field.name);
+        leave_package(old_package);
+        set_resolved_sym(expr, sym);
+        return operand;
+    }
     Operand operand = resolve_expr(expr->field.expr);
     bool was_const_type = is_const_type(operand.type);
     Type *type = unqualify_type(operand.type);
@@ -1655,7 +1709,7 @@ Operand resolve_expr_compound(Expr *expr, Type *expected_type) {
             if (field.kind == FIELD_INDEX) {
                 fatal_error(field.pos, "Index field initializer not allowed for struct/union compound literal");
             } else if (field.kind == FIELD_NAME) {
-                index = aggregate_field_index(type, field.name);
+                index = aggregate_item_field_index(type, field.name);
                 if (index == -1) {
                     fatal_error(field.pos, "Named field in compound literal does not exist");
                 }
@@ -2073,7 +2127,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         if (type->kind != TYPE_STRUCT && type->kind != TYPE_UNION) {
             fatal_error(expr->pos, "offsetof can only be used with struct/union types");
         }
-        int field = aggregate_field_index(type, expr->offsetof_field.name);
+        int field = aggregate_item_field_index(type, expr->offsetof_field.name);
         if (field < 0) {
             fatal_error(expr->pos, "No field '%s' in type", expr->offsetof_field.name);
         }
@@ -2206,7 +2260,7 @@ void import_all_package_symbols(Package *package) {
     // TODO: should have a more general mechanism
     const char *main_name = str_intern("main");
     for (size_t i = 0; i < buf_len(package->syms); i++) {
-        if (package->syms[i]->package == package && package->syms[i]->name != main_name) {
+        if (package->syms[i]->home_package == package && package->syms[i]->name != main_name) {
             sym_global_put(package->syms[i]->name, package->syms[i]);
         }
     }
@@ -2250,6 +2304,10 @@ void process_package_imports(Package *package) {
             if (decl->import.import_all) {
                 import_all_package_symbols(imported_package);
             }
+            const char *sym_name = decl->name ? decl->name : decl->import.names[decl->import.num_names - 1];
+            Sym *sym = sym_new(SYM_PACKAGE, sym_name, decl);
+            sym->package = imported_package;
+            sym_global_put(sym_name, sym);
         }
     }
 }
@@ -2310,7 +2368,7 @@ bool compile_package(Package *package) {
 void resolve_package_syms(Package *package) {
     Package *old_package = enter_package(package);
     for (size_t i = 0; i < buf_len(package->syms); i++) {
-        if (package->syms[i]->package == package) {
+        if (package->syms[i]->home_package == package) {
             resolve_sym(package->syms[i]);
         }
     }
@@ -2329,7 +2387,7 @@ void finalize_reachable_syms(void) {
             if (flag_verbose) {
                 printf("New reachable symbols:");
                 for (size_t k = prev_num_reachable; k < num_reachable; k++) {
-                    printf(" %s/%s", reachable_syms[k]->package->path, reachable_syms[k]->name);
+                    printf(" %s/%s", reachable_syms[k]->home_package->path, reachable_syms[k]->name);
                 }
                 printf("\n");
             }
