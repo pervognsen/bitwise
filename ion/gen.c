@@ -534,9 +534,12 @@ void gen_expr(Expr *expr) {
         }
         break;
     }
-    case EXPR_FLOAT:
-        genf("%f%s", expr->float_lit.val, expr->float_lit.suffix == SUFFIX_D ? "" : "f");
+    case EXPR_FLOAT: {
+        bool is_double = expr->float_lit.suffix == SUFFIX_D;
+        size_t len = expr->float_lit.end - expr->float_lit.start;
+        genf("%.*s%s", is_double ? len-1 : len, expr->float_lit.start, is_double ? "" : "f");
         break;
+    }
     case EXPR_STR:
         gen_str(expr->str_lit.val, expr->str_lit.mod == MOD_MULTILINE);
         break;

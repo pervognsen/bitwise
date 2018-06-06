@@ -218,6 +218,8 @@ struct Expr {
             TokenSuffix suffix;
         } int_lit;
         struct {
+            const char *start;
+            const char *end;
             double val;
             TokenSuffix suffix;
         } float_lit;

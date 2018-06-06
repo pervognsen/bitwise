@@ -131,10 +131,12 @@ Expr *parse_expr_operand(void) {
         next_token();
         return new_expr_int(pos, val, mod, suffix);
     } else if (is_token(TOKEN_FLOAT)) {
+        const char *start = token.start;
+        const char *end = token.end;
         double val = token.float_val;
         TokenSuffix suffix = token.suffix;
         next_token();
-        return new_expr_float(pos, val, suffix);
+        return new_expr_float(pos, start, end, val, suffix);
     } else if (is_token(TOKEN_STR)) {
         const char *val = token.str_val;
         TokenMod mod = token.mod;

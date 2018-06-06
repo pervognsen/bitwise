@@ -245,8 +245,10 @@ Expr *new_expr_int(SrcPos pos, unsigned long long val, TokenMod mod, TokenSuffix
     return e;
 }
 
-Expr *new_expr_float(SrcPos pos, double val, TokenSuffix suffix) {
+Expr *new_expr_float(SrcPos pos, const char *start, const char *end, double val, TokenSuffix suffix) {
     Expr *e = new_expr(EXPR_FLOAT, pos);
+    e->float_lit.start = start;
+    e->float_lit.end = end;
     e->float_lit.val = val;
     e->float_lit.suffix = suffix;
     return e;
