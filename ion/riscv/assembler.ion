@@ -885,7 +885,7 @@ func scan_token(asm: Assembler*): Token {
     case '=':
         token.kind = TOKEN_ASSIGN;
         asm.str++;
-        if (token.kind == '=') {
+        if (*asm.str == '=') {
             token.kind = TOKEN_EQ;
             asm.str++;
         }
@@ -986,7 +986,7 @@ func parse_macro_arg(asm: Assembler*): MacroArg {
 }
 
 func expand_macro(asm: Assembler*, sym: Sym*) {
-    macro := sym.data.macro;
+    macro := sym.macro;
     temp_tokens_end := asm.temp_tokens_end;
     args: MacroArg[MAX_MACRO_PARAMS];
     if (macro.num_params) {
@@ -1129,19 +1129,17 @@ struct MacroDef {
     num_tokens: int;
 }
 
-union SymData {
-    xreg: Reg;
-    instr: InstrDef*;
-    addr: uint32;
-    cmd: Cmd;
-    macro: MacroDef;
-    val: llong;
-}
-
 struct Sym {
     name: char const*;
     kind: SymKind;
-    data: SymData;
+    union {
+        xreg: Reg;
+        instr: InstrDef*;
+        addr: uint32;
+        cmd: Cmd;
+        macro: MacroDef;
+        val: llong;
+    }
 }
 
 func get_sym(asm: Assembler*, name: char const*): Sym* {
@@ -1161,7 +1159,7 @@ func push_local_sym(asm: Assembler*, name: char const*, tokens: Token*, num_toke
     sym := asm.local_syms_end++;
     sym.name = name;
     sym.kind = SYM_MACRO;
-    sym.data.macro = {tokens = tokens, num_tokens = num_tokens};
+    sym.macro = {tokens = tokens, num_tokens = num_tokens};
 }
 
 var reg_to_imm_op: Op[NUM_OPS] = {
@@ -1243,7 +1241,12 @@ var cmd_defs: CmdDef[] = {
     {".print", cmd_print},
     {".macro", cmd_macro},
     {".endmacro", cmd_endmacro},
+    {".if", cmd_if},
+    {".elseif", cmd_elseif},
+    {".else", cmd_else},
+    {".endif", cmd_endif},
     {".set", cmd_set},
+    {".reg", cmd_reg},
     {"li", cmd_li},
     {"la", cmd_la},
     {"jmp", cmd_jmp},
@@ -1270,7 +1273,7 @@ func init_instrs(asm: Assembler*) {
         instr := instr_defs + i;
         sym := add_sym(asm, instr.name);
         sym.kind = SYM_INSTR;
-        sym.data.instr = instr;
+        sym.instr = instr;
     }
 }
 
@@ -1280,7 +1283,7 @@ func init_regs(asm: Assembler*) {
         sprintf(buf, "x%d", i);
         sym := add_sym(asm, buf);
         sym.kind = SYM_XREG;
-        sym.data.xreg = i;
+        sym.xreg = i;
     }
 }
 
@@ -1319,7 +1322,7 @@ func cmd_define(asm: Assembler*) {
     tokens := parse_line_tokens(asm);
     asm.disable_expansion = false;
     sym.kind = SYM_MACRO;
-    sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
 }
 
 func cmd_endmacro(asm: Assembler*) {
@@ -1358,14 +1361,14 @@ func cmd_macro(asm: Assembler*) {
     asm.disable_expansion = false;
     next_token(asm);
     sym.kind = SYM_MACRO;
-    sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens), params = params, num_params = buf_len((:void*)params)};
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens), params = params, num_params = buf_len((:void*)params)};
 }
 
 func cmd_set(asm: Assembler*) {
     sym := parse_sym(asm);
     tokens := parse_line_tokens(asm);
     sym.kind = SYM_MACRO;
-    sym.data.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
 }
 
 func cmd_uint8(asm: Assembler*) {
@@ -1379,8 +1382,14 @@ func cmd_uint16(asm: Assembler*) {
 }
 
 func cmd_uint32(asm: Assembler*) {
-    imm := parse_const(asm);
-    asm_uint32(asm, uint32(imm));
+    expr := parse_expr(asm);
+    @complete
+    switch (expr.kind) {
+    case EXPR_CONST:
+        asm_uint32(asm, uint32(expr.val));
+    case EXPR_ADDR:
+        asm_uint32(asm, expr.addr);
+    }
 }
 
 func cmd_fill(asm: Assembler*) {
@@ -1405,6 +1414,78 @@ func cmd_fill(asm: Assembler*) {
     for (i := 0; i < repeat; i++) {
         asm_bytes(asm, &value, uint32(size));
     }
+}
+
+func cmd_reg(asm: Assembler*) {
+    sym := parse_sym(asm);
+    xreg := parse_xreg(asm);
+    sym.kind = SYM_XREG;
+    sym.xreg = xreg;
+}
+
+func skip_line(asm: Assembler*) {
+    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        next_token(asm);
+    }
+    parse_newlines(asm);
+}
+
+func cmd_if(asm: Assembler*) {
+    cond := parse_const(asm);
+    expect_token(asm, TOKEN_NEWLINE);
+    parse_newlines(asm);
+    if_name := get_name(asm, ".if");
+    elseif_name := get_name(asm, ".elseif");
+    else_name := get_name(asm, ".else");
+    endif_name := get_name(asm, ".endif");
+    else_taken := false;
+    any_taken := cond;
+    level := 0;
+    asm.disable_expansion = !cond;
+    while (level >= 0) {
+        parse_newlines(asm);
+        if (match_name(asm, endif_name)) {
+            skip_line(asm);
+            level--;
+        } else if (match_name(asm, elseif_name)) {
+            if (else_taken) {
+                asm_error(asm, ".elseif after .else clause");
+            }
+            cond = parse_const(asm) && !any_taken;
+            asm.disable_expansion = !cond;
+            any_taken = cond || any_taken;
+            expect_token(asm, TOKEN_NEWLINE);
+            parse_newlines(asm);
+        } else if (match_name(asm, else_name)) {
+            if (else_taken) {
+                asm_error(asm, "Multiple .else clauses");
+            }
+            cond = !any_taken;
+            asm.disable_expansion = !cond;
+            else_taken = true;
+            skip_line(asm);
+        } else if (cond) {
+            parse_line(asm);
+        } else {
+            if (match_name(asm, if_name)) {
+                level++;
+            }
+            skip_line(asm);
+        }
+    }
+    asm.disable_expansion = false;
+}
+
+func cmd_endif(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .endif");
+}
+
+func cmd_elseif(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .elseif");
+}
+
+func cmd_else(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .else");
 }
 
 func cmd_org(asm: Assembler*) {
@@ -1542,7 +1623,7 @@ func init_cmds(asm: Assembler*) {
         cmd_def := cmd_defs + i;
         sym := add_sym(asm, cmd_def.name);
         sym.kind = SYM_CMD;
-        sym.data.cmd = cmd_def.cmd;
+        sym.cmd = cmd_def.cmd;
     }
 }
 
@@ -1553,8 +1634,10 @@ enum ExprKind {
 
 struct Expr {
     kind: ExprKind;
-    val: llong;
-    addr: uint32;
+    union {
+        val: llong;
+        addr: uint32;
+    }
 }
 
 func parse_expr_base(asm: Assembler*): Expr {
@@ -1567,13 +1650,13 @@ func parse_expr_base(asm: Assembler*): Expr {
         sym := parse_sym(asm);
         if (sym.kind == SYM_CONST) {
             expr.kind = EXPR_CONST;
-            expr.val = sym.data.val;
+            expr.val = sym.val;
         } else if (sym.kind == SYM_LABEL) {
             expr.kind = EXPR_ADDR;
-            expr.addr = sym.data.addr;
+            expr.addr = sym.addr;
         } else if (sym.kind == SYM_NONE) {
             sym.kind = SYM_LABEL;
-            sym.data.addr = -1;
+            sym.addr = -1;
             expr.kind = EXPR_ADDR;
             expr.addr = -1;
         } else {
@@ -1804,7 +1887,7 @@ func parse_xreg(asm: Assembler*): Reg {
             asm_error(asm, "Expected xreg, got '%s'", sym.name);
             return 0;
         }
-        return sym.data.xreg;
+        return sym.xreg;
     }
 }
 
@@ -2061,25 +2144,6 @@ func push_temp_token(asm: Assembler*, token: Token) {
     *asm.temp_tokens_end++ = token;
 }
 
-func parse_block(asm: Assembler*, end_name: char const*) {
-    name_if := get_name(asm, ".if");
-    name_endif := get_name(asm, ".endif");
-    start := asm.temp_tokens_end;
-    next := start;
-    while (!is_token(asm, TOKEN_EOF) && !is_token_name(asm, end_name)) {
-        if (match_name(asm, name_if)) {
-            parse_block(asm, name_endif);
-        } else {
-            push_temp_token(asm, asm.token);
-            next_token(asm);
-        }
-    }
-    if (is_token(asm, TOKEN_EOF)) {
-        asm_error(asm, "End of file while looking for '%s'", end_name);
-    }
-    next_token(asm);
-}
-
 func parse_newlines(asm: Assembler*) {
     while (match_token(asm, TOKEN_NEWLINE)) {
     }
@@ -2100,7 +2164,7 @@ func parse_line(asm: Assembler*) {
                 asm_error(asm, "Label already defined");
             }
             sym.kind = SYM_LABEL;
-            sym.data.addr = asm.addr;
+            sym.addr = asm.addr;
             if (match_token(asm, TOKEN_NEWLINE)) {
                 return;
             }
@@ -2110,19 +2174,19 @@ func parse_line(asm: Assembler*) {
             expr := parse_expr(asm);
             if (expr.kind == EXPR_CONST) {
                 sym.kind = SYM_CONST;
-                sym.data.val = expr.val;
+                sym.val = expr.val;
             } else if (expr.kind == EXPR_ADDR) {
                 sym.kind = SYM_LABEL;
-                sym.data.addr = expr.addr;
+                sym.addr = expr.addr;
             } else {
                 asm_error(asm, "Right-hand side of assignment must be constant or address");
             }
         } else {
             switch (sym.kind) {
             case SYM_INSTR:
-                parse_instr(asm, sym.data.instr);
+                parse_instr(asm, sym.instr);
             case SYM_CMD:
-                sym.data.cmd(asm);
+                sym.cmd(asm);
             default:
                 asm_error(asm, "Expected instruction or command");
             }
@@ -2144,7 +2208,7 @@ func check_undefined_syms(asm: Assembler*) {
     for (i := 0; i < syms.cap; i++) {
         if (syms.keys[i]) {
             sym: Sym* = (:Sym*) syms.vals[i];
-            if (sym.kind == SYM_NONE || (sym.kind == SYM_LABEL && sym.data.addr == -1)) {
+            if (sym.kind == SYM_NONE || (sym.kind == SYM_LABEL && sym.addr == -1)) {
                 asm_error(asm, "Symbol '%s' referenced but never defined", sym.name);
             }
         }
@@ -2208,6 +2272,7 @@ func getline(buf: char*, buf_size: int) {
 }
 
 func cmd_loop(hart: Hart*) {
+    print_hart_state(hart);
     for (;;) {
         line: char[256];
         getline(line, sizeof(line));
@@ -2236,16 +2301,80 @@ func cmd_loop(hart: Hart*) {
             printf("Store tracing %s\n", hart.trace_store_enabled ? "enabled" : "disabled");
         } else if (strcmp(line, "p") == 0) {
             print_hart_state(hart);
+        } else if (strcmp(line, "r") == 0) {
+            for (;;) {
+                step(hart);
+            }
         } else {
             printf("Unknown command: %s\n", line);
         }
     }
 }
 
+func assemble_file(asm: Assembler*, filename: char const*): bool {
+    file := fopen(filename, "rb");
+    if (!file) {
+        return false;
+    }
+    fseek(file, 0, SEEK_END);
+    size := ftell(file);
+    fseek(file, 0, SEEK_SET);
+    buf: char* = malloc(size + 1);
+    if (fread(buf, size, 1, file) != 1) {
+        free(buf);
+        return false;
+    }
+    buf[size] = 0;
+    fclose(file);
+
+    init_assembler(asm, filename, buf);
+    parse_file(asm);
+    parse_file(asm);
+    check_undefined_syms(asm);
+    free(buf);
+
+    return true;
+}
+
+func forth_test() {
+    asm: Assembler;
+    assemble_file(&asm, "forth.asm");
+    bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
+    hart := &Hart{pc = 0, bus = bus};
+    cmd_loop(hart);
+}
+
 func asm_test() {
     lex_test();
     asm := &Assembler{};
+
     src := """
+    .macro fact0 n, r
+    .if $n == 0
+    .print $r
+    .else
+    $fact0 ($n)-1, ($r)*($n)
+    .endif
+    .endmacro
+
+    .macro fact n
+    $fact0 $n, 1
+    .endmacro
+
+    $fact 5
+
+    .if 1
+    .if 0
+    .print "if 0"
+    .endif
+    .print "if 1"
+    .elseif 0
+    .print "if 2"
+    .else
+    .print "if 3"
+    .endif
+    .print "after if"
+
     .define x1_comma x1,
     .define x1_plus_4 [$x1_comma 4]
     mov x1, 0x1000000
