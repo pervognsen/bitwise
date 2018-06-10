@@ -1372,24 +1372,37 @@ func cmd_set(asm: Assembler*) {
 }
 
 func cmd_uint8(asm: Assembler*) {
-    imm := parse_const(asm);
-    asm_uint8(asm, uint8(imm));
+    do {
+        if(is_token(asm, TOKEN_STR)) {
+            for(str := asm.token.str; *str != 0; str++) {
+                asm_uint8(asm, uint8(*str));
+            }
+            next_token(asm);
+        } else {
+            imm := parse_const(asm);
+            asm_uint8(asm, uint8(imm));
+        }
+    } while(match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_uint16(asm: Assembler*) {
-    imm := parse_const(asm);
-    asm_uint16(asm, uint16(imm));
+    do {
+        imm := parse_const(asm);
+        asm_uint16(asm, uint16(imm));
+    } while(match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_uint32(asm: Assembler*) {
-    expr := parse_expr(asm);
-    @complete
-    switch (expr.kind) {
-    case EXPR_CONST:
-        asm_uint32(asm, uint32(expr.val));
-    case EXPR_ADDR:
-        asm_uint32(asm, expr.addr);
-    }
+    do {
+        expr := parse_expr(asm);
+        @complete
+        switch (expr.kind) {
+        case EXPR_CONST:
+            asm_uint32(asm, uint32(expr.val));
+        case EXPR_ADDR:
+            asm_uint32(asm, expr.addr);
+        }
+    } while(match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_fill(asm: Assembler*) {
