@@ -21,15 +21,6 @@ $name:
         .endmacro
 
 init:
-        la t1, init_msg         // Load the address of the string into t1
-        lb t2, [t1]             // Load the number of characters into t2
-1:      add t1, 1
-        lbu t3, [t1]            // Load a character into t3
-        sw putchar, t3, t4      // Output it
-        sub t2, 1
-        bne t2, x0, <1
-
-
         la sp, stack_start
         la pc, program_start
         $next
@@ -109,9 +100,6 @@ do_twice:
 1:      .uint32 do_dup
         .uint32 do_add
         .uint32 do_exit
-
-init_msg:
-        .uint8 14, "Hello, World!\n"
 
     .org 0xFFFFFF00
 getchar:
