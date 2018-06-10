@@ -4,6 +4,8 @@
 
         .reg t1 x8
         .reg t2 x9
+        .reg t3 x10
+        .reg t4 x11
 
         .macro next
         lw t1, [pc]
@@ -73,27 +75,21 @@ stack_start:
         .org 0x2000
 program_start:
         .uint32 do_getchar
-        .uint32 do_push
-        .uint32 -'0'
+        .uint32 do_push, -'0'
         .uint32 do_add
         .uint32 do_twice
         .uint32 do_twice
-        .uint32 do_push
-        .uint32 '0'
+        .uint32 do_push, '0'
         .uint32 do_add
         .uint32 do_putchar
-
         .uint32 do_getchar
-        .uint32 do_push
-        .uint32 -'0'
+        .uint32 do_push, -'0'
         .uint32 do_add
         .uint32 do_getchar
-        .uint32 do_push
-        .uint32 -'0'
+        .uint32 do_push, -'0'
         .uint32 do_add
         .uint32 do_add
-        .uint32 do_push
-        .uint32 '0'
+        .uint32 do_push, '0'
         .uint32 do_add
         .uint32 do_putchar
         .uint32 do_getchar
