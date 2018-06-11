@@ -26,10 +26,10 @@
         name_offset = 5
 
         .macro defentry label, name
-1:      .uint32 latest_const
+1:      .uint32 latest_const    // link
         latest_const = <1
-        .uint8 >3 - >2
-2:      .str $name
+        .uint8 >3 - >2          // name_len
+2:      .str $name              // name
 3:
         .align 4
 $label:
@@ -52,7 +52,7 @@ init:   la sp, stack
         $next
 
         $defcode _find, "find"              // ( addr len -- entry found? )
-        lw t1, [sp, -8]                     // void *t1 = addr;
+        lw t1, [sp, -8]                     // char *t1 = addr;
         lw t2, [sp, -4]                     // uint32 t2 = len;
         lw t3, latest                       // entry *t3 = latest;
         jmp >5                              // while (t3) {
@@ -76,7 +76,7 @@ init:   la sp, stack
 5:          bne t3, 0, <1                   // }
         sw [sp, -4], 0                      // return {0, NULL};
         sw [sp, -8], 0
-        $next                               
+        $next
 
 docol:  sw [rsp], pc
         add rsp, 4
