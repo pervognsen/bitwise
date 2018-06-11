@@ -496,7 +496,8 @@ var token_kind_names: char const*[] = {
     [TOKEN_COLON] = ":",
     [TOKEN_NEWLINE] = "newline",
     [TOKEN_NAME] = "name",
-    [TOKEN_INT] ="integer",
+    [TOKEN_INT] = "integer",
+    [TOKEN_STR] = "string",
     [TOKEN_XREG] = "x-register",
     [TOKEN_ASSIGN] = "=",
     [TOKEN_NEG] = "~",
@@ -846,7 +847,7 @@ func scan_token(asm: Assembler*): Token {
     case '!':
         token.kind = TOKEN_NOT;
         asm.str++;
-        if (token.kind == '=') {
+        if (*asm.str == '=') {
             token.kind = TOKEN_NOTEQ;
             asm.str++;
         }
@@ -1237,6 +1238,7 @@ var cmd_defs: CmdDef[] = {
     {".uint8", cmd_uint8},
     {".uint16", cmd_uint16},
     {".uint32", cmd_uint32},
+    {".str", cmd_str},
     {".define", cmd_define},
     {".print", cmd_print},
     {".macro", cmd_macro},
@@ -1285,6 +1287,19 @@ func init_regs(asm: Assembler*) {
         sym.kind = SYM_XREG;
         sym.xreg = i;
     }
+}
+
+func cmd_str(asm: Assembler*) {
+    str := asm.token.str;
+    expect_token(asm, TOKEN_STR);
+    asm_bytes(asm, str, uint32(strlen(str)));
+}
+
+func cmd_strz(asm: Assembler*) {
+    str := asm.token.str;
+    expect_token(asm, TOKEN_STR);
+    asm_bytes(asm, str, strlen(str));
+    asm_uint8(asm, 0);
 }
 
 func cmd_print(asm: Assembler*) {
@@ -1489,8 +1504,14 @@ func cmd_else(asm: Assembler*) {
 }
 
 func cmd_org(asm: Assembler*) {
-    addr := parse_const(asm);
-    asm.addr = uint32(addr);
+    expr := parse_expr(asm);
+    @complete
+    switch (expr.kind) {
+    case EXPR_CONST:
+        asm.addr = uint32(expr.val);
+    case EXPR_ADDR:
+        asm.addr = expr.addr;
+    }
 }
 
 func cmd_align(asm: Assembler*) {
@@ -2349,19 +2370,33 @@ func asm_test() {
     asm := &Assembler{};
 
     src := """
-    .macro fact0 n, r
+    .macro fact_rec n, r
     .if $n == 0
     .print $r
     .else
-    $fact0 ($n)-1, ($r)*($n)
+    $fact_rec ($n)-1, ($r)*($n)
     .endif
     .endmacro
 
-    .macro fact n
-    $fact0 $n, 1
+    .macro fact_rec_start n
+    $fact_rec $n, 1
     .endmacro
 
-    $fact 5
+    .macro fact_iter n
+    .if $n != 0
+    fact_result = ($n) * fact_result
+    $fact_iter ($n) - 1
+    .endif
+    .endmacro
+
+    .macro fact_iter_start n
+    fact_result = 1
+    $fact_iter $n
+    .print fact_result
+    .endmacro
+
+    $fact_rec_start 5
+    $fact_iter_start 5
 
     .if 1
     .if 0
