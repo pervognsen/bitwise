@@ -1,3 +1,50 @@
+# Bitwise, Day 37: Implementing Forth, Part 3
+- Video: https://www.youtube.com/watch?v=TA8blMaNqxY
+- Follow up from last time
+- Continue coding
+
+# Bitwise, Day 36: Implementing Forth, Part 2
+- Video: https://www.youtube.com/watch?v=SPErnyotJrk
+- Pay particular attention to "Under the hood" and "Extending the compiler" in Starting Forth
+- More references:
+- https://yosefk.com/blog/my-history-with-forth-stack-machines.html
+- http://wiki.laptop.org/go/Forth_Lessons
+
+# Bitwise, Day 35: Implementing Forth
+- Video: https://www.youtube.com/watch?v=rlayTh3sjiw
+- References:
+- https://www.forth.com/starting-forth/
+- https://www.ioccc.org/1992/buzzard.2.design
+- https://github.com/nornagon/jonesforth
+
+# Bitwise, Day 34: More Compiler Hacking
+- Video: https://www.youtube.com/watch?v=UvYeis032Ok
+- Fix since last time
+- Continue coding
+
+# Bitwise, Day 33: Compiler Hacking
+- Video: https://www.youtube.com/watch?v=N4lPlDWHkRI
+- Non-value operands (types, packages), package prefixed symbols, etc
+- Start coding
+
+# Bitwise, Day 32: More Simulator Features
+- Video: https://www.youtube.com/watch?v=RPs-QLExKm0
+- Review assembler changes since last time
+- Missing simulator features
+- Start coding
+
+# Bitwise, Day 31: Parameterized Macros
+- Video: https://www.youtube.com/watch?v=is6H67viWfs
+- Changes since last time
+- Parameterized macros, unintentional name capture, pre-expansion
+- Start coding
+
+# Bitwise, Day 30: Assembler Macro Expansion
+- Video: https://www.youtube.com/watch?v=oGb1Rk37Fh0
+- Overview of new experimental features
+- Macros in assemblers
+- Start coding
+
 # Bitwise, Day 29: More Assembler Hacking
 - Video: https://www.youtube.com/watch?v=_6zAlm0Edrw
 - Continue coding
