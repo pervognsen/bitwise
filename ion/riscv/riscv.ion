@@ -804,9 +804,16 @@ func print_hart_state(hart: Hart*) {
     printf("pc = %d (0x%x)\n", hart.pc, hart.pc);
     for (reg := 1; reg < 32; reg += 4) {
         printf("%2d = %10d | ", reg, hart.regs[reg]);
-        printf("%2d = %10d | ", reg+1, hart.regs[reg+1]);
-        printf("%2d = %10d | ", reg+2, hart.regs[reg+2]);
-        printf("%2d = %10d\n", reg+3, hart.regs[reg+3]);
+        if (reg + 1 < 32) {
+            printf("%2d = %10d | ", reg+1, hart.regs[reg+1]);
+        }
+        if (reg + 2 < 32) {
+            printf("%2d = %10d | ", reg+2, hart.regs[reg+2]);
+        }
+        if (reg + 3 < 32) {
+            printf("%2d = %10d", reg+3, hart.regs[reg+3]);
+        }
+        printf("\n");
     }
 }
 

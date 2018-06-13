@@ -1238,7 +1238,12 @@ var cmd_defs: CmdDef[] = {
     {".uint8", cmd_uint8},
     {".uint16", cmd_uint16},
     {".uint32", cmd_uint32},
+    {".char", cmd_uint8},
+    {".byte", cmd_uint8},
+    {".ptr", cmd_uint32},
+    {".int", cmd_uint32},
     {".str", cmd_str},
+    {".strz", cmd_strz},
     {".define", cmd_define},
     {".print", cmd_print},
     {".macro", cmd_macro},
@@ -1258,6 +1263,8 @@ var cmd_defs: CmdDef[] = {
     {"ret", cmd_ret},
     {"mv", cmd_mov},
     {"mov", cmd_mov},
+    {"seqz", cmd_seqz},
+    {"snez", cmd_snez},
 };
 
 func add_sym(asm: Assembler*, name: char const*): Sym* {
@@ -1298,7 +1305,7 @@ func cmd_str(asm: Assembler*) {
 func cmd_strz(asm: Assembler*) {
     str := asm.token.str;
     expect_token(asm, TOKEN_STR);
-    asm_bytes(asm, str, strlen(str));
+    asm_bytes(asm, str, uint32(strlen(str)));
     asm_uint8(asm, 0);
 }
 
@@ -1592,6 +1599,24 @@ func cmd_call(asm: Assembler*) {
 
 func cmd_ret(asm: Assembler*) {
     asm_instr(asm, {op = JALR, rd = X0, rs1 = X1});
+}
+
+func cmd_seqz(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    rs := rd;
+    if (match_token(asm, TOKEN_COMMA)) {
+        rs = parse_xreg(asm);
+    }
+    asm_instr(asm, {op = SLTIU, rd = rd, rs1 = rs, imm = 1});
+}
+
+func cmd_snez(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    rs := rd;
+    if (match_token(asm, TOKEN_COMMA)) {
+        rs = parse_xreg(asm);
+    }
+    asm_instr(asm, {op = SLTU, rd = rd, rs1 = X0, rs2 = rs});
 }
 
 func cmd_mov(asm: Assembler*) {
@@ -1989,19 +2014,23 @@ func is_xreg(asm: Assembler*): bool {
     return sym && sym.kind == SYM_XREG;
 }
 
+func is_xreg_or_zero(asm: Assembler*): bool {
+    return is_xreg(asm) || is_token(asm, TOKEN_INT) && asm.token.val == 0;
+}
+
 func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
     op := instr_def.op;
     switch (instr_def.kind) {
     case INSTR_REG:
         rd := parse_xreg(asm);
         expect_token(asm, TOKEN_COMMA);
-        if (is_xreg(asm)) {
+        if (is_xreg_or_zero(asm)) {
             rs := parse_xreg(asm);
             rs1: Reg;
             rs2: Reg;
             if (match_token(asm, TOKEN_COMMA)) {
                 rs1 = rs;
-                if (is_xreg(asm)) {
+                if (is_xreg_or_zero(asm)) {
                     rs2 = parse_xreg(asm);
                 } else {
                     parse_reg_to_imm_op(asm, op, rd, rs1);
@@ -2212,6 +2241,9 @@ func parse_line(asm: Assembler*) {
                 asm_error(asm, "Expected instruction or command");
             }
         }
+    }
+    if (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        asm_error(asm, "Unexpected token %s", token_info(asm.token));
     }
     parse_newlines(asm);
 }
