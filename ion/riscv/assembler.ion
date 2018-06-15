@@ -567,7 +567,7 @@ func asm_error(asm: Assembler*, fmt: char const*, ...) {
     args: va_list;
     va_start(&args, &fmt);
     asm_verror(asm, fmt, args);
-    va_end(&args);
+    va_end(&args);  
     exit(1);
 }
 
@@ -1246,6 +1246,7 @@ var cmd_defs: CmdDef[] = {
     {".strz", cmd_strz},
     {".define", cmd_define},
     {".print", cmd_print},
+    {".assert", cmd_assert},
     {".macro", cmd_macro},
     {".endmacro", cmd_endmacro},
     {".if", cmd_if},
@@ -1307,6 +1308,16 @@ func cmd_strz(asm: Assembler*) {
     expect_token(asm, TOKEN_STR);
     asm_bytes(asm, str, uint32(strlen(str)));
     asm_uint8(asm, 0);
+}
+
+func cmd_assert(asm: Assembler*) {
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_CONST) {
+        asm_error(asm, "Assertion operand must be a constant");
+    }
+    if (!expr.val && asm.pass == 1) {
+        asm_error(asm, "Assertion failed");
+    }
 }
 
 func cmd_print(asm: Assembler*) {
@@ -1394,24 +1405,30 @@ func cmd_set(asm: Assembler*) {
 }
 
 func cmd_uint8(asm: Assembler*) {
-    imm := parse_const(asm);
-    asm_uint8(asm, uint8(imm));
+    do {
+        imm := parse_const(asm);
+        asm_uint8(asm, uint8(imm));
+    } while (match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_uint16(asm: Assembler*) {
-    imm := parse_const(asm);
-    asm_uint16(asm, uint16(imm));
+    do {
+        imm := parse_const(asm);
+        asm_uint16(asm, uint16(imm));
+    } while (match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_uint32(asm: Assembler*) {
-    expr := parse_expr(asm);
-    @complete
-    switch (expr.kind) {
-    case EXPR_CONST:
-        asm_uint32(asm, uint32(expr.val));
-    case EXPR_ADDR:
-        asm_uint32(asm, expr.addr);
-    }
+    do {
+        expr := parse_expr(asm);
+        @complete
+        switch (expr.kind) {
+        case EXPR_CONST:
+            asm_uint32(asm, uint32(expr.val));
+        case EXPR_ADDR:
+            asm_uint32(asm, expr.addr);
+        }
+    } while (match_token(asm, TOKEN_COMMA));
 }
 
 func cmd_fill(asm: Assembler*) {
@@ -1828,7 +1845,7 @@ func parse_expr_add(asm: Assembler*): Expr {
             }
             // With multiple sections, it should only be constant for same-section addresses.
             expr.kind = EXPR_CONST;
-            expr.val = uint32(expr.addr - expr2.addr);
+            expr.val = llong(expr.addr) - llong(expr2.addr);
         } else if (expr.kind == EXPR_CONST && expr2.kind == EXPR_CONST) {
             @complete
             switch (op) {
@@ -2325,17 +2342,14 @@ func getline(buf: char*, buf_size: int) {
 }
 
 func cmd_loop(hart: Hart*) {
+    hart.breakpoint.callback = breakpoint_callback;
     print_hart_state(hart);
     for (;;) {
         line: char[256];
         getline(line, sizeof(line));
         if (strcmp(line, "") == 0) {
-            if (is_nested) {
-                return;
-            } else {
-                step(hart);
-                print_hart_state(hart);
-            }
+            step(hart);
+            print_hart_state(hart);
         } else if (line[0] == 'b') {
             if (line[1]) {
                 addr := atoi(line + 1);
@@ -2358,6 +2372,8 @@ func cmd_loop(hart: Hart*) {
             for (;;) {
                 step(hart);
             }
+        } else if (strcmp(line, "q") == 0) {
+            return;
         } else {
             printf("Unknown command: %s\n", line);
         }
