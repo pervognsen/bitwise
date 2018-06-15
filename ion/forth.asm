@@ -105,7 +105,6 @@ docol:  sw [rsp], pc
         sw [sp, -4], t1
         $next
 
-word_entry:
         $defcode _word, "word"              // ( -- addr len )
         lw t1, input                        // char *src = input;
         lw t2, input_end                    // char *end = input_end;
@@ -136,6 +135,13 @@ word_entry:
         sub t5, t4                          // uint32 len = dest - start;
         sw [sp, -4], t5                     // sp[-1] = len;
         $next
+
+        // : >flags 0 + ;
+        // : >link 4 + ;
+        // : >namelen 8 + ;
+        // : >name 9 + ;
+        // : >cfa dup >namelen @ + 3 + 3 not and ;
+        // : >dfa >cfa 4 + ;
 
         $defcode _flags, ">flags" // ( ent -- flags )
         lw t1, [sp, -4]
@@ -196,26 +202,28 @@ word_entry:
         sub sp, 4
         $next
 
-        $defcode _putchar, "putchar" // ( x -- )
+        // : putchar <PUTCHAR> 0 ;
+        $defcode _putchar, "putchar"
         lw t1, [sp, -4]
         sub sp, 4
         sw putchar, t1, t2
         $next
 
-        $defcode _getchar, "getchar" // ( -- x )
+        // : getchar <GETCHAR> @ ;
+        $defcode _getchar, "getchar"
         lw t1, getchar
         sw [sp], t1
         add sp, 4
         $next
 
-        $defcode _push, "push" // ( -- x )
+        $defcode _push, "push"
         lw t1, [pc]
         add pc, 4
         sw [sp], t1
         add sp, 4
         $next
 
-        $defcode _add, "+" // ( x y -- x+y )
+        $defcode _add, "+"
         lw t1, [sp, -8]
         lw t2, [sp, -4]
         sub sp, 4
@@ -223,7 +231,7 @@ word_entry:
         sw [sp, -4], t1
         $next
 
-        $defcode _sub, "-" // ( x y -- x-y )
+        $defcode _sub, "-"
         lw t1, [sp, -8]
         lw t2, [sp, -4]
         sub sp, 4
@@ -231,7 +239,7 @@ word_entry:
         sw [sp, -4], t1
         $next
 
-        $defcode _and, "and" // ( x y -- x&y )
+        $defcode _and, "and"
         lw t1, [sp, -8]
         lw t2, [sp, -4]
         sub sp, 4
@@ -239,7 +247,7 @@ word_entry:
         sw [sp, -4], t1
         $next
 
-        $defcode _xor, "xor" // ( x y -- x^y )
+        $defcode _xor, "xor"
         lw t1, [sp, -8]
         lw t2, [sp, -4]
         sub sp, 4
@@ -247,13 +255,13 @@ word_entry:
         sw [sp, -4], t1
         $next
 
-        $defcode _not, "not" // ( x -- ~x )
+        $defcode _not, "not"
         lw t1, [sp, -4]
         xor t1, ~0
         sw [sp, -4], t1
         $next
 
-        $defcode _or, "or" // ( x y -- x|y )
+        $defcode _or, "or"
         lw t1, [sp, -8]
         lw t2, [sp, -4]
         sub sp, 4
@@ -261,92 +269,92 @@ word_entry:
         sw [sp, -4], t1
         $next
 
-        $defcode _eqz, "0=" // ( x -- x=0 )
+        $defcode _eqz, "0="
         lw t1, [sp, -4]
         seqz t1
         sw [sp, -4], t1
         $next
 
-        $defcode _nez, "0<>" // ( x -- x<>0 )
+        $defcode _nez, "0<>"
         lw t1, [sp, -4]
         snez t1
         sw [sp, -4], t1
         $next
 
-        $defcode _exit, "exit" // ( -- )
+        $defcode _exit, "exit"
         sub rsp, 4
         lw pc, [rsp]
         $next
 
-        $defcode _to_r, ">r" // ( x -- )
+        $defcode _to_r, ">r"
         sub sp, 4
         lw t1, [sp]
         sw [rsp], t1
         add rsp, 4
         $next
 
-        $defcode _from_r, "r>" // ( -- x )
+        $defcode _from_r, "r>"
         sub rsp, 4
         lw t1, [rsp]
         sw [sp], t1
         add sp, 4
         $next
 
-        $defcode _load, "@" // ( addr -- data )
+        $defcode _load, "@"
         lw t1, [sp, -4]
         lw t1, [t1]
         sw [sp, -4], t1
         $next
 
-        $defcode _store, "!" // ( data addr -- )
+        $defcode _store, "!"
         lw t1, [sp, -4]
         lw t2, [sp, -8]
         sub sp, 8
         sw [t1], t2
         $next
 
-        $defcode _cload, "c@" // ( addr -- data )
+        $defcode _cload, "c@"
         lw t1, [sp, -4]
         lbu t1, [t1]
         sw [sp, -4], t1
         $next
 
-        $defcode _cstore, "c!" // ( data addr -- )
+        $defcode _cstore, "c!"
         lw t1, [sp, -4]
         lw t2, [sp, -8]
         sub sp, 8
         sb [t1], t2
         $next
 
-        $defcode _execute, "execute" // ( xt -- )
+        $defcode _execute, "execute"
         lw xt, [sp, -4]
         sub sp, 4
         $execute
 
-        $defcode _0, "0" // ( -- 0 )
+        $defcode _0, "0"
         add sp, 4
         sw [sp, -4], 0
         $next
 
-        $defcode _1, "1" // ( -- 1 )
+        $defcode _1, "1"
         li t1, 1
         add sp, 4
         sw [sp, -4], t1
         $next
 
-        $defcode _2, "2" // ( -- 2 )
+        $defcode _2, "2"
         li t1, 2
         add sp, 4
         sw [sp, -4], t1
         $next
 
-        $defcode _3, "3" // ( -- 3 )
+        $defcode _3, "3"
         li t1, 3
         add sp, 4
         sw [sp, -4], t1
         $next
 
-        $defcode _4, "4" // ( -- 4 )
+        $defcode _4, "4"
         li t1, 4
         add sp, 4
         sw [sp, -4], t1
@@ -361,74 +369,106 @@ word_entry:
         .print $
         $next
 
+        // : '0' 48 ;
+
+        // : putdigit '0' add putchar ;
         $defword _putdigit, "putdigit"
         .int _push, '0', _add, _putchar, _exit
 
+        // : getdigit getchar '0' sub ;
         $defword _getdigit, "getdigit"
         .int _getchar, _push, -'0', _add, _exit
 
+        // latest @  variable latest  latest !
         $defword _latest, "latest"
         .int _push, latest, _exit
 
+        // here  variable cp  cp !
         $defword _cp, "cp"
         .int _push, cp, _exit
 
+        // : here cp @ ;
         $defword _here, "here"
         .int _cp, _load, _exit
 
-        $defword _allot, "allot" // ( n -- )
-        .int _here, _add, _cp, _store, _exit // : allot here + cp ! ;
+        // : allot here + cp ! ;
+        $defword _allot, "allot"
+        .int _here, _add, _cp, _store, _exit
 
+        // : , here ! 4 allot ;
         $defword _comma, ","
         .int _here, _store, _4, _allot, _exit
 
+        // : c, here c! 1 allot ;
         $defword _ccomma, "c,"
         .int _here, _cstore, _1, _allot, _exit
 
+        // : 2dup over over ;
         $defword _2dup, "2dup"
         .int _over, _over, _exit
 
+        // : neg 0 swap - ;
         $defword _neg, "neg"
         .int _0, _swap, _sub, _exit
 
+        // : mux <>0 neg -rot over not and rot and or ;
         $defword _mux, "mux"
         .int _nez, _neg, _nrot, _over, _not, _and, _rot, _and, _or, _exit
 
+        // : jump r> @ >r ;
         $defword _jump, "jump"
         .int _from_r, _load, _to_r, _exit
 
+        // : branch r> dup 4 add swap @ -rot mux >r ;
         $defword _branch, "branch"
         .int _from_r, _dup, _4, _add, _swap, _load, _nrot, _mux, _to_r, _exit
 
+        // ' 1+ @ constant docol
         $defword _docol, "docol"
         .int _push, docol, _exit
 
+        // : 1+ 1 + ;
         $defword _add1, "1+"
         .int _1, _add, _exit
 
+        // : 1- 1 - ;
         $defword _sub1, "1-"
         .int _1, _sub, _exit
 
+        // : aligned 3 add 3 not and ;
         $defword _aligned, "aligned"
         .int _3, _add, _3, _not, _and, _exit
 
+        // : align here aligned cp ! ;
         $defword _align, "align"
         .int _here, _aligned, _cp, _store, _exit
 
+        // : 3drop drop drop drop ;
+        $defword _3drop, "3drop"
+        .int _drop, _drop, _drop, _exit
+
+        // variable mode  1 mode !
+        $defword _mode, "mode"
+        .int _push, mode, _exit
+
+        // : cmove1 2dup swap c@ swap c! swap 1+ swap 1+ ;
         $defword _cmove1, "cmove1"
         .int _2dup, _swap, _cload, _swap, _cstore
         .int _swap, _add1, _swap, _add1, _exit
 
-        $defword _3drop, "3drop"
-        .int _drop, _drop, _drop, _exit
-
-        $defword _mode, "mode"
-        .int _push, mode, _exit
-
+        // : cmove begin dup while rot cmove1 -rot 1- repeat 3drop ;
         $defword _cmove, "cmove"
 1:      .int _dup, _branch, >2, _3drop, _exit
 2:      .int _rot, _cmove1, _nrot, _sub1, _jump, <1
 
+        // : create
+        //   word here
+        //   0 ,
+        //   latest @ , latest !
+        //   dup c,
+        //   here over allot swap cmove
+        //   align
+        //   'docol , ;
         $defword _create, "create"
         .int _word, _here
         .int _0, _comma
@@ -440,22 +480,23 @@ word_entry:
         .int _docol, _comma
         .int _exit
 
+        // : immediate latest @ >flags dup @ 1 or swap ! ; immediate
         $defword_immediate _immediate, "immediate"
         .int _latest, _load, _flags, _load
         .int _push, IMMEDIATE, _or
         .int _latest, _load, _flags, _store, _exit
 
+        // : immediate? >flags @ 1 and 0<> ;
         $defword _isimmediate, "immediate?"
         .int _flags, _load, _push, IMMEDIATE, _and, _nez, _exit
 
+        // : ' word find cfa> ;
         $defword _quote, "'"
         .int _word, _find, _cfa, _exit
 
-        /*
-        : interpret
-          word find dup >cfa swap
-          immediate? mode @ or if execute else , then ;
-        */
+        // : interpret
+        //   word find dup >cfa swap
+        //   immediate? mode @ or if execute else , then ;
         $defword _interpret, "interpret"
         .int _word, _find, _dup, _cfa, _swap
         .int _isimmediate, _mode, _load, _or, _branch, >1
@@ -498,13 +539,26 @@ input_buf:
         : [ 1 mode ! ; immediate
         : ] 0 mode ! ; immediate
 
-        : ['] [ ' push , ' push , ] , ' , ; immediate
-
-        : begin here ; immediate
-        : again ['] jump , , ; immediate
+        : ['] push push , ' , ; immediate
 
         : if ['] 0= , ['] branch , here 0 , ; immediate
         : then here swap ! ; immediate
+
+        : begin here ; immediate
+        : again ['] jump , , ; immediate
+        : until ['] 0= , ['] branch , , ; immediate
+
+        : (variable) r> ;
+        : variable create ['] (variable) , 0 , ; immediate
+        : constant create ['] push , , ['] exit , ; immediate
+
+        variable counter
+        3 constant three
+
+        three putdigit
+        counter @ putdigit
+        getdigit counter !
+        counter @ putdigit
 
         : foo begin 1 putdigit again ;
 
