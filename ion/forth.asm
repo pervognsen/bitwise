@@ -7,10 +7,10 @@
         .reg t7 x7
         .reg t8 x8
 
-        .reg sp x25              // Parameter stack pointer
-        .reg rsp x26             // Return stack pointer
-        .reg pc x27              // Program counter
-        .reg xt x28              // Execution token
+        .reg sp x25
+        .reg rsp x26
+        .reg pc x27
+        .reg xt x28
 
         .macro execute
         lw t1, [xt]
@@ -403,9 +403,6 @@ word_entry:
         $defword _docol, "docol"
         .int _push, docol, _exit
 
-        $defword _quote_push, "'push"
-        .int _push, _push, _exit
-
         $defword _add1, "1+"
         .int _1, _add, _exit
 
@@ -419,7 +416,8 @@ word_entry:
         .int _here, _aligned, _cp, _store, _exit
 
         $defword _cmove1, "cmove1"
-        .int _2dup, _swap, _cload, _swap, _cstore, _swap, _add1, _swap, _add1, _exit
+        .int _2dup, _swap, _cload, _swap, _cstore
+        .int _swap, _add1, _swap, _add1, _exit
 
         $defword _3drop, "3drop"
         .int _drop, _drop, _drop, _exit
@@ -428,7 +426,7 @@ word_entry:
         .int _push, mode, _exit
 
         $defword _cmove, "cmove"
-1:      .int _dup, _nez, _branch, >2, _3drop, _exit
+1:      .int _dup, _branch, >2, _3drop, _exit
 2:      .int _rot, _cmove1, _nrot, _sub1, _jump, <1
 
         $defword _create, "create"
@@ -442,7 +440,7 @@ word_entry:
         .int _docol, _comma
         .int _exit
 
-        $defword _immediate, "immediate"        
+        $defword_immediate _immediate, "immediate"
         .int _latest, _load, _flags, _load
         .int _push, IMMEDIATE, _or
         .int _latest, _load, _flags, _store, _exit
@@ -453,6 +451,11 @@ word_entry:
         $defword _quote, "'"
         .int _word, _find, _cfa, _exit
 
+        /*
+        : interpret
+          word find dup >cfa swap
+          immediate? mode @ or if execute else , then ;
+        */
         $defword _interpret, "interpret"
         .int _word, _find, _dup, _cfa, _swap
         .int _isimmediate, _mode, _load, _or, _branch, >1
@@ -488,14 +491,14 @@ input_buf:
         ' create ,  ' 0 , ' mode , ' ! , ' exit , 
 
         create ;
-        ' exit ' push , ,  ' , ,
+        ' push , ' exit ,  ' , ,
         ' 1 , ' mode , ' ! , ' exit ,
         immediate
 
         : [ 1 mode ! ; immediate
         : ] 0 mode ! ; immediate
 
-        : ['] ' 'push , , ; immediate
+        : ['] [ ' push , ' push , ] , ' , ; immediate
 
         : begin here ; immediate
         : again ['] jump , , ; immediate
@@ -541,4 +544,3 @@ getchar:
 
         .org 0xFFFFFF04
 putchar:
-
