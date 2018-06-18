@@ -1321,23 +1321,30 @@ func cmd_assert(asm: Assembler*) {
 }
 
 func cmd_print(asm: Assembler*) {
-    if (is_token(asm, TOKEN_STR)) {
-        str := asm.token.str;
-        next_token(asm);
-        if (asm.pass == 1) {
-            printf("String: %s\n", str);
-        }
-    } else {
-        expr := parse_expr(asm);
-        if (asm.pass == 1) {
-            @complete
-            if (expr.kind == EXPR_CONST) {
-                printf("Constant: %lld (0x%llx)\n", expr.val, expr.val);
-            } else if (expr.kind == EXPR_ADDR) {
-                printf("Address: %d (0x%x)\n", expr.addr, expr.addr);
+    for (;;) {
+        if (is_token(asm, TOKEN_STR)) {
+            str := asm.token.str;
+            next_token(asm);
+            if (asm.pass == 1) {
+                printf("%s", str);
+            }
+        } else {
+            expr := parse_expr(asm);
+            if (asm.pass == 1) {
+                @complete
+                if (expr.kind == EXPR_CONST) {
+                    printf("%lld", expr.val);
+                } else if (expr.kind == EXPR_ADDR) {
+                    printf("%d", expr.addr);
+                }
             }
         }
+        if (!match_token(asm, TOKEN_COMMA)) {
+            break;
+        }
+        printf(" ");
     }
+    printf("\n");
 }
 
 func parse_line_tokens(asm: Assembler*): Token* {
@@ -2560,7 +2567,7 @@ getchar:
     bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
     hart := &Hart{
         pc = 0,
-        bus = bus,
+        bus = bus,      
         breakpoint = {callback = breakpoint_callback},
         trace_load_callback = trace_load_callback,
         trace_store_callback = trace_store_callback,
