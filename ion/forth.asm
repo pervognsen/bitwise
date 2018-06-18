@@ -93,12 +93,8 @@ docol:
         add sp, 4
         $next
 
-        .print stack
-
         $defcode _setsp, "sp!"
-        .print "sp! pre breakpoint:", $
         lw sp, [sp, -4]
-        .print "sp! post breakpoint:", $
         $next
 
         $defcode _getpc, "pc@"
@@ -207,6 +203,12 @@ docol:
         $defcode _fromr, "r>"
         sub rp, 4
         lw t1, [rp]
+        sw [sp], t1
+        add sp, 4
+        $next
+
+        $defcode _getr, "r@"
+        lw t1, [rp, -4]
         sw [sp], t1
         add sp, 4
         $next
@@ -337,16 +339,6 @@ docol:
         $defword _getchar, "getchar"
         .int _lit, getchar, _load, _exit
 
-        // : '0' 48 ;
-
-        // : putdigit '0' add putchar ;
-        $defword _putdigit, "putdigit"
-        .int _lit, '0', _add, _putchar, _exit
-
-        // : getdigit getchar '0' sub ;
-        $defword _getdigit, "getdigit"
-        .int _getchar, _lit, -'0', _add, _exit
-
         // : _latest@ latest @ ; variable latest _latest@ latest !
         $defword _latest, "latest"
         .int _lit, latest, _exit
@@ -415,13 +407,6 @@ docol:
         $defword _3drop, "3drop"
         .int _drop, _drop, _drop, _exit
 
-        // variable mode  1 mode !
-        $defword _mode, "mode"
-        .int _lit, mode, _exit
-
-        $defword _wordbuf, "wordbuf"
-        .int _lit, word_buf, _exit
-
         // : cmove1 2dup swap c@ swap c! swap 1+ swap 1+ ;
         $defword _cmove1, "cmove1"
         .int _2dup, _swap, _cload, _swap, _cstore
@@ -485,11 +470,23 @@ latest:
 cp:
         .uint32 HERE
 
-mode:
-        .uint32 1
-
 input_buf:
         .str """
+        create exit
+        ' r> ,  ' drop ,  ' r> ,  ' pc! ,
+
+        create 0
+        ' lit ,  1 1 - ,  ' exit ,
+
+        create 2
+        ' lit ,  1 1 + ,  ' exit ,
+
+        create 3
+        ' lit ,  2 1 + ,  ' exit ,
+
+        create 4
+        ' lit ,  3 1 + ,  ' exit ,
+
         create >flags
         ' exit ,
 
@@ -499,11 +496,20 @@ input_buf:
         create >name
         ' lit ,  4 4 + 1 + ,  ' + ,  ' exit ,
 
+        create aligned
+        ' 3 ,  ' + ,  ' lit ,  3 invert ,  ' and ,  ' exit ,
+
         create >cfa
         ' dup ,  ' >namelen ,  ' c@ ,  ' swap ,  ' >name ,  ' + ,  ' aligned ,  ' exit ,
 
         create immediate?
         ' >flags ,  ' @ ,  ' 1 ,  ' and ,  ' exit ,
+
+        create (variable)
+        ' r> ,  ' exit ,
+
+        create mode
+        ' (variable) ,  ' 1 ,
 
         create interpret
         ' word ,  ' find ,  ' dup ,  ' >cfa ,  ' swap ,
@@ -532,50 +538,28 @@ input_buf:
         : =  - 0= ;
         : <>  = not ;
 
-        : [ 1 mode ! ; immediate
-        : ] 0 mode ! ; immediate
+        : [  1 mode ! ; immediate
+        : ]  0 mode ! ; immediate
 
-        : ['] lit lit , ' , ; immediate
+        : [']  lit lit , ' , ; immediate
 
         : literal  ['] lit , , ; immediate
         : 2literal  ['] lit , ,  ['] lit , , ; immediate
 
-        : if ['] 0= , ['] branch , here 0 , ; immediate
-        : else ['] jump ,  here swap  0 ,  here swap ! ; immediate
-        : then here swap ! ; immediate
+        : if  ['] 0= , ['] branch , here 0 , ; immediate
+        : else  ['] jump ,  here swap  0 ,  here swap ! ; immediate
+        : then  here swap ! ; immediate
 
-        : begin here ; immediate
-        : again ['] jump , , ; immediate
-        : until ['] 0= , ['] branch , , ; immediate
-
-        : interpret
-          word find
-          dup >cfa swap
-          immediate? mode @ or if
-            execute
-          else
-            ,
-          then ;
-
-        : quit
-          begin
-            interpret
-          again ;
-
-        : abort
-          sp0 @ sp!
-          rp0 @ rp!
-          quit ;
-
-        abort
+        : begin  here ; immediate
+        : again  ['] jump , , ; immediate
+        : until  ['] 0= , ['] branch , , ; immediate
 
         : 2*  1 << ;
         : 4*  2 << ;
         : 8*  3 << ;
 
         : 8  1 8* ;
-
-        : 256  1 << 8 ;
+        : 256  1 8 << ;
 
         : input?
           input @ input-end @ <> ;
@@ -597,18 +581,38 @@ input_buf:
 
         : cr  nl putchar ;
 
+        : ."
+          begin
+            key
+            dup char " = if  drop exit  then
+            mode @ if 
+              putchar
+            else
+              ['] lit ,  ,  ['] putchar ,
+            then
+          again ; immediate
+
+        : test."
+          ." Hello, world!" cr ;
+
+        test."
+        ." Goodbye, world!" cr
+
         : 2drop
           drop drop ;
 
         : type
           begin
             over c@ putchar
-            1- swap 1+ swap
+            swap 1+ swap 1-
           dup 0= until
           2drop ;
 
         : blank?
           dup bl = swap nl = or ;
+
+        create wordbuf
+        ' (variable) ,  256 allot
 
         : word
           wordbuf dup
@@ -624,14 +628,43 @@ input_buf:
             drop
           again ;
 
+        : false
+          0 ;
+
+        : true
+          1 ;
+
+        : putdigit
+          char 0 + putchar ;
+
+        : getdigit
+          getchar char 0 - ;
+
+        : equal
+          -rot over <> if  3drop false exit  then
+          begin
+            dup 0= if  3drop true exit  then    
+            rot over c@ over c@ <> if  3drop false exit  then
+            1+ swap 1+ swap -rot 1-
+          again ;
+
+        : >link
+          4 + ;
+
+        : name
+          dup >name swap >namelen c@ ;
+
+        : find
+          latest @ >r
+          begin
+            r@ 0= if  2drop r> break exit  then
+            2dup  r@ >name  r@ >namelen c@  equal if  2drop r> break exit  then
+            r> >link @ >r
+          again ;
+
         : interpret
-          word find
-          dup >cfa swap
-          immediate? mode @ or if
-            execute
-          else
-            ,
-          then ;
+          word find dup >cfa swap
+          immediate? mode @ or if  execute  else  ,  then ;
 
         : quit
           begin
@@ -642,6 +675,41 @@ input_buf:
           sp0 @ sp!
           rp0 @ rp!
           quit ;
+
+        abort
+
+        : align
+          here aligned cp ! ;
+
+        : cell
+          4 ;
+
+        : cells
+          4* ;
+
+        : here
+          cp @ ;
+        
+        : allot
+          here + cp ! ;  
+        
+        : ,
+          here !  cell allot ;
+        
+        : c,
+          here c!  1 allot ;
+
+        : cmove1
+          2dup swap c@ swap c!
+          swap 1+ swap 1+ ;
+
+        : cmove
+          begin
+            dup 0= if  3drop exit  then
+            rot cmove1 -rot 1-
+          again ;
+
+        1 break drop
 
         : create
           word
@@ -662,13 +730,35 @@ input_buf:
         : [']
           lit lit , ' , ; immediate
 
-        abort
-
-        : variable  , create  ['] (variable) ,  0 , ; immediate
-        : constant  create  ['] lit ,  ,  ['] exit , ; immediate
+        : variable
+          create  ['] (variable) ,  0 , ; immediate
+        
+        : constant
+          create  ['] lit ,  ,  ['] exit , ; immediate
 
         variable counter
         3 constant three
+
+        : postpone
+          word find dup >cfa swap
+          immediate? if
+            ,
+          else
+            ['] lit ,  ,  ['] , ,
+          then ; immediate
+
+        : my-+
+          postpone + ; immediate
+
+        : endif
+          postpone then ; immediate
+
+        : test-postpone
+          4 4 my-+ putdigit cr
+          1 if  1  else  2  endif putdigit cr
+          0 if  1  else  2  endif putdigit cr ;
+
+        test-postpone
 
         three putdigit
         counter @ putdigit
