@@ -534,25 +534,43 @@ input_buf:
         ' 1 , ' mode , ' ! , ' exit ,
         immediate
 
+        : immediate-mode?
+          mode @ ;
+
+        : immediate-mode
+          1 mode ! ;
+
+        : compilation-mode
+          0 mode ! ; 
+
+        : [
+          immediate-mode ; immediate
+
+        : ]
+          compilation-mode ; immediate
+
         : not  0= ;
         : =  - 0= ;
         : <>  = not ;
-
-        : [  1 mode ! ; immediate
-        : ]  0 mode ! ; immediate
 
         : [']  lit lit , ' , ; immediate
 
         : literal  ['] lit , , ; immediate
         : 2literal  ['] lit , ,  ['] lit , , ; immediate
 
-        : if  ['] 0= , ['] branch , here 0 , ; immediate
-        : else  ['] jump ,  here swap  0 ,  here swap ! ; immediate
-        : then  here swap ! ; immediate
+        : if
+          ['] 0= , ['] branch , here 0 , ; immediate
+        : else
+          ['] jump ,  here swap  0 ,  here swap ! ; immediate
+        : then
+          here swap ! ; immediate
 
-        : begin  here ; immediate
-        : again  ['] jump , , ; immediate
-        : until  ['] 0= , ['] branch , , ; immediate
+        : begin
+          here ; immediate
+        : again
+          ['] jump , , ; immediate
+        : until
+          ['] 0= , ['] branch , , ; immediate
 
         : 2*  1 << ;
         : 4*  2 << ;
@@ -571,21 +589,27 @@ input_buf:
             getchar
           then ;
 
-        : (variable) r> ;
+        : (variable)
+          r> ;
 
-        : char  ['] lit ,  key , ; immediate
+        : char
+          ['] lit ,  key , ; immediate
 
-        : bl  char  ;
-        : nl  char 
+        : bl
+          char  ;
+        
+        : nl
+          char 
         ;
 
-        : cr  nl putchar ;
+        : cr
+          nl putchar ;
 
         : ."
           begin
             key
             dup char " = if  drop exit  then
-            mode @ if 
+            immediate-mode? if 
               putchar
             else
               ['] lit ,  ,  ['] putchar ,
@@ -664,7 +688,7 @@ input_buf:
 
         : interpret
           word find dup >cfa swap
-          immediate? mode @ or if  execute  else  ,  then ;
+          immediate? immediate-mode? or if  execute  else  ,  then ;
 
         : quit
           begin
@@ -709,10 +733,7 @@ input_buf:
             rot cmove1 -rot 1-
           again ;
 
-        1 break drop
-
-        : create
-          word
+        : (create)
           here
           0 ,
           latest @ ,  latest !
@@ -721,8 +742,12 @@ input_buf:
           align
           docol , ;
 
+        : create
+          word (create) ;
+
         : :
-          create  0 mode ! ;
+          create
+          compilation-mode ;
 
         : '
           word find >cfa ;
@@ -736,9 +761,6 @@ input_buf:
         : constant
           create  ['] lit ,  ,  ['] exit , ; immediate
 
-        variable counter
-        3 constant three
-
         : postpone
           word find dup >cfa swap
           immediate? if
@@ -747,18 +769,42 @@ input_buf:
             ['] lit ,  ,  ['] , ,
           then ; immediate
 
+        : nip
+          swap drop ;
+
+        : cfa>
+          latest @
+          begin
+            dup 0= if  nip exit  then
+            over over >cfa = if  nip exit  then
+            >link @
+          again ;
+
         : my-+
           postpone + ; immediate
 
         : endif
           postpone then ; immediate
 
+        : unless
+          postpone not postpone if ; immediate
+
+        : :noname
+          0 0 (create)
+          compilation-mode
+          latest @ >cfa ;
+
+        :noname 2 3 + putdigit cr ; execute
+
         : test-postpone
           4 4 my-+ putdigit cr
-          1 if  1  else  2  endif putdigit cr
-          0 if  1  else  2  endif putdigit cr ;
+          1 unless  1  else  2  endif putdigit cr
+          1 if  1  else  2  endif putdigit cr ;
 
         test-postpone
+
+        variable counter
+        3 constant three
 
         three putdigit
         counter @ putdigit

@@ -570,6 +570,7 @@ struct Breakpoint {
 struct Hart {
     pc: uint32;
     regs: uint32[32];
+    cycles: uint32;
     bus: Bus*;
     trace_load_enabled: bool;
     trace_load_callback: func(hart: Hart*, addr: uint32, size: int);
@@ -793,6 +794,7 @@ func step(hart: Hart*) {
         }
     }
     hart.pc = next_pc;
+    hart.cycles++;
 }
 
 func print_hart_state(hart: Hart*) {
