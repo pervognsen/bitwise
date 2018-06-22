@@ -197,7 +197,7 @@ result will be stored in cl:ch.
 Suppose want to to calculate c = a * b. As before, break them into 32-bit parts:
 
     cl + ch * 2^32 = (al + ah * 2^32) * (bl + bh * 2^32)
-                   = al * bl + (al * bh + ah * bl) * 2^32 + ah * bh 2^64
+                   = al * bl + (al * bh + ah * bl) * 2^32 + ah * bh * 2^64
 
 We want to calculate this mod 2^64, so the last term vanishes. And then we want to
 break this into the upper and lower 32-bit halves, so
@@ -240,7 +240,7 @@ If given a base pointer p, p[i] is equivalent to *(p + i) and p + i is in turn e
 
     int x = *(int *)((uintptr_t)p + i * sizeof(*p));
 
-=> (remove nested expressions, strength reduction of * to << for sizeof(*p) == 4)
+=> (remove nested expressions, strength reduction of * to << when sizeof(*p) == 4)
 
     uint32 t1 = i << 2;
     int *t2 = (int *)((uintptr_t)p + t1);
@@ -406,9 +406,10 @@ you can see them as a variant of do-while loops:
 
 =>
 
+    goto A_continue;
     do {
-        continue;
         // A
+        A_continue:
     } while (x);
     // B
 
