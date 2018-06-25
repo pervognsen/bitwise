@@ -183,18 +183,17 @@ However, RISC-V (and a few others) chose not to have a carry flag, so it's actua
 a bit more work to synthesize a double-width add on that architecture. Interestingly,
 while the multiply in the M extension of RISC-V doesn't produce a double-width result,
 it has a mulh/mulhu instruction that you can call to generate the higher half of the
-result separately. You can synthesize a 64x64 = 64 bit multiply from 3x 32-bit mul,
-2x 32-bit mulh/mulhu and 2x 32-bit add instructions.
+result separately.
 
 Suppose we want to add al:ah to bl:bh where al, ah, bl, bh are 32-bit words. The
 result will be stored in cl:ch.
 
     add cl, al, bl
     add ch, ah, bh
-    sltu t1, cl, al // ch will be the carry of cl = al + bl
+    sltu t1, cl, al // t1 will be the carry of cl = al + bl
     add ch, t1      // add in the carry
 
-Suppose want to to calculate c = a * b. As before, break them into 32-bit parts:
+Suppose we want to calculate c = a * b. As before, break them into 32-bit parts:
 
     cl + ch * 2^32 = (al + ah * 2^32) * (bl + bh * 2^32)
                    = al * bl + (al * bh + ah * bl) * 2^32 + ah * bh * 2^64
@@ -234,7 +233,7 @@ If given a base pointer p, p[i] is equivalent to *(p + i) and p + i is in turn e
 *(int *)((uintptr_t)p + i * sizeof(*p)). We already showed in the intro how this translates to assembly:
 
     int *p = ...;
-    uint32 x = p[i];
+    int x = p[i];
 
 => (conversion to pointer arithmetic, removal of pointer arithmetic)
 
@@ -260,7 +259,7 @@ Subtraction of pointers is a little subtle. It looks innocent enough at the C le
 actually involves an implicit divide at the assembly level. For example,
 
     typedef struct {
-        float x, y, z;
+        int x, y, z;
     } Vector;
 
     Vector *p = ...;
@@ -330,21 +329,21 @@ modes with immediate offsets:
     int y = v.y;
     int z = v.z;
 
-=> (go directly to assembly)
+=>
 
     la p, v
     lw x, [p, OFFSET_VECTOR_X]
     lw y, [p, OFFSET_VECTOR_Y]
     lw z, [p, OFFSET_VECTOR_Z]
 
-In order to calculate offsets and sizes for structs/union fields, you have to know the ABI's packing and alignment conventions.
+In order to calculate offsets and sizes for structs/unions, you have to know the ABI's packing and alignment conventions.
 
 ---
 
-Assembly language only directly supports "unstructured" control flow with direct jumps to a location, indirect jumps (where the target is provided in a register), and conditional branches. How do you translate C-style structured control flow with if, while, for, etc into
+Assembly language only directly supports "unstructured" control flow with direct jumps to a location, indirect jumps (where the target location is provided in a register), and conditional branches. How do you translate C-style structured control flow with if, while, for, etc into
 that vocabulary?
 
-if without else:
+if:
 
     if (x) {
         // A
@@ -358,7 +357,7 @@ if without else:
     B_start:
     // B
 
-if with else:
+if-else:
 
     if (x) {
         // A
@@ -377,7 +376,7 @@ if with else:
     C_start:
     // C
 
-do-while loop:
+do-while:
 
     do {
         // A
@@ -394,7 +393,7 @@ do-while loop:
     // B
 
 If there is a break or continue in the scope of the do-while loop, they act as
-gotos to the A_break or A_continue labels.
+a goto to the A_break or A_continue labels.
 
 Rather than formulating while loops directly in terms of unstructured control flow,
 you can see them as a variant of do-while loops:
@@ -423,7 +422,26 @@ you can see them as a variant of do-while loops:
     A_break:
     // B
 
-Now we can directly translate any of the unstructured C snippets to assembly code:
+This is one case where it's normal to reverse the ordering between the C code and assembly code (the code for the while condition gets moved past the body). There is a translation that preserves the code order and probably feels more natural if you're coming from C:
+
+    while (x) {
+        // A
+    }
+    // B
+
+=>
+
+    A_continue:
+    if (!x) goto A_break;
+    // A
+    goto A_continue;
+    A_break:
+    // B
+
+However, this is less efficient since every iteration contains an unconditional jump. The expectation is that loops execute more than one iteration, so you'd rather have
+the unconditional jump at the entry to the loop where it's executed only once. That is why the do-while-based translation is preferred.
+
+Now we can directly translate any of the goto-based C snippets to assembly code:
 
     goto A_continue;
     A_start:
@@ -442,7 +460,7 @@ Now we can directly translate any of the unstructured C snippets to assembly cod
     bne x, 0, A_start
     // B
 
-Or if you want to use local shorthand labels:
+Or if you want to use anonymous labels:
 
     jmp 2>
 1:  // A
@@ -497,7 +515,9 @@ Do this instead:
     B_start:
     // B
 
-Short-circuiting conditional expressions are translated to control flow.
+---
+
+Short-circuiting logical expressions are translated to control flow.
 
 Logical and:
 
@@ -529,4 +549,337 @@ Logical or:
     C_start:
     // C
     // D
+
+---
+
+Switch statements are generally used if you want the compiler to generate jump tables.
+If we assume computed gotos are available as a C language extension (as they are in GCC/Clang),
+we can actually translate switch statements to computed gotos and explicit jump tables,
+like we've been doing with other constructs above.
+
+int x = ...;
+
+switch (x) {
+case ' ':
+    // A
+    break;
+case '\n':
+    // B
+    break;
+case '0':
+    // C
+    break;
+// ...
+default:
+    // D
+}
+// E
+
+The compiler is allowed to turn a switch statement like this into a cascaded if-elseif chain
+and indeed some compilers will choose to do so in practice. But let's focus on the case where
+a jump table is going to be generated.
+
+enum {
+    MIN_VALUE = '\n',
+    MAX_VALUE = '0',
+};
+
+void *switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+    [' ' - MIN_VALUE] = &&case_space,
+    ['\n' - MIN_VALUE] = &&case_newline,
+    ['0' - MIN_VALUE] = &&case_zero,
+    // Fill remaining entries with &&case_default
+};
+
+if (MIN_VALUE <= x && MAX_VALUE <= x) {
+    goto *switch_table[x - MIN_VALUE];
+}
+goto case_default;
+
+case_space:
+    // A
+    goto switch_break;
+case_newline:
+    // B
+    goto switch_break;
+case_zero:
+    // C
+    goto switch_break;
+// ...
+case_default:
+    // D
+switch_break:
+// E
+
+You can also add an extra level of indirection to the table lookup to compress the table
+when it has few distinct entries relative to the total number of keys:
+
+void *cases[] = {
+    &&case_default,
+    &&case_space,
+    &&space_newline,
+    &&case_zero,
+};
+
+uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+    [' ' - MIN_VALUE] = 1,
+    ['\n' - MIN_VALUE] = 2,
+    ['0' - MIN_VALUE] = 3,
+};
+
+if (MIN_VALUE <= x && MAX_VALUE <= x) {
+    goto *cases[switch_table[x - MIN_VALUE]];
+}
+goto case_default;
+
+The switch table with MAX_VALUE - MIN_VALUE + 1 entries now only stores 1 byte per
+entry instead of 4 bytes per entry.
+
+Anyway, assuming we're dealing with the first case, without the extra table direction,
+the translation to assembly code is simple and direct:
+
+    .macro initentry value, label
+    .org switch_table - $$ + ($value - MIN_VALUE) * 4
+    .uint32 $label
+    .endmacro
+
+    MIN_VALUE = '\n'
+    MAX_VALUE = '0'
+
+switch_table:
+    .times MAX_VALUE - MIN_VALUE - 1, .uint32 case_default
+
+switch_table_end:
+    $initentry ' ', case_space
+    $initentry '\n', case_newline
+    $initentry '0', case_zero
+    .org switch_table_end
+
+    li t1, MIN_VALUE
+    blt x, MIN_VALUE, case_default
+    li t1, MAX_VALUE
+    bgt x, MAX_VALUE, case_default
+    sub t1, x, t1
+    slli t1, 2
+    la t2, switch_table
+    add t1, t2
+    lw t1, [t1]
+    jmp [t1]
+
+case_space:
+    // A
+    jmp switch_break
+case_newline:
+    // B
+    jmp switch_break
+case_zero:
+    // C
+    jmp switch_break
+case_default:
+    // D
+switch_break:
+    // E
+
+---
+
+Functions:
+
+Even if your own function doesn't have so much register pressure that it needs to spill
+local variables to stack or other memory, as soon as you're interacting with other functions,
+you typically need to save and restore certain registers using the stack.
+
+Two types of registers as far as calling conventions go: caller-save registers must be
+preserved by the caller around function calls if the caller wants to use the value in
+the register after the called function returns. So, for example, if you're writing a
+recursive function like factorial:
+
+    int fact(int n) {
+        if (n == 0) {
+            return 1;
+        } else {
+            return n * fact(n-1);
+        }
+    }
+
+If you translate this directly to assembly, in the else-branch you're required to call
+fact recursively with n-1, and then multiply the result, when it returns, by n, so you
+have to preserve the value of n until after the recursive call returns. If n is stored
+in a caller-save register, then you have to save n on the stack before you do the recursive call, and then after returning you restore n's value from its stack slot. On an architecture that has push/pop instructions, this usually looks like this:
+
+    push n
+    call f
+    pop n
+
+However, on RISC architectures there usually aren't dedicated push/pop instructions
+or indeed an explicit notion of a stack at all, and "the stack" is purely an ABI/calling
+convention. For example, with RISC-V's standard ABI the stack pointer sp is stored in
+register x2, and the stack grows downwards, so you might naively implement this kind of
+push/pop sequence as follows:
+
+    sw [sp, 0], n
+    call fact
+    lw n, [sp, 0]
+
+This assumes that the function has already adjusted sp in its entry code to have sufficient
+space. Since the stack grows downward, this is done with a subtract:
+
+fact:
+    sub sp, 8
+    // ...
+
+Before the function returns, the sp adjustment has to be undone:
+
+    // ...
+    add sp, 8
+    ret
+
+That is for caller-save registers. Callee-save registers are 'the opposite'. If n lived
+in a callee-save register, then I could just recursively call fact directly, and I'm
+guaranteed as the caller that n will have its same value upon return. This means that
+if the callee (the called function) wants to use a callee-save register for its own
+purposes, it must save and restore it. This is usually done in the epilogue/prologue
+of the function, near the sp adjustment. So, if n were in a callee-save register,
+we might have code that looks like this:
+
+fact:
+    sub sp, 8
+    sw [sp, 0], n
+    // Now the code can overwrite n, since we've saved the original copy on the stack.
+    lw n, [sp, 0]
+    add sp, 8
+    ret
+
+What about calls and returns themselves? On older CISC architectures, there were dedicated
+call/ret instructions that pushed and popped the return address from the stack. As with most
+other things related to stacks, this changed with RISC architectures. Instead of a call
+instruction that pushes the return address on the stack directly as a side effect, RISC-V
+(and MIPS and most other RISCs) has a jump-and-link (JAL) instruction which puts the
+return address in a designated register:
+
+    jal x1, f       // put the return address in register x1 and jump to f
+
+And for returns, there isn't any special support at all. You just do an indirect jump based
+on the value in the link register, which contains the return address.
+
+    jmp [x1]        // jump to the return address stored in x1
+
+In RISC-V there are pseudoinstructions call and ret corresponding to the above two cases.
+
+For reentrant subroutines (e.g. recursive functions) you do need to save and restore return
+addresses on the stack, but with RISCs it's now your job to do the saving and restoring:
+
+fact:
+    sub sp, 8
+    sw [sp, 4], x1 // Assume x1 is the link register containing the return address 
+    // ...
+    lw x1, [sp, 4] // Restore the return address from the stack
+    add sp, 42
+    jmp [x1]        // Jump to the return address
+
+That pretty much covers the basics. Let's try writing out the code for all of fact:
+
+fact:
+    // a0 contains the argument/return value, ra contains the return address
+    sub sp, 8
+    sw [sp, 4], ra
+    beq a0, 0, >1
+    sw [sp, 0], a0
+    sub a0, 1
+    call fact
+    lw t1, [sp, 0]
+    mul a0, t1
+    jmp >2
+1:  li a0, 1
+2:  lw ra, [sp, 4]
+    add sp, 8
+    jmp [ra]
+
+This is about as simple as a recursive function gets (note that you shouldn't
+actually implement factorial as a recursive function, so this is only a toy example).
+You can see the two values we need to save on the stack are the return address and the
+variable n whose lifetime survives the recursive call.
+
+Let me show the version using a callee-save register instead. The RISC-V API specifies that s2 is callee-save, so we'll use that to store the value of n across the call.
+
+fact:
+    // a0 contains the argument/return value, ra contains the return address
+    sub sp, 8
+    sw [sp, 4], ra
+    sw [sp, 0], s2
+    beq a0, 0, >1   
+    mov s2, a0
+    sub a0, 1
+    call fact
+    mul a0, s2
+    jmp >2
+1:  li a0, 1
+2:  lw s2, [sp, 0]
+    lw ra, [sp, 4]
+    add sp, 8
+    jmp [ra]
+
+These conventions (passing the return address in a register, designating some registers as
+caller save and others as callee save) really show their strengths in leaf functions:
+
+    int square(int x) {
+        return x * x;
+    }
+
+=> (direct translation to assembly)
+
+square:
+    mul a0, a0
+    ret
+
+Because the return address is passed in a register when calling and read from a register
+when returning, and the leaf function (by definition) isn't calling other functions, we never
+have to save/restore the return address in memory.
+
+For a leaf function that needs more registers to do its job, it should prioritize using caller-save registers since the leaf function then doesn't have to save them.
+
+---
+
+A quick note on "flattening" expressions and register allocation:
+
+A generic recipe for translating "A op B" is to generate the code for evaluating
+A and putting the result in t1, then generate the code for evaluating B and putting
+the result in t2, and then generating t1 = t1 op t2 to combine the results. Here t1 and t2 stand for free temporary registers, not fixed registers. This recipe is applied recursively to the subexpressions until they bottom out in literals and variable references or whatever.
+
+For example, to evaluate a + b + c + d = ((a + b) + c) + d, we would do
+
+    t1 = a;
+    t2 = b;
+    t1 += t2;
+    t2 = c;
+    t1 += t2;
+    t2 = d;
+    t1 += t2;
+
+=> (direct translation to assembly)
+
+    lw t1, a
+    lw t2, b
+    add t1, t2
+    lw t2, c
+    add t1, t2
+    lw t2, d
+    add t1, t2
+
+However, suppose we used the same left-to-right translation on the corresponding
+right-associative grouping of the same expression, a + (b + (c + d)):
+
+    lw t1, a
+    lw t2, b
+    lw t3, c
+    lw t4, d
+    add t3, t4
+    add t2, t3
+    add t1, t2
+
+You can see that with this naive translation approach, the right-associative expression
+uses as many temporary registers as there are operands, which is a disaster.
+
+Look up the Sethi-Ullman algorithm if you want to see how to do this optimally in general.
+However, even a simple-minded left-to-right translation approach is fine as long as you're
+dealing with left-associative expression trees.
 
