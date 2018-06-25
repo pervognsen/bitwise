@@ -557,80 +557,80 @@ If we assume computed gotos are available as a C language extension (as they are
 we can actually translate switch statements to computed gotos and explicit jump tables,
 like we've been doing with other constructs above.
 
-int x = ...;
+    int x = ...;
 
-switch (x) {
-case ' ':
-    // A
-    break;
-case '\n':
-    // B
-    break;
-case '0':
-    // C
-    break;
-// ...
-default:
-    // D
-}
-// E
+    switch (x) {
+    case ' ':
+        // A
+        break;
+    case '\n':
+        // B
+        break;
+    case '0':
+        // C
+        break;
+    // ...
+    default:
+        // D
+    }
+    // E
 
 The compiler is allowed to turn a switch statement like this into a cascaded if-elseif chain
 and indeed some compilers will choose to do so in practice. But let's focus on the case where
 a jump table is going to be generated.
 
-enum {
-    MIN_VALUE = '\n',
-    MAX_VALUE = '0',
-};
+    enum {
+        MIN_VALUE = '\n',
+        MAX_VALUE = '0',
+    };
 
-void *switch_table[MAX_VALUE - MIN_VALUE + 1] = {
-    [' ' - MIN_VALUE] = &&case_space,
-    ['\n' - MIN_VALUE] = &&case_newline,
-    ['0' - MIN_VALUE] = &&case_zero,
-    // Fill remaining entries with &&case_default
-};
+    void *switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+        [' ' - MIN_VALUE] = &&case_space,
+        ['\n' - MIN_VALUE] = &&case_newline,
+        ['0' - MIN_VALUE] = &&case_zero,
+        // Fill remaining entries with &&case_default
+    };
 
-if (MIN_VALUE <= x && x <= MAX_VALUE) {
-    goto *switch_table[x - MIN_VALUE];
-}
-goto case_default;
+    if (MIN_VALUE <= x && x <= MAX_VALUE) {
+        goto *switch_table[x - MIN_VALUE];
+    }
+    goto case_default;
 
-case_space:
-    // A
-    goto switch_break;
-case_newline:
-    // B
-    goto switch_break;
-case_zero:
-    // C
-    goto switch_break;
-// ...
-case_default:
-    // D
-switch_break:
-// E
+    case_space:
+        // A
+        goto switch_break;
+    case_newline:
+        // B
+        goto switch_break;
+    case_zero:
+        // C
+        goto switch_break;
+    // ...
+    case_default:
+        // D
+    switch_break:
+    // E
 
 You can also add an extra level of indirection to the table lookup to compress the table
 when it has few distinct entries relative to the total number of keys:
 
-void *cases[] = {
-    &&case_default,
-    &&case_space,
-    &&space_newline,
-    &&case_zero,
-};
+    void *cases[] = {
+        &&case_default,
+        &&case_space,
+        &&space_newline,
+        &&case_zero,
+    };
 
-uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
-    [' ' - MIN_VALUE] = 1,
-    ['\n' - MIN_VALUE] = 2,
-    ['0' - MIN_VALUE] = 3,
-};
+    uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+        [' ' - MIN_VALUE] = 1,
+        ['\n' - MIN_VALUE] = 2,
+        ['0' - MIN_VALUE] = 3,
+    };
 
-if (MIN_VALUE <= x && x <= MAX_VALUE) {
-    goto *cases[switch_table[x - MIN_VALUE]];
-}
-goto case_default;
+    if (MIN_VALUE <= x && x <= MAX_VALUE) {
+        goto *cases[switch_table[x - MIN_VALUE]];
+    }
+    goto case_default;
 
 The switch table with MAX_VALUE - MIN_VALUE + 1 entries now only stores 1 byte per
 entry instead of 4 bytes per entry.
@@ -639,42 +639,43 @@ A further optimization when there are a lot of entries in cases[] is to store th
 as 16-bit offsets rather than pointers/absolute addresses (a 2x savings with 32-bit
 pointers and a 4x savings with 64-bit pointers):
 
-int16_t cases[] = {
-    &&case_default - &&case_default,
-    &&case_space - &&case_default,
-    &&space_newline - &&case_default,
-    &&case_zero - &&case_default,
-};
+    int16_t cases[] = {
+        &&case_default - &&case_default,
+        &&case_space - &&case_default,
+        &&space_newline - &&case_default,
+        &&case_zero - &&case_default,
+    };
 
-uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
-    [' ' - MIN_VALUE] = 1,
-    ['\n' - MIN_VALUE] = 2,
-    ['0' - MIN_VALUE] = 3,
-};
+    uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+        [' ' - MIN_VALUE] = 1,
+        ['\n' - MIN_VALUE] = 2,
+        ['0' - MIN_VALUE] = 3,
+    };
 
-if (MIN_VALUE <= x && x <= MAX_VALUE) {
-    goto *(cases[switch_table[x - MIN_VALUE]] + case_default);
-}
-goto case_default;
+    if (MIN_VALUE <= x && x <= MAX_VALUE) {
+        goto *(cases[switch_table[x - MIN_VALUE]] + &&case_default);
+    }
+    goto case_default;
 
 Anyway, assuming we're dealing with the first case, without the extra table direction,
-the translation to assembly code is simple and direct (except maybe for the helper macro for designated table initialization):
+the translation to assembly code is simple and direct except for the designated table initialization which you can ignore if you want (it's just doing the same thing as the C code with some basic assembler tricks and a helper macro).
 
     MIN_VALUE = '\n'
     MAX_VALUE = '0'
 
-    .macro entry value, label
-    .org switch_table + ($value - MIN_VALUE) * 4
+    .macro switch_case value, label
+    temp = $
+    $ = switch_table + ($value - MIN_VALUE) * 4
     .uint32 $label
+    $ = temp
     .endmacro
 
 switch_table:
     .times MAX_VALUE - MIN_VALUE + 1, .uint32 case_default
-switch_table_end:
-    $entry ' ', case_space
-    $entry '\n', case_newline
-    $entry '0', case_zero
-    .org switch_table_end
+
+    $switch_case ' ', case_space
+    $switch_case '\n', case_newline
+    $switch_case '0', case_zero
 
     // ...
 
@@ -702,6 +703,23 @@ case_default:
     // D
 switch_break:
     // E
+
+You can make a small optimization for the range check:
+
+    li t1, MIN_VALUE
+    blt x, t1, case_default
+    li t2, MAX_VALUE
+    bgt x, t2, case_default
+    sub t1, x, t1
+
+=>
+
+    sub x, MIN_VALUE
+    li t1, MAX_VALUE - MIN_VALUE
+    bgtu x, t1, case_default
+
+The unsigned greater-than comparison handles x > MAX_VALUE and x < MIN_VALUE in one test.
+This works because the subtraction by MIN_VALUE wraps around values which are signed-less-than MIN_VALUE, and the wrapped values will be unsigned-greater-than MAX_VALUE because MIN_VALUE <= MAX_VALUE.
 
 ---
 
@@ -776,7 +794,7 @@ What about calls and returns themselves? On older CISC architectures, there were
 call/ret instructions that pushed and popped the return address from the stack. As with most
 other things related to stacks, this changed with RISC architectures. Instead of a call
 instruction that pushes the return address on the stack directly as a side effect, RISC-V
-(and MIPS and most other RISCs) has a jump-and-link (JAL) instruction which puts the
+(and MIPS and most other RISCs) has a jump-and-link (jal) instruction which puts the
 return address in a designated register:
 
     jal x1, f       // put the return address in register x1 and jump to f
@@ -788,15 +806,14 @@ on the value in the link register, which contains the return address.
 
 In RISC-V there are pseudoinstructions call and ret corresponding to the above two cases.
 
-For reentrant subroutines (e.g. recursive functions) you do need to save and restore return
-addresses on the stack, but with RISCs it's now your job to do the saving and restoring:
+For non-leaf functions you do need to save and restore return addresses on the stack, but with RISC you have do the load/store instructions explicitly:
 
 fact:
     sub sp, 8
-    sw [sp, 4], x1 // Assume x1 is the link register containing the return address 
+    sw [sp, 4], x1  // Assume x1 is the link register containing the return address 
     // ...
-    lw x1, [sp, 4] // Restore the return address from the stack
-    add sp, 42
+    lw x1, [sp, 4]  // Restore the return address from the stack
+    add sp, 8
     jmp [x1]        // Jump to the return address
 
 That pretty much covers the basics. Let's try writing out the code for all of fact:
@@ -808,41 +825,43 @@ fact:
     beq a0, 0, >1
     sw [sp, 0], a0
     sub a0, 1
-    call fact
-    lw t1, [sp, 0]
-    mul a0, t1
+    call fact       // jal ra, fact
+    lw t0, [sp, 0]
+    mul a0, t0
     jmp >2
 1:  li a0, 1
 2:  lw ra, [sp, 4]
     add sp, 8
-    jmp [ra]
+    ret             // jmp [ra]
 
 This is about as simple as a recursive function gets (note that you shouldn't
 actually implement factorial as a recursive function, so this is only a toy example).
 You can see the two values we need to save on the stack are the return address and the
 variable n whose lifetime survives the recursive call.
 
-Let me show the version using a callee-save register instead. The RISC-V API specifies that s2 is callee-save, so we'll use that to store the value of n across the call.
+Let me show the version using a callee-save register instead. The RISC-V API specifies that the s registers are callee-save, so we'll use s0 to store the value of n across the call.
 
 fact:
     // a0 contains the argument/return value, ra contains the return address
     sub sp, 8
     sw [sp, 4], ra
-    sw [sp, 0], s2
-    beq a0, 0, >1   
-    mov s2, a0
+    sw [sp, 0], s0
+    beq a0, 0, >1
+    mov s0, a0
     sub a0, 1
     call fact
-    mul a0, s2
+    mul a0, s0
     jmp >2
 1:  li a0, 1
-2:  lw s2, [sp, 0]
+2:  lw s0, [sp, 0]
     lw ra, [sp, 4]
     add sp, 8
-    jmp [ra]
+    ret
+
+For a recursive function like fact, the distinction between caller-save and callee-save registers doesn't really help writing more efficient code.
 
 These conventions (passing the return address in a register, designating some registers as
-caller save and others as callee save) really show their strengths in leaf functions:
+caller save and others as callee save) show their strengths in leaf-level functions:
 
     int square(int x) {
         return x * x;
@@ -856,17 +875,17 @@ square:
 
 Because the return address is passed in a register when calling and read from a register
 when returning, and the leaf function (by definition) isn't calling other functions, we never
-have to save/restore the return address in memory.
+have to save/restore the return address on the stack.
 
-For a leaf function that needs more registers to do its job, it should prioritize using caller-save registers since the leaf function then doesn't have to save them.
+For a leaf function that needs more registers to do its job, it should prioritize using caller-save registers since the leaf function doesn't have to save them since it never calls anything.
 
 ---
 
-A quick note on "flattening" expressions and register allocation:
+A quick note on flattening expressions and register allocation:
 
 A generic recipe for translating "A op B" is to generate the code for evaluating
 A and putting the result in t1, then generate the code for evaluating B and putting
-the result in t2, and then generating t1 = t1 op t2 to combine the results. Here t1 and t2 stand for free temporary registers, not fixed registers. This recipe is applied recursively to the subexpressions until they bottom out in literals and variable references or whatever.
+the result in t2, and then generate t1 = t1 op t2 to combine the results. Here t1 and t2 stand for free temporary registers, not fixed registers. This recipe is applied recursively to the subexpressions until they bottom out in literals or variables or whatever.
 
 For example, to evaluate a + b + c + d = ((a + b) + c) + d, we would do
 
