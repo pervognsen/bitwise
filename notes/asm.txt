@@ -704,7 +704,7 @@ case_default:
 switch_break:
     // E
 
-You can make a small optimization for the range check:
+Here's an additional optimization for the range check:
 
     li t1, MIN_VALUE
     blt x, t1, case_default
@@ -718,8 +718,42 @@ You can make a small optimization for the range check:
     li t1, MAX_VALUE - MIN_VALUE
     bgtu x, t1, case_default
 
-The unsigned greater-than comparison handles x > MAX_VALUE and x < MIN_VALUE in one test.
-This works because the subtraction by MIN_VALUE wraps around values which are signed-less-than MIN_VALUE, and the wrapped values will be unsigned-greater-than MAX_VALUE because MIN_VALUE <= MAX_VALUE.
+This works because the subtraction by MIN_VALUE makes a zero-based [0, MAX_VALUE - MIN_VALUE]
+range, and we check membership in that range with a single unsigned comparison. As a bonus, we avoid the subtraction afterward for the table index, but it would still be worth doing range checks this way without that additional benefit.
+
+Another small optimization and a note on the dangers of using pseudoinstructions:
+
+    la t2, switch_table
+    add t1, t2
+    lw t1, [t1]
+    jmp [t1]
+
+The la (load address) pseudoinstruction expands to two instructions:
+
+    lui t2, hi(switch_table)
+    addi t2, lo(switch_table)
+
+By hiding the underlying instructions, it can be easy to miss obvious optimization opportunities. In this case, the addi t2, lo(switch_table) can be folded into the lw address calculation:
+
+    la t2, switch_table
+    add t1, t2
+    lw t1, [t1]
+    jmp [t1]
+
+=> (expand la pseudoinstruction)
+
+    lui t2, hi(switch_table)
+    addi t2, lo(switch_table)
+    add t1, t2
+    lw t1, [t1]
+    jmp [t1]
+
+=> (fold lo(switch_table) offset into lw address calculation)
+
+    lui t2, hi(switch_table)
+    add t1, t2
+    lw t1, [t1, lo(switch_table)]
+    jmp [t1]
 
 ---
 
