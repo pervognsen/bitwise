@@ -591,7 +591,7 @@ void *switch_table[MAX_VALUE - MIN_VALUE + 1] = {
     // Fill remaining entries with &&case_default
 };
 
-if (MIN_VALUE <= x && MAX_VALUE <= x) {
+if (MIN_VALUE <= x && x <= MAX_VALUE) {
     goto *switch_table[x - MIN_VALUE];
 }
 goto case_default;
@@ -627,7 +627,7 @@ uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
     ['0' - MIN_VALUE] = 3,
 };
 
-if (MIN_VALUE <= x && MAX_VALUE <= x) {
+if (MIN_VALUE <= x && x <= MAX_VALUE) {
     goto *cases[switch_table[x - MIN_VALUE]];
 }
 goto case_default;
@@ -652,7 +652,7 @@ uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
     ['0' - MIN_VALUE] = 3,
 };
 
-if (MIN_VALUE <= x && MAX_VALUE <= x) {
+if (MIN_VALUE <= x && x <= MAX_VALUE) {
     goto *(cases[switch_table[x - MIN_VALUE]] + case_default);
 }
 goto case_default;
@@ -660,13 +660,13 @@ goto case_default;
 Anyway, assuming we're dealing with the first case, without the extra table direction,
 the translation to assembly code is simple and direct (except maybe for the helper macro for designated table initialization):
 
+    MIN_VALUE = '\n'
+    MAX_VALUE = '0'
+
     .macro entry value, label
     .org switch_table + ($value - MIN_VALUE) * 4
     .uint32 $label
     .endmacro
-
-    MIN_VALUE = '\n'
-    MAX_VALUE = '0'
 
 switch_table:
     .times MAX_VALUE - MIN_VALUE + 1, .uint32 case_default
