@@ -635,10 +635,32 @@ goto case_default;
 The switch table with MAX_VALUE - MIN_VALUE + 1 entries now only stores 1 byte per
 entry instead of 4 bytes per entry.
 
-Anyway, assuming we're dealing with the first case, without the extra table direction,
-the translation to assembly code is simple and direct:
+A further optimization when there are a lot of entries in cases[] is to store them
+as 16-bit offsets rather than pointers/absolute addresses (a 2x savings with 32-bit
+pointers and a 4x savings with 64-bit pointers):
 
-    .macro initentry value, label
+int16_t cases[] = {
+    &&case_default - &&case_default,
+    &&case_space - &&case_default,
+    &&space_newline - &&case_default,
+    &&case_zero - &&case_default,
+};
+
+uint8_t switch_table[MAX_VALUE - MIN_VALUE + 1] = {
+    [' ' - MIN_VALUE] = 1,
+    ['\n' - MIN_VALUE] = 2,
+    ['0' - MIN_VALUE] = 3,
+};
+
+if (MIN_VALUE <= x && MAX_VALUE <= x) {
+    goto *(cases[switch_table[x - MIN_VALUE]] + case_default);
+}
+goto case_default;
+
+Anyway, assuming we're dealing with the first case, without the extra table direction,
+the translation to assembly code is simple and direct (except maybe for the helper macro for the table initizliation):
+
+    .macro entry value, label
     .org switch_table - $$ + ($value - MIN_VALUE) * 4
     .uint32 $label
     .endmacro
@@ -650,15 +672,17 @@ switch_table:
     .times MAX_VALUE - MIN_VALUE - 1, .uint32 case_default
 
 switch_table_end:
-    $initentry ' ', case_space
-    $initentry '\n', case_newline
-    $initentry '0', case_zero
-    .org switch_table_end
+    $entry ' ', case_space
+    $entry '\n', case_newline
+    $entry '0', case_zero
+    .org switch_table_end - $$
+
+    // ...
 
     li t1, MIN_VALUE
-    blt x, MIN_VALUE, case_default
-    li t1, MAX_VALUE
-    bgt x, MAX_VALUE, case_default
+    blt x, t1, case_default
+    li t2, MAX_VALUE
+    bgt x, t2, case_default
     sub t1, x, t1
     slli t1, 2
     la t2, switch_table
