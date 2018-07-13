@@ -274,13 +274,14 @@ enum SDL_Scancode {
 @foreign
 enum SDL_EventType {
     SDL_QUIT = 0x100,
+    SDL_WINDOWEVENT = 0x200,
     SDL_KEYDOWN = 0x300,
     SDL_KEYUP,
     SDL_TEXTEDITING,
     SDL_TEXTINPUT,
     SDL_MOUSEMOTION = 0x400,
     SDL_MOUSEBUTTONDOWN,
-    SDL_MOUSEBUTTONUP,    
+    SDL_MOUSEBUTTONUP, 
 }
 
 @foreign
@@ -301,6 +302,19 @@ struct SDL_Keysym {
     sym: SDL_Keycode;
     mod: uint16;
     unused: uint32;
+}
+
+@foreign
+struct SDL_WindowEvent {
+    type: uint32;
+    timestamp: uint32;
+    windowID: uint32;
+    event: uint8;
+    padding1: uint8;
+    padding2: uint8;
+    padding3: uint8;
+    data1: int32;
+    data2: int32;
 }
 
 @foreign
@@ -357,6 +371,7 @@ struct SDL_MouseButtonEvent {
 @foreign
 union SDL_Event {
     type: uint32;
+    window: SDL_WindowEvent;
     key: SDL_KeyboardEvent;
     text: SDL_TextInputEvent;
     motion: SDL_MouseMotionEvent;
