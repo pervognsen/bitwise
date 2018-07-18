@@ -1,16 +1,44 @@
+from dis import dis
 from collections.abc import Iterable
+
+class Wrapper:
+    def __init__(self, value):
+        self.value = value
+
+    def __hash__(self):
+        return object.__hash__(self.value)
+
+    def __eq__(self, other):
+        return isinstance(other, Wrapper) and object.__eq__(self.value, other.value)
+
+def wrap(x):
+    if isinstance(x, tuple):
+        return tuple(wrap(y) for y in x)
+    elif isinstance(x, Node):
+        return Wrapper(x)
+    else:
+        return x
+
+def unwrap(x):
+    if isinstance(x, tuple):
+        return tuple(unwrap(y) for y in x)
+    elif isinstance(x, Wrapper):
+        return x.value
+    else:
+        return x
 
 def memo(f):
     table = {}
-    def memo_f(*args):
+    def f_memo(*args):
+        key = wrap(args)
         try:
-            value = table[args]
+            value = table[key]
         except KeyError:
             value = f(*args)
-            table[args] = value
+            table[key] = value
         return value
-    memo_f.__name__ = f.__name__
-    return memo_f
+    f_memo.__name__ = f.__name__
+    return f_memo
 
 class NodeType:
     pass
@@ -23,7 +51,7 @@ class BitType(NodeType):
         return "bit"
 
     def __call__(self, node):
-        node = as_node(node)
+        node = as_node(node, type=self)
         if node.type == bit:
             return node
         elif isinstance(node.type, BitVectorType):
@@ -47,6 +75,20 @@ class BitVectorType(NodeType):
     def cast(self, value):
         return value & ((1 << self.width) - 1)
 
+    def __call__(self, node):
+        node = as_node(node, type=self)
+        if node.type == self:
+            return node
+        elif node.type == bit:
+            return cat(node, as_node(0, type=bit[self.width - 1]))
+        elif isinstance(node.type, BitVectorType):
+            if node.type.width < self.width:
+                return cat(node, as_node(0, type=bit[self.width - node.type.width]))
+            else:
+                raise TypeError("Cannot narrow bitvector in cast")
+        else:
+            raise TypeError("Invalid type")
+
 bit = BitType()
 
 @memo
@@ -55,12 +97,18 @@ def bitvector(width):
 
 def bits(x):
     if isinstance(x, Iterable):
-        return ConcatNode(*map(as_node, x))
+        return cat(*map(as_node, x))
     else:
         raise TypeError("Invalid operand type")
 
 def cat(*args):
-    return ConcatNode(*map(as_node, args))
+    return make_concat_node(args)
+
+def rep(x, n):
+    return cat(*([x] * n))
+
+def buf(x):
+    return make_unary_node('buf', as_node(x))
 
 def check_type(node, type):
     if node.type != type:
@@ -89,46 +137,79 @@ class Node:
         for i in range(len(self)):
             yield self[i]
 
+    def __invert__(self):
+        return make_unary_node('~', self)
+
     def __and__(self, other):
-        return BinaryNode('&', self, as_node(other, type=self.type))
+        return make_binary_node('&', self, other)
 
     def __rand__(self, other):
-        return BinaryNode('&', as_node(other, type=self.type), self)
+        return make_binary_node('&', other, self)
 
     def __or__(self, other):
-        return BinaryNode('|', self, as_node(other, type=self.type))
+        return make_binary_node('|', self, other)
 
     def __ror__(self, other):
-        return BinaryNode('|', as_node(other, type=self.type), self)
+        return make_binary_node('|', other, self)
 
     def __xor__(self, other):
-        return BinaryNode('^', self, as_node(other, type=self.type))
+        return make_binary_node('^', self, other)
 
     def __rxor__(self, other):
-        return BinaryNode('^', as_node(other, type=self.type), self)
+        return make_binary_node('^', other, self)
 
     def __add__(self, other):
-        return BinaryNode('+', self, as_node(other, type=self.type))
+        return make_binary_node('+', self, other)
 
     def __radd__(self, other):
-        return BinaryNode('+', as_node(other, type=self.type), self)
+        return make_binary_node('+', other, self)
+
+    def __sub__(self, other):
+        return make_binary_node('-', self, other)
+
+    def __rsub__(self, other):
+        return make_binary_node('-', other, self)
+
+    def __lshift__(self, other):
+        return make_shift_node('<<', self, other)
+
+    def __rlshift__(self, other):
+        return make_shift_node('<<', other, self)
+
+    def __rshift__(self, other):
+        return make_shift_node('>>', self, other)
+
+    def __rrshift__(self, other):
+        return make_shift_node('>>', other, self)
 
     def __matmul__(self, other):
-        return ConcatNode(self, as_node(other))
+        return cat(self, as_node(other))
 
     def __rmatmul__(self, other):
-        return ConcatNode(as_node(other), self)
+        return cat(as_node(other), self)
+
+    def __hash__(self):
+        return super().__hash__()
+
+    def __eq__(self, other):
+        return make_compare_node('==', self, other)
+        
+    def __ne__(self, other):
+        return make_compare_node('!=', self, other)
+
+    def __le__(self, other):
+        return make_compare_node('<=', self, other)
 
     def __getitem__(self, index):
         if isinstance(index, int):
-            return make_index(self, index)
+            return make_index_node(self, index)
         elif isinstance(index, slice):
-            return make_slice(self, index)
+            return make_slice_node(self, index)
         else:
             raise TypeError("Invalid index type")
 
 class ConcatNode(Node):
-    def __init__(self, *operands):
+    def __init__(self, operands):
         width = 0
         for operand in operands:
             if isinstance(operand.type, BitVectorType):
@@ -144,10 +225,58 @@ class ConcatNode(Node):
     def __repr__(self):
         return "(%s)" % ' @ '.join(str(operand) for operand in self.operands)
 
+@memo
+def make_binary_node_memo(op, left, right):
+    check_same_type(left, right)
+    return BinaryNode(op, left, right)
+
+def make_binary_node(op, left, right):
+    left, right = as_node(left, type=get_type(right)), as_node(right, type=get_type(left))
+    return make_binary_node_memo(op, left, right)
+
+@memo
+def make_shift_node_memo(op, left, right):
+    return BinaryNode(op, left, right)
+
+def make_shift_node(op, left, right):
+    left, right = as_node(left), as_node(right)
+    return make_shift_node_memo(op, left, right)
+
+@memo
+def make_unary_node_memo(op, operand):
+    return UnaryNode(op, operand)
+
+def make_unary_node(op, operand):
+    return make_unary_node_memo(op, as_node(operand))
+
+@memo
+def make_compare_node_memo(op, left, right):
+    check_same_type(left, right)
+    return CompareNode(op, left, right)
+
+def make_compare_node(op, left, right):
+    return make_compare_node_memo(op, as_node(left, type=get_type(right)), as_node(right, type=get_type(left)))
+
+@memo
+def make_concat_node_memo(operands):
+    return ConcatNode(operands)
+
+def make_concat_node(operands):
+    new_operands = []
+    for operand in operands:
+        operand = as_node(operand)
+        if operand.type == bit[0]:
+            continue
+        new_operands.append(operand)
+    return make_concat_node_memo(tuple(new_operands))
+
+empty = make_concat_node(())
+
 def wrap_index(i, n):
     return i + n if -n <= i < 0 else i
 
-def make_index(operand, index):
+@memo
+def make_index_node(operand, index):
     if not isinstance(operand.type, BitVectorType):
         raise TypeError("Only bit vectors may be indexed")
     if not isinstance(index, int):
@@ -158,7 +287,7 @@ def make_index(operand, index):
         raise TypeError("Index is out of bounds")
 
     if isinstance(operand, SliceNode):
-        operand, index = operand.operand, index + operand.start
+        return make_index_node(operand.operand, index + operand.start)
     elif isinstance(operand, ConcatNode):
         offset = 0
         for suboperand in operand.operands:
@@ -168,7 +297,7 @@ def make_index(operand, index):
                 offset += 1
             elif isinstance(suboperand.type, BitVectorType):
                 if offset <= index < offset + suboperand.type.width:
-                    return make_index(suboperand, index - offset)
+                    return make_index_node(suboperand, index - offset)
                 offset += suboperand.type.width
         else:
             assert False
@@ -184,26 +313,26 @@ class IndexNode(Node):
     def __repr__(self):
         return "%s[%d]" % (self.operand, self.index)
 
-def make_slice(operand, index):
+@memo
+def make_memoized_slice_node(operand, start, stop):
     if not isinstance(operand.type, BitVectorType):
         raise TypeError("Only bit vectors may be indexed")
-    if index.step is not None:
-        raise TypeError("Cannot use a step size when indexing bit vectors")
-
-    start = wrap_index(index.start if index.start is not None else 0, operand.type.width)
-    stop = wrap_index(index.stop if index.stop is not None else operand.type.width, operand.type.width)
-
     if stop <= start:
         raise TypeError("Slice start must be greater than slice stop")
     if stop < 0:
         raise TypeError("Slice start must be nonnegative")
     if start >= operand.type.width:
         raise TypeError("Slice stop must be less than operand width")
-
     if isinstance(operand, SliceNode):
-        operand, start, stop = operand.operand, start + operand.start, stop + operand.start
-
+        return make_memoized_slice_node(operand.operand, start + operand.start, stop + operand.start)
     return SliceNode(operand, start, stop)
+
+def make_slice_node(operand, index):
+    if index.step is not None:
+        raise TypeError("Cannot use a step size when indexing bit vectors")
+    start = wrap_index(index.start if index.start is not None else 0, operand.type.width)
+    stop = wrap_index(index.stop if index.stop is not None else operand.type.width, operand.type.width)
+    return make_memoized_slice_node(operand, start, stop)
 
 class SliceNode(Node):
     def __init__(self, operand, start, stop):
@@ -223,7 +352,21 @@ class WhenNode(Node):
         self.then_node = then_node
         self.else_node = else_node
 
+def get_type(x):
+    if isinstance(x, Node):
+        return x.type
+    else:
+        return None
+
+@memo
 def when(cond, then_node, else_node):
+    if isinstance(then_node, tuple):
+        assert isinstance(else_node, tuple)
+        assert len(then_node) == len(else_node)
+        return tuple(when(cond, x, y) for x, y in zip(then_node, else_node))
+
+    cond = as_node(cond, bit)
+    then_node, else_node = as_node(then_node, type=get_type(else_node)), as_node(else_node, type=get_type(then_node))
     check_type(cond, bit)
     check_same_type(then_node, else_node)
     return WhenNode(cond, then_node, else_node)
@@ -248,8 +391,26 @@ class ConstantNode(Node):
 
 class BinaryNode(Node):
     def __init__(self, op, left, right):
-        check_same_type(left, right)
         super().__init__(left.type)
+        self.op = op
+        self.left = left
+        self.right = right
+
+    def __repr__(self):
+        return "(%s %s %s)" % (self.left, self.op, self.right)
+
+class UnaryNode(Node):
+    def __init__(self, op, operand):
+        super().__init__(operand.type)
+        self.op = op
+        self.operand = operand
+
+    def __repr__(self):
+        return "%s%s" % (self.op, self.operand)
+
+class CompareNode(Node):
+    def __init__(self, op, left, right):
+        super().__init__(bit)
         self.op = op
         self.left = left
         self.right = right
@@ -325,21 +486,21 @@ class InstanceOutputNode(Node):
 class Module:
     def connect(self, name, node):
         node = as_node(node)
-        if name in self._inputs:
-            pin = self._inputs[name]
+        if name in self.inputs:
+            pin = self.inputs[name]
         else:
             raise ValueError("No module input with specified name")
         check_same_type(node, pin)
-        self._connections[pin] = node
+        self._connections[name] = node
 
     def __init__(self, **kwargs):
         self._name = None
         self._connections = {}
         for name, node in kwargs.items():
             self.connect(name, node)
-        for name, node in self._inputs.items():
+        for name, node in self.inputs.items():
             setattr(self, name, InstanceInputNode(node.type, name, self))
-        for name, node in self._outputs.items():
+        for name, node in self.outputs.items():
             setattr(self, name, InstanceOutputNode(node.type, name, self))
 
     def __setattr__(self, name, value):
@@ -352,16 +513,54 @@ class Module:
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, ', '.join("%s=%s" % (name, value) for name, value in self._connections.items()))
 
-def module(cls):
+import types
+
+def surgery(func):
+    code = func.__code__
+    if code.co_code[-4:] == bytes([100, 0, 83, 0]):
+        func.__code__ = types.CodeType(
+            code.co_argcount,
+            code.co_kwonlyargcount,
+            code.co_nlocals,
+            code.co_stacksize,
+            code.co_flags,
+            code.co_code[:-4] + bytes([100, len(code.co_consts), 131, 0, 83, 0]),
+            code.co_consts + (locals,),
+            code.co_names,
+            code.co_varnames,
+            code.co_filename,
+            code.co_name,
+            code.co_firstlineno,
+            code.co_lnotab,
+            code.co_freevars,
+            code.co_cellvars
+        )
+    return func
+
+def module(x):
+    module_name = x.__name__
+    if isinstance(x, type):
+        bases = x.__bases__
+        namespace = dict(x.__dict__)
+    elif isinstance(x, types.FunctionType):
+        bases = ()
+        namespace = dict(surgery(x)())
     inputs = {}
     outputs = {}
-    definitions = {}
-    namespace = dict(cls.__dict__)
     for name, value in namespace.items():
+        if name == 'inputs':
+            for input_name, input_node in value.items():
+                if input_node.name is None:
+                    input_node.name = input_name
+            inputs.update(value)
+        elif name == 'outputs':
+            for output_name, output_node in value.items():
+                if output_node.name is None:
+                    output_node.name = output_name
+            outputs.update(value)
         if isinstance(value, Module):
             if value._name is None:
                 value._name = name
-            definitions[name] = value
         elif isinstance(value, Node):
             if value.name is None:
                 value.name = name
@@ -369,98 +568,8 @@ def module(cls):
                 inputs[value.name] = value
             elif isinstance(value, OutputNode):
                 outputs[value.name] = value
-            definitions[name] = value
-    namespace['_inputs'] = inputs
-    namespace['_outputs'] = outputs
-    namespace['_definitions'] = definitions
-    for name in definitions:
-        del namespace[name]
-    return type.__new__(type, cls.__name__, (Module,) + cls.__bases__, namespace)
+    return type(module_name, (Module,) + bases, {'inputs': inputs, 'outputs': outputs})
 
-@module
-class Adder1:
-    in1 = input(bit)
-    in2 = input(bit)
-    cin = input(bit)
-    p = in1 ^ in2
-    out = output(p ^ cin)
-    g = in1 & in2
-    cout = output(g | p & cin)
-
-def full_adder(x, y, z):
-    adder = Adder1(in1=x, in2=y, cin=z)
-    return adder.out, adder.cout
-
-@module
-class Adder8:
-    in1 = input(bit[8])
-    in2 = input(bit[8])
-    cin = input()
-
-    def add(in1, in2, c):
-        for x, y in zip(in1, in2):
-            s, c = full_adder(x, y, c)
-            yield s
-        yield c
-
-    s = bits(add(in1, in2, cin))
-
-    out = output(s[:-1])
-    cout = output(s[-1])
-
-@module
-class Adder16:
-    in1 = input(bit[16])
-    in2 = input(bit[16])
-    cin = input()
-
-    adder1 = Adder8(in1=in1[:8], in2=in2[:8], cin=cin)
-    adder2 = Adder8(in1=in1[8:], in2=in2[8:], cin=adder1.cout)
-
-    # out = output(bit[16])
-    # cout = output(bit)
-
-    # out.connect([adder1.out, adder2.out])
-    # cout.connect(adder2.cout)
-
-    # adder1 = Adder8(in1=in1[:8], in2=in2[:8], cin=cin, out=out[:8])
-    # adder2 = Adder8(in1=in1[8:], in2=in2[8:], cin=adder1.cout, out=out[8:], cout=cout)
-
-    # adder1 = Adder8()
-    # adder2 = Adder8()
-    
-    # adder1.in1 = in1[:8]
-    # adder1.in2 = in2[:8]
-    # adder1.cin = cin
- 
-    # adder2.in1 = in1[8:]
-    # adder2.in2 = in2[8:]
-    # adder2.cin = adder1.cout
-
-    out = output([adder1.out, adder2.out])
-    cout = output(adder2.cout)
-
-def parity(x):
-    if len(x) == 1:
-        return x[0]
-    else:
-        i = len(x) // 2
-        return parity(x[:i]) ^ parity(x[i:])
-
-def scan(x, f):
-    y = x[0]
-    yield y
-    for i in range(1, len(x)):
-        y = f(y, x[i])
-        yield y
-
-def scan2(x, f):
-    if len(x) == 1:
-        return x
-    else:
-        i = len(x) // 2
-        ys = scan2(x[:i], f)
-        return ys @ (f(ys[-1], y) for y in scan2(x[i:], f))
 
 UNVISITED = object()
 VISITING = object()
@@ -472,16 +581,25 @@ class Visitor:
     def default(self, node):
         raise NotImplementedError("Unhandled default case in visitor")
 
+    def get(self, node):
+        return self.values.get(wrap(node), UNVISITED)
+
+    def set(self, node, value):
+        self.values[wrap(node)] = value
+
     def __call__(self, node):
-        value = self.values.get(node, UNVISITED)
+        value = self.get(node)
         if value is VISITING:
             raise ValueError("Cyclic node graph")
         elif value is UNVISITED:
             handler = getattr(self, type(node).__name__, self.default)
-            self.values[node] = VISITING
+            self.set(node, VISITING)
             value = handler(node)
-            self.values[node] = value
+            self.set(node, value)
         return value
+
+def escape(s):
+    return ''.join('\\%c' % c for c in s)
 
 class DotGenerator(Visitor):
     def __init__(self, show_names=True, show_types=True):
@@ -502,7 +620,7 @@ class DotGenerator(Visitor):
             name = "n%d" % self.next_id
             self.next_id += 1
         path = name + suffix if suffix else name
-        self.values[node] = path
+        self.set(node, path)
         return name, path
 
     def vertex(self, name, shape, label):
@@ -525,10 +643,19 @@ class DotGenerator(Visitor):
 
     def BinaryNode(self, node):
         name, path = self.make_name(node, ':o')        
-        self.vertex(name, 'record', self.header(node, '{{<i0>|<i1>}|<o> \\%s}' % node.op))
+        self.vertex(name, 'record', self.header(node, '{{<i0>|<i1>}|<o> %s}' % escape(node.op)))
         self.edge(self(node.left), name + ':i0')
         self.edge(self(node.right), name + ':i1')
         return path
+
+    def UnaryNode(self, node):
+        name, path = self.make_name(node, ':o')        
+        self.vertex(name, 'record', self.header(node, '{{<i>}|<o> %s}' % escape(node.op)))
+        self.edge(self(node.operand), name + ':i')
+        return path
+
+    def CompareNode(self, node):
+        return self.BinaryNode(node)
 
     def WhenNode(self, node):
         name, path = self.make_name(node, ':o')
@@ -596,12 +723,12 @@ class DotGenerator(Visitor):
 
     def Module(self, module):
         name, path = self.make_name(module)
-        inputs = '|'.join('<%s> %s' % (input_name, input_name) for input_name in module._inputs)
-        outputs = '|'.join('<%s> %s' % (output_name, output_name) for output_name in module._outputs)
+        inputs = '|'.join('<%s> %s' % (input_name, input_name) for input_name in module.inputs)
+        outputs = '|'.join('<%s> %s' % (output_name, output_name) for output_name in module.outputs)
         header = module._name + "|" if module._name else ""
         self.vertex(name, 'record', '%s{{%s}|%s|{%s}}' % (header, inputs, type(module).__name__, outputs))
-        for input_node, node in module._connections.items():
-            self.edge(self(node), '%s:%s' % (name, input_node.name))
+        for input_name, node in module._connections.items():
+            self.edge(self(node), '%s:%s' % (name, input_name))
         return path
 
     def default(self, x):
@@ -613,10 +740,10 @@ class DotGenerator(Visitor):
 def generate_dot_file(module):
     gen = DotGenerator()
     gen.line('digraph "%s" {' % module.__name__)
-    gen.line('graph [ ranksep = 1; rankdir = LR; ]')
-    for node in module._outputs.values():
+    gen.line('graph [ ranksep = 2; rankdir = LR; ]')
+    for node in module.outputs.values():
         gen(node)
-    for node in module._inputs.values():
+    for node in module.inputs.values():
         gen(node)
     vertices = dict(gen.vertices)
     gen.line('subgraph inputs { rank = source;')
@@ -635,30 +762,3 @@ def generate_dot_file(module):
     gen.line('}')
     gen.line('}')
     return '\n'.join(gen.lines)
-
-@module
-class Parity8:
-    x = input(bit[8])
-    y = output(parity(x))
-
-@module
-class LinearXorScanner8:
-    x = input(bit[8])
-    y = output(bits(scan(x, lambda x, y: x ^ y)))
-
-@module
-class LogarithmicXorScanner8:
-    x = input(bit[8])
-    y = output(bits(scan2(x, lambda x, y: x ^ y)))
-
-@module
-class Counter:
-    enable = input(bit)
-    count = register(bit[8])
-    #count.next = when(enable, count + 1, count)
-    count.enable = enable
-    count.next = count + 1
-    out = output(count)
-
-dot_file = open('example.dot', 'w')
-dot_file.write(generate_dot_file(Counter))
