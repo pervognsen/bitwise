@@ -1,6 +1,8 @@
 from dis import dis
 from collections.abc import Iterable
+from functools import total_ordering
 
+@total_ordering
 class Wrapper:
     def __init__(self, value):
         self.value = value
@@ -10,6 +12,9 @@ class Wrapper:
 
     def __eq__(self, other):
         return isinstance(other, Wrapper) and object.__eq__(self.value, other.value)
+
+    def __lt__(self, other):
+        return isinstance(other, Wrapper) and id(self.value) < id(other.value)
 
 def wrap(x):
     if isinstance(x, tuple):
@@ -44,6 +49,10 @@ class NodeType:
     pass
 
 class BitType(NodeType):
+    def __init__(self):
+        super().__init__()
+        self.width = 1
+
     def __getitem__(self, width):
         return bitvector(width)
 
@@ -71,6 +80,9 @@ class BitVectorType(NodeType):
 
     def __repr__(self):
         return "bit[%d]" % self.width
+
+    def __len__(self):
+        return self.width
 
     def cast(self, value):
         return value & ((1 << self.width) - 1)
@@ -208,27 +220,30 @@ class Node:
         else:
             raise TypeError("Invalid index type")
 
-class ConcatNode(Node):
-    def __init__(self, operands):
-        width = 0
-        for operand in operands:
-            if isinstance(operand.type, BitVectorType):
-                width += operand.type.width
-            elif isinstance(operand.type, BitType):
-                width += 1
-            else:
-                raise TypeError("Concatenation operand is not bit or bit vector")
-
-        super().__init__(bit[width])
-        self.operands = operands
+class WireNode(Node):
+    def __init__(self, type, operand):
+        super().__init__(type)
+        self.operand = operand
 
     def __repr__(self):
-        return "(%s)" % ' @ '.join(str(operand) for operand in self.operands)
+        return "wire(%s)" % repr(self.operand)
+
+def wire(type):
+    return WireNode(type, None)
+
+class OperatorNode(Node):
+    def __init__(self, type, op, *operands):
+        super().__init__(type)
+        self.op = op
+        self.operands = list(operands)
+
+    def __repr__(self):
+        return "(%s %s)" % (self.op, ' '.join(str(operand) for operand in self.operands))
 
 @memo
 def make_binary_node_memo(op, left, right):
     check_same_type(left, right)
-    return BinaryNode(op, left, right)
+    return OperatorNode(left.type, op, left, right)
 
 def make_binary_node(op, left, right):
     left, right = as_node(left, type=get_type(right)), as_node(right, type=get_type(left))
@@ -236,7 +251,7 @@ def make_binary_node(op, left, right):
 
 @memo
 def make_shift_node_memo(op, left, right):
-    return BinaryNode(op, left, right)
+    return OperatorNode(left.type, op, left, right)
 
 def make_shift_node(op, left, right):
     left, right = as_node(left), as_node(right)
@@ -244,7 +259,7 @@ def make_shift_node(op, left, right):
 
 @memo
 def make_unary_node_memo(op, operand):
-    return UnaryNode(op, operand)
+    return OperatorNode(operand.type, op, operand)
 
 def make_unary_node(op, operand):
     return make_unary_node_memo(op, as_node(operand))
@@ -252,14 +267,22 @@ def make_unary_node(op, operand):
 @memo
 def make_compare_node_memo(op, left, right):
     check_same_type(left, right)
-    return CompareNode(op, left, right)
+    return OperatorNode(bit, op, left, right)
 
 def make_compare_node(op, left, right):
     return make_compare_node_memo(op, as_node(left, type=get_type(right)), as_node(right, type=get_type(left)))
 
 @memo
 def make_concat_node_memo(operands):
-    return ConcatNode(operands)
+    width = 0
+    for operand in operands:
+        if isinstance(operand.type, BitVectorType):
+            width += operand.type.width
+        elif isinstance(operand.type, BitType):
+            width += 1
+        else:
+            raise TypeError("Concatenation operand is not bit or bit vector")
+    return OperatorNode(bit[width], '@', *operands)
 
 def make_concat_node(operands):
     new_operands = []
@@ -276,19 +299,10 @@ def wrap_index(i, n):
     return i + n if -n <= i < 0 else i
 
 @memo
-def make_index_node(operand, index):
-    if not isinstance(operand.type, BitVectorType):
-        raise TypeError("Only bit vectors may be indexed")
-    if not isinstance(index, int):
-        raise TypeError("Only integers may be used as indices")
-
-    index = wrap_index(index, operand.type.width)
-    if not 0 <= index < operand.type.width:
-        raise TypeError("Index is out of bounds")
-
+def make_index_node_memo(operand, index):
     if isinstance(operand, SliceNode):
         return make_index_node(operand.operand, index + operand.start)
-    elif isinstance(operand, ConcatNode):
+    elif isinstance(operand, OperatorNode) and operand.op == '@':
         offset = 0
         for suboperand in operand.operands:
             if suboperand.type == bit:
@@ -304,6 +318,18 @@ def make_index_node(operand, index):
 
     return IndexNode(operand, index)
 
+def make_index_node(operand, index):
+    if not isinstance(operand.type, BitVectorType):
+        raise TypeError("Only bit vectors may be indexed")
+    if not isinstance(index, int):
+        raise TypeError("Only integers may be used as indices")
+
+    index = wrap_index(index, operand.type.width)
+    if not 0 <= index < operand.type.width:
+        raise TypeError("Index is out of bounds")
+
+    return make_index_node_memo(operand, index)
+
 class IndexNode(Node):
     def __init__(self, operand, index):
         super().__init__(bit)
@@ -317,11 +343,11 @@ class IndexNode(Node):
 def make_memoized_slice_node(operand, start, stop):
     if not isinstance(operand.type, BitVectorType):
         raise TypeError("Only bit vectors may be indexed")
-    if stop <= start:
+    if stop < start:
         raise TypeError("Slice start must be greater than slice stop")
     if stop < 0:
         raise TypeError("Slice start must be nonnegative")
-    if start >= operand.type.width:
+    if start > operand.type.width:
         raise TypeError("Slice stop must be less than operand width")
     if isinstance(operand, SliceNode):
         return make_memoized_slice_node(operand.operand, start + operand.start, stop + operand.start)
@@ -344,14 +370,6 @@ class SliceNode(Node):
     def __repr__(self):
         return "%s[%d:%d]" % (self.operand, self.start, self.stop)
 
-class WhenNode(Node):
-    def __init__(self, cond, then_node, else_node):
-        type = then_node.type
-        super().__init__(type)
-        self.cond = cond
-        self.then_node = then_node
-        self.else_node = else_node
-
 def get_type(x):
     if isinstance(x, Node):
         return x.type
@@ -360,6 +378,9 @@ def get_type(x):
 
 @memo
 def when(cond, then_node, else_node):
+    if then_node is else_node:
+        return then_node
+
     if isinstance(then_node, tuple):
         assert isinstance(else_node, tuple)
         assert len(then_node) == len(else_node)
@@ -369,7 +390,7 @@ def when(cond, then_node, else_node):
     then_node, else_node = as_node(then_node, type=get_type(else_node)), as_node(else_node, type=get_type(then_node))
     check_type(cond, bit)
     check_same_type(then_node, else_node)
-    return WhenNode(cond, then_node, else_node)
+    return OperatorNode(then_node.type, 'when', cond, then_node, else_node)
 
 class RegisterNode(Node):
     def __init__(self, type, init, next, enable):
@@ -388,35 +409,6 @@ class ConstantNode(Node):
 
     def __repr__(self):
         return "%d" % self.value
-
-class BinaryNode(Node):
-    def __init__(self, op, left, right):
-        super().__init__(left.type)
-        self.op = op
-        self.left = left
-        self.right = right
-
-    def __repr__(self):
-        return "(%s %s %s)" % (self.left, self.op, self.right)
-
-class UnaryNode(Node):
-    def __init__(self, op, operand):
-        super().__init__(operand.type)
-        self.op = op
-        self.operand = operand
-
-    def __repr__(self):
-        return "%s%s" % (self.op, self.operand)
-
-class CompareNode(Node):
-    def __init__(self, op, left, right):
-        super().__init__(bit)
-        self.op = op
-        self.left = left
-        self.right = right
-
-    def __repr__(self):
-        return "(%s %s %s)" % (self.left, self.op, self.right)
 
 class InputNode(Node):
     def __repr__(self):
@@ -537,14 +529,7 @@ def surgery(func):
         )
     return func
 
-def module(x):
-    module_name = x.__name__
-    if isinstance(x, type):
-        bases = x.__bases__
-        namespace = dict(x.__dict__)
-    elif isinstance(x, types.FunctionType):
-        bases = ()
-        namespace = dict(surgery(x)())
+def make_module(module_name, namespace, bases=()):
     inputs = {}
     outputs = {}
     for name, value in namespace.items():
@@ -570,6 +555,15 @@ def module(x):
                 outputs[value.name] = value
     return type(module_name, (Module,) + bases, {'inputs': inputs, 'outputs': outputs})
 
+def module(x):
+    module_name = x.__name__
+    if isinstance(x, type):
+        bases = x.__bases__
+        namespace = dict(x.__dict__)
+    elif isinstance(x, types.FunctionType):
+        bases = ()
+        namespace = dict(surgery(x)())
+    return make_module(module_name, namespace, bases)
 
 UNVISITED = object()
 VISITING = object()
@@ -586,6 +580,7 @@ class Visitor:
 
     def set(self, node, value):
         self.values[wrap(node)] = value
+        return value
 
     def __call__(self, node):
         value = self.get(node)
@@ -599,7 +594,11 @@ class Visitor:
         return value
 
 def escape(s):
-    return ''.join('\\%c' % c for c in s)
+    return ''.join(c if c.isalnum() else '\\' + c for c in s)
+
+operand_labels = {
+    'when': ['cond', 'then', 'else'],
+}
 
 class DotGenerator(Visitor):
     def __init__(self, show_names=True, show_types=True):
@@ -641,28 +640,16 @@ class DotGenerator(Visitor):
         self.vertex(name, 'record', self.header(node, '<o> %d' % node.value))
         return path
 
-    def BinaryNode(self, node):
-        name, path = self.make_name(node, ':o')        
-        self.vertex(name, 'record', self.header(node, '{{<i0>|<i1>}|<o> %s}' % escape(node.op)))
-        self.edge(self(node.left), name + ':i0')
-        self.edge(self(node.right), name + ':i1')
-        return path
+    def OperatorNode(self, node):
+        if node.op == '@':
+            return self.concat_node(node)
 
-    def UnaryNode(self, node):
-        name, path = self.make_name(node, ':o')        
-        self.vertex(name, 'record', self.header(node, '{{<i>}|<o> %s}' % escape(node.op)))
-        self.edge(self(node.operand), name + ':i')
-        return path
-
-    def CompareNode(self, node):
-        return self.BinaryNode(node)
-
-    def WhenNode(self, node):
         name, path = self.make_name(node, ':o')
-        self.vertex(name, 'record', self.header(node, '{{<c> cond|<t> then|<e> else}|when|<o>}'))
-        self.edge(self(node.cond), name + ':c')
-        self.edge(self(node.then_node), name + ':t')
-        self.edge(self(node.else_node), name + ':e')
+        input_labels = operand_labels[node.op] if node.op in operand_labels else [''] * len(node.operands)
+        inputs = '|'.join('<i%d>%s' % (i, label) for i, label in enumerate(input_labels))
+        self.vertex(name, 'record', self.header(node, '{{%s}|<o> %s}' % (inputs, escape(node.op))))
+        for i, operand in enumerate(node.operands):
+            self.edge(self(operand), name + ':i%d' % i)
         return path
 
     def RegisterNode(self, node):
@@ -677,6 +664,12 @@ class DotGenerator(Visitor):
         self.vertex(name, 'record', self.header(node, '{{%s}|register|<o>}' % '|'.join(inputs)))
         return path
 
+    def WireNode(self, node):
+        name, path = self.make_name(node)
+        self.vertex(name, 'circle', '')
+        self.edge(self(node.operand), name)
+        return path
+
     def IndexNode(self, node):
         name, path = self.make_name(node, ':i')
         self.vertex(name, 'record', self.header(node, '<i> [%d]' % node.index))
@@ -689,7 +682,7 @@ class DotGenerator(Visitor):
         self.edge(self(node.operand), name + ':i')
         return path
 
-    def ConcatNode(self, node):
+    def concat_node(self, node):
         name, path = self.make_name(node, ':o')
         offset = 0
         sublabels = []
@@ -762,3 +755,362 @@ def generate_dot_file(module):
     gen.line('}')
     gen.line('}')
     return '\n'.join(gen.lines)
+
+class Copier(Visitor):
+    def InputNode(self, node):
+        return InputNode(node.type, node.name)
+
+    def set_node(self, node, new_node):
+        super().set(node, new_node)
+        new_node.name = node.name
+        return new_node
+
+    def WireNode(self, node):
+        new_node = self.set_node(node, WireNode(node.type, None))
+        new_node.operand = self(node.operand)
+        return new_node
+
+    def OutputNode(self, node):
+        new_node = self.set_node(node, OutputNode(node.type, None))
+        new_node.operand = self(node.operand)
+        return new_node
+
+    def OperatorNode(self, node):
+        new_node = self.set_node(node, OperatorNode(node.type, node.op, *((None,) * len(node.operands))))
+        for i, operand in enumerate(node.operands):
+            new_node.operands[i] = self(operand)
+        return new_node
+
+    def IndexNode(self, node):
+        new_node = self.set_node(node, IndexNode(None, node.index))
+        new_node.operand = self(node.operand)
+        return new_node
+
+    def SliceNode(self, node):
+        new_node = self.set_node(node, SliceNode(None, node.start, node.stop))
+        new_node.operand = self(node.operand)
+        return new_node
+    
+    def ConstantNode(self, node):
+        return ConstantNode(node.type, node.value)
+
+    def InstanceInputNode(self, node):
+        new_module = self(node.module)
+        return getattr(new_module, node.name)
+
+    def InstanceOutputNode(self, node):
+        return self.InstanceInputNode(self, node)
+
+    def Module(self, module):
+        return type(module)({name: self(node) for name, node in module._connections.items()})
+ 
+    def default(self, x):
+        if isinstance(x, Module):
+            return self.Module(x)
+        else:
+            return super().default(x)
+
+class ModuleInliner(Copier):
+    def __init__(self, inputs, prefix=''):
+        super().__init__()
+        self.inputs = inputs
+        self.prefix = prefix
+
+    def set_node(self, node, new_node):
+        super().set_node(node, new_node)
+        if new_node.name is not None:
+            new_node.name = self.prefix + new_node.name
+        return new_node
+
+    def InputNode(self, node):
+        connected_node = self.inputs.get(node, None)
+        if connected_node is None:
+            connected_node = super().InputNode(node)
+        return connected_node
+
+    def InstanceInputNode(self, node):
+        return self(node.operand)
+
+    def InstanceOutputNode(self, node):
+        return self(node.module)[node.name]
+
+    def Module(self, module):
+        module_class = type(module)
+        instance_outputs = {}
+        for name, node in module_class.outputs.items():
+            instance_outputs[name] = wire(node.type)
+        self.set(module, instance_outputs)
+
+        instance_inputs = {}
+        for name, node in module._connections.items():
+            if name in module_class.inputs:
+                instance_inputs[module_class.inputs[name]] = self(node)
+        
+        module_name = module._name
+        if not module_name is not None:
+            module_name = module_class.__name__
+
+        prefix = self.prefix + module_name + "_"
+
+        for name, node in inline_module(module_class, instance_inputs, prefix).items():
+            instance_outputs[name].operand = node
+
+        return instance_outputs
+
+def inline_module(module, inputs, prefix):
+    inliner = ModuleInliner(inputs, prefix)
+    return {name: inliner(node).operand for name, node in module.outputs.items()}
+
+def inline_top_module(module, module_name=None):
+    if module_name is None:
+        module_name = module.__name__ + "Copy"
+
+    inliner = ModuleInliner({})
+    inputs = {name: inliner(node) for name, node in module.inputs.items()}
+    outputs = {name: inliner(node) for name, node in module.outputs.items()}
+    namespace = {}
+    namespace.update(inputs)
+    namespace.update(outputs)
+    return make_module(module_name, namespace, type(module).__bases__)
+
+def copy_module(module, module_name=None):
+    if module_name is None:
+        module_name = module.__name__ + "Copy"
+
+    copier = Copier()
+    inputs = {name: copier(node) for name, node in module.inputs.items()}
+    outputs = {name: copier(node) for name, node in module.outputs.items()}
+    namespace = {}
+    namespace.update(inputs)
+    namespace.update(outputs)
+    return make_module(module_name, namespace, type(module).__bases__)
+
+class WireRemover(Copier):
+    def WireNode(self, node):
+        return self(node.operand)
+
+def remove_wires(module, module_name=None):
+    if module_name is None:
+        module_name = module.__name__ + "Copy"
+
+    remover = WireRemover()
+    inputs = {name: remover(node) for name, node in module.inputs.items()}
+    outputs = {name: remover(node) for name, node in module.outputs.items()}
+    namespace = {}
+    namespace.update(inputs)
+    namespace.update(outputs)
+    return make_module(module_name, namespace, type(module).__bases__)
+
+class Linearizer(Visitor):
+    def __init__(self):
+        super().__init__()
+        self.instructions = []
+        self.counter = 0
+
+    def make_temp(self, node):
+        name = "t%d" % self.counter
+        self.counter += 1
+        return name
+
+    def instruction(self, op, type, *args):
+        self.instructions.append((op, type) + tuple(args))
+
+    def InputNode(self, node):
+        assert node.name is not None
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'input', node.name)
+        return temp
+
+    def OutputNode(self, node):
+        assert node.name is not None
+        assert node.operand is not None
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'output', node.name, self(node.operand))
+        return temp
+    
+    def OperatorNode(self, node):
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, node.op, *(self(operand) for operand in node.operands))
+        return temp
+
+    def IndexNode(self, node):
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'index', self(node.operand), node.index)
+        return temp
+
+    def SliceNode(self, node):
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'slice', self(node.operand), node.start, node.stop)
+        return temp
+
+    def ConstantNode(self, node):
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'const', node.value)
+        return temp
+ 
+    def WireNode(self, node):
+        assert node.operand is not None
+        return self(node.operand)
+
+    def submodule_error(self, node):
+        assert False, "Submodules must be inlined away before linearization"
+
+    def InstanceInputNode(self, node):
+        self.submodule_error(node)
+
+    def InstanceOutputNode(self, node):
+        self.submodule_error(node)
+
+def linearize(module):
+    module = inline_top_module(module)
+    linearizer = Linearizer()
+    inputs = {}
+    for name, node in module.inputs.items():
+        linearizer(node)
+        inputs[name] = node.type
+    outputs = {}
+    for name, node in module.outputs.items():
+        result = linearizer(node)
+        outputs[name] = (result, node.type)
+    return inputs, outputs, linearizer.instructions
+
+unary_ops = {'~'}
+bitwise_binary_ops = {'&', '|', '^'}
+binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>'}
+
+@total_ordering
+class Bundle:
+    def __init__(self, keys, values):
+        self.keys = tuple(keys)
+        self.values = tuple(values)
+
+    def __iter__(self):
+        return iter(self.values)
+
+    def __len__(self):
+        return len(self.values)
+
+    def __hash__(self):
+        return hash((self.keys, self.values))
+
+    def __eq__(self, other):
+        if isinstance(other, Bundle) and self.keys == other.keys:
+            return self.values == other.values
+        return NotImplemented
+
+    def __lt__(self, other):
+        if isinstance(other, Bundle) and self.keys == other.keys:
+            return self.values < other.values
+        return NotImplemented
+
+    def __getitem__(self, i):
+        return self.values[i]
+
+    def __call__(self, *args, **kwargs):
+        values = list(self.values)
+        for i, value in enumerate(args):
+            values[i] = value
+        for key, value in kwargs.items():
+            values[self.keys.index(key)] = value
+        return Bundle(self.keys, values)
+
+    def __getattr__(self, name):
+        try:
+            return self.values[self.keys.index(name)]
+        except ValueError:
+            return super().__getattr__(name)
+
+    def __repr__(self):
+        return 'bundle(%s)' % (', '.join((key + '=' if type(key) == str else '') + repr(value) for key, value in zip(self.keys, self.values)))
+
+def bundle(*args, **kwargs):
+    keys = tuple(range(len(args))) + tuple(kwargs.keys())
+    values = tuple(args) + tuple(kwargs.values())
+    return Bundle(keys, values)
+
+import string
+
+compile_template = string.Template("""
+class $class_name:
+    def __init__(self):
+$init
+
+    def update(self):
+$update
+
+    @classmethod
+    def evaluate(cls, $evaluate_args):
+        self = cls()
+$evaluate_inputs
+        self.update()
+        return bundle($evaluate_outputs)
+""")
+
+def compile(class_name, inputs, outputs, instructions):
+    masks = set()
+    def mask(n):
+        if n not in masks:
+            masks.add(n)
+        return "mask_%d" % n
+    lines = []
+    def line(x, *args):
+        lines.append(x % args)
+    def join(lines):
+        return '\n'.join(' ' * 8 + line for line in lines)
+    types = {}
+    for instruction in instructions:
+        dest, type, op, *operands = instruction
+        types[dest] = type
+        if op in unary_ops:
+            src = operands[0]
+            line('%s = ~%s', dest, src)
+        elif op in bitwise_binary_ops:
+            src1, src2 = operands
+            line('%s = %s %s %s', dest, src1, op, src2)
+        elif op in binary_ops:
+            src1, src2 = operands
+            line('%s = (%s %s %s) & %s', dest, src1, op, src2, mask(type.width))
+        elif op == '@':
+            offset = 0
+            terms = []
+            for operand in operands:
+                width = types[operand].width
+                terms.append(operand if offset == 0 else "(%s << %d)" % (operand, offset))
+                offset += width
+            line('%s = %s', dest, ' | '.join(terms))
+        elif op == 'when':
+            cond_var, then_var, else_var = operands
+            line('%s = %s if %s else %s', dest, then_var, cond_var, else_var)
+        elif op == 'index':
+            src, index = operands
+            line('%s = (%s >> %d) & 1', dest, src, index)
+        elif op == 'slice':
+            src, start, stop = operands
+            line('%s = (%s >> %d) & %s', dest, src, start, mask(stop - start))
+        elif op == 'input':
+            name = operands[0]
+            line('%s = self.%s & %s', dest, name, mask(type.width))
+        elif op == 'output':
+            name, src = operands
+            line('%s = self.%s = %s', dest, name, src)
+        elif op == 'const':
+            value = operands[0]
+            line('%s = %s', dest, value)
+        else:
+            assert False
+    prelines = []
+    for mask in masks:
+        prelines.append('mask_%s = (1 << %d) - 1' % (mask, mask))
+    substitutions = {
+        'class_name': class_name,
+        'init': join('self.%s = None' % port for port in list(inputs) + list(outputs)),
+        'update': join(prelines + lines),
+        'evaluate_args': ', '.join(inputs),
+        'evaluate_inputs': join("self.%s = %s" % (input, input) for input in inputs),
+        'evaluate_outputs': ', '.join("%s=self.%s" % (output, output) for output in outputs),
+    }
+    code = compile_template.substitute(substitutions)
+    print(code)
+    code_locals = {}
+    exec(code, globals(), code_locals)
+    return code_locals[class_name]
