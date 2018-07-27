@@ -1044,26 +1044,31 @@ import string
 compile_template = string.Template("""
 class $class_name:
     def __init__(self):
+        self.trace = {}
 $init
 
-    def update(self):
+    def update(self, trace=False):
 $update
 
     @classmethod
-    def evaluate(cls, $evaluate_args):
+    def evaluate(cls, $evaluate_args, trace=False):
         self = cls()
 $evaluate_inputs
-        self.update()
+        self.update(trace=trace)
+        if trace:
+            for name, value in self.trace.items():
+                print(name, "=", value)
         return bundle($evaluate_outputs)
 """)
 
 def compile(module, class_name=None, trace=False):
     if class_name is None:
         class_name = module.__name__
-    inputs, outputs, instructions = linearize(module)
+
     lines = []
     def line(fmt, *args):
         lines.append(fmt % args)
+
     masks = set()
     def mask(n):
         s = "bits%d" % n
@@ -1071,8 +1076,17 @@ def compile(module, class_name=None, trace=False):
             line("%s = (1 << %d) - 1", s, n)
             masks.add(n)
         return s
+
     def join(lines):
         return '\n'.join(' ' * 8 + line for line in lines)
+
+    inputs, outputs, instructions = linearize(module)
+
+    if trace:
+        line('if trace:')
+        for input in inputs:
+            line('    self.trace["%s"] = self.%s', input, input)
+
     types = {}
     for instruction in instructions:
         dest, type, op, *operands = instruction
@@ -1114,8 +1128,15 @@ def compile(module, class_name=None, trace=False):
             line('%s = %s', dest, value)
         else:
             assert False
+
         if trace:
-            line('print("%s", "=", %s)', dest, dest)
+            line('if trace: self.trace["%s"] = %s', dest, dest)
+
+    if trace:
+        line('if trace:')
+        for output in outputs:
+            line('    self.trace["%s"] = self.%s', output, output)
+
     substitutions = {
         'class_name': class_name,
         'init': join('self.%s = None' % port for port in list(inputs) + list(outputs)),

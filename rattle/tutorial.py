@@ -164,10 +164,10 @@ class Example10:
     x = input(bit[N])
     y = input(bit[N])
     s, c = adc(x, ~y, 1)
-    # less than unsigned
-    ltu = output(~c)
-    # less than signed
-    lts = output(c ^ x[-1] ^ ~y[-1])
+    # greater than or equal unsigned
+    geu = output(c)
+    # greater than or equal signed
+    ges = output(c ^ x[-1] ^ y[-1])
 
 @module
 class Example11:
@@ -197,16 +197,10 @@ def conditional_sum_adder(x, y, c):
         return bits(s0), c
     else:
         i = len(x)//2
-        assert i*2 == len(x)
         s_lo, c_lo = conditional_sum_adder(x[:i], y[:i], c)
         s_hi0, c_hi0 = conditional_sum_adder(x[i:], y[i:], 0)
         s_hi1, c_hi1 = conditional_sum_adder(x[i:], y[i:], 1)
-        s = s_lo @ when(c_lo, s_hi1, s_hi0)
-        assert len(s) == len(s_lo) + len(s_hi0)
-        assert len(s) == len(x)
-        c = when(c_lo, c_hi1, c_hi0)
-        assert c.type == bit
-        return s, c
+        return s_lo @ when(c_lo, s_hi1, s_hi0), when(c_lo, c_hi1, c_hi0)
 
 @module
 class Example13:
@@ -214,19 +208,6 @@ class Example13:
     y = input(bit[N])
     s, c = conditional_sum_adder(x, y, 0)
     s = output(s)
-
-@module
-class PG:
-    p1, g1 = input(bit), input(bit)
-    p2, g2 = input(bit), input(bit)
-    p = output(p1 & p2)
-    g = output(g2 | (p2 & g1))
-
-def pg_compose(pg1, pg2):
-    p1, g1 = pg1
-    p2, g2 = pg2
-    pg = PG(p1=p1, g1=g1, p2=p2, g2=g2)
-    return pg.p, pg.g
 
 def pg_compose(pg1, pg2):
     p1, g1 = pg1
@@ -245,7 +226,7 @@ def linear_scan(f, x):
         y = f(y, xi)
         yield y
 
-def bruteforce_logarithmic_scan(f, x):
+def naive_logarithmic_scan(f, x):
     for i in range(len(x)):
         yield logarithmic_reduce(f, x[:i+1])
 
@@ -254,8 +235,7 @@ def sklansky_scan(f, x):
         return [x[0]]
     else:
         i = len(x)//2
-        y_lo = sklansky_scan(f, x[:i])
-        y_hi = sklansky_scan(f, x[i:])
+        y_lo, y_hi = sklansky_scan(f, x[:i]), sklansky_scan(f, x[i:])
         return y_lo + [f(y_lo[-1], yi) for yi in y_hi]
 
 def interleave(xs, ys):
@@ -273,6 +253,13 @@ def brent_kung_scan(f, x):
         y = brent_kung_scan(f, [f(x_even, x_odd) for x_even, x_odd in zip(x[::2], x[1::2])])
         return interleave([x[0]] + [f(y_odd, x_even) for x_even, y_odd in zip(x[2::2], y)], y)
 
+def kogge_stone_scan(f, x):
+    i = 1
+    while i < len(x):
+        x = x[:i] + [f(x0, x1) for x0, x1 in zip(x, x[i:])]
+        i *= 2
+    return x
+
 @module
 class Example14:
     i = input(bit[8])
@@ -283,9 +270,10 @@ class Example15:
     x = input(bit[N])
     y = input(bit[N])
     # scan = linear_scan
-    # scan = bruteforce_logarithmic_scan
+    # scan = naive_logarithmic_scan
     # scan = sklansky_scan
-    scan = brent_kung_scan
+    # scan = brent_kung_scan
+    scan = kogge_stone_scan
     s = output(carry_lookahead_adder(x, y, scan))
 
 open('example.dot', 'w').write(generate_dot_file(Example15))
@@ -310,13 +298,11 @@ if run_tests:
     example10 = compile(Example10)
     for x in uints:
         for y in uints:
-            ltu = example10.evaluate(x, y).ltu
-            assert (x < y) == ltu
+            assert (x >= y) == example10.evaluate(x, y).geu
 
     for x in sints:
         for y in sints:
-            lts = example10.evaluate(x, y).lts
-            assert (x < y) == lts
+            assert (x >= y) == example10.evaluate(x, y).ges
 
     example11 = compile(Example11)
     for x in uints:
@@ -330,14 +316,15 @@ if run_tests:
             s = example12.evaluate(x, y).s
             assert (x + y) & mask == s
     
-    example13 = compile(Example13, trace=False)
+    example13 = compile(Example13)
     for x in uints:
         for y in uints:
             s = example13.evaluate(x, y).s
             assert (x + y) & mask == s
 
-    example15 = compile(Example15)
+    example15 = compile(Example15, trace=True)
     for x in uints:
         for y in uints:
-            s = example15.evaluate(x, y).s
+            trace = x == 3 and y == 8
+            s = example15.evaluate(x, y, trace=trace).s
             assert (x + y) & mask == s
