@@ -108,7 +108,9 @@ def bitvector(width):
     return BitVectorType(width)
 
 def bits(x):
-    if isinstance(x, Iterable):
+    if isinstance(x, Node) and x.type == bit:
+        return bit[1](x)
+    elif isinstance(x, Iterable):
         return cat(*map(as_node, x))
     else:
         raise TypeError("Invalid operand type")
@@ -211,6 +213,15 @@ class Node:
 
     def __le__(self, other):
         return make_compare_node('<=', self, other)
+
+    def __lt__(self, other):
+        return make_compare_node('<', self, other)
+
+    def __ge__(self, other):
+        return make_compare_node('>=', self, other)
+
+    def __gt__(self, other):
+        return make_compare_node('>', self, other)
 
     def __getitem__(self, index):
         if isinstance(index, int):
@@ -976,7 +987,7 @@ def linearize(module):
 
 unary_ops = {'~'}
 bitwise_binary_ops = {'&', '|', '^'}
-binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>'}
+binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>', '==', '!=', '<=' '<', '>=', '>'}
 
 @total_ordering
 class Bundle:
@@ -1046,15 +1057,20 @@ $evaluate_inputs
         return bundle($evaluate_outputs)
 """)
 
-def compile(class_name, inputs, outputs, instructions):
+def compile(module, class_name=None, trace=False):
+    if class_name is None:
+        class_name = module.__name__
+    inputs, outputs, instructions = linearize(module)
+    lines = []
+    def line(fmt, *args):
+        lines.append(fmt % args)
     masks = set()
     def mask(n):
+        s = "bits%d" % n
         if n not in masks:
+            line("%s = (1 << %d) - 1", s, n)
             masks.add(n)
-        return "mask_%d" % n
-    lines = []
-    def line(x, *args):
-        lines.append(x % args)
+        return s
     def join(lines):
         return '\n'.join(' ' * 8 + line for line in lines)
     types = {}
@@ -1063,7 +1079,7 @@ def compile(class_name, inputs, outputs, instructions):
         types[dest] = type
         if op in unary_ops:
             src = operands[0]
-            line('%s = ~%s', dest, src)
+            line('%s = (%s%s) & %s', dest, op, src, mask(type.width))
         elif op in bitwise_binary_ops:
             src1, src2 = operands
             line('%s = %s %s %s', dest, src1, op, src2)
@@ -1098,19 +1114,17 @@ def compile(class_name, inputs, outputs, instructions):
             line('%s = %s', dest, value)
         else:
             assert False
-    prelines = []
-    for mask in masks:
-        prelines.append('mask_%s = (1 << %d) - 1' % (mask, mask))
+        if trace:
+            line('print("%s", "=", %s)', dest, dest)
     substitutions = {
         'class_name': class_name,
         'init': join('self.%s = None' % port for port in list(inputs) + list(outputs)),
-        'update': join(prelines + lines),
+        'update': join(lines),
         'evaluate_args': ', '.join(inputs),
         'evaluate_inputs': join("self.%s = %s" % (input, input) for input in inputs),
         'evaluate_outputs': ', '.join("%s=self.%s" % (output, output) for output in outputs),
     }
     code = compile_template.substitute(substitutions)
-    print(code)
     code_locals = {}
     exec(code, globals(), code_locals)
     return code_locals[class_name]

@@ -554,14 +554,7 @@ if __name__ == '__main__':
     dot_file = open('example.dot', 'w')
     dot_file.write(generate_dot_file(Cyclic3))
 
-    cls = compile('Foo', *linearize(Test))
-
-    # inputs, outputs, instructions = linearize(CompilerTest)
-    # print("Inputs:", ', '.join('%s: %s' % (name, type) for name, type in inputs.items()))
-    # print("Outputs:", ', '.join('%s = %s: %s' % (name, temp, type) for name, (temp, type) in outputs.items()))
-    # for instruction in instructions:
-    #     temp, type, *args = instruction
-    #     print("%s: %s = (%s)" % (temp, type, ' '.join(str(arg) for arg in args)))
+    cls = compile(Test)
 
     # x = bundle()
     # code = compile('Foo', inputs, outputs, instructions)
