@@ -1,3 +1,51 @@
+# Bitwise, Day 53: Logic Design, Part 5
+- Carry-lookahead adder tutorial: http://www.eng.tau.ac.il/~guy/Papers/PPC_adder_tutorial.pdf
+
+# Bitwise, Day 52: Logic Design, Part 4
+
+# Bitwise, Day 51: Logic Design, Part 3
+
+# Bitwise, Day 50: Logic Design, Part 2
+
+# Bitwise, Day 49: Logic Design
+
+# Bitwise, Day 48: Hardware Design Overview
+- Intro
+- Roadmap
+
+# Bitwise, Day 47: Domain-Specific Languages In Python, Part 5
+
+# Bitwise, Day 46: Domain-Specific Languages In Python, Part 4
+
+# Bitwise, Day 45: Domain-Specific Languages In Python, Part 3
+
+# Bitwise, Day 44: Domain-Specific Languages In Python, Part 2
+- Review
+- Continue where we left off
+
+# Bitwise, Day 43: Domain-Specific Languages In Python
+- Intro
+
+# Bitwise, Day 42: How To Program Assembly Language, Part 3
+- Finish off the tutorial
+
+# Bitwise, Day 41: How To Program Assembly Language, Part 2
+- Continue where we left off
+
+# Bitwise, Day 40: How To Program Assembly Language
+- Disclaimer, intended audience, goals and non-goals
+- Approach
+- Examples
+
+# Bitwise, Day 39: Implementing Forth, Part 5
+- Video: 
+- Refactoring, bootstrapping
+- Continue designing/coding
+
+# Bitwise, Day 38: Implementing Forth, Part 4
+- Video: 
+- Continue coding
+
 # Bitwise, Day 37: Implementing Forth, Part 3
 - Video: https://www.youtube.com/watch?v=TA8blMaNqxY
 - Follow up from last time
