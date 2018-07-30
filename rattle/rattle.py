@@ -237,6 +237,20 @@ class Node:
         else:
             raise TypeError("Invalid index type")
 
+class TraceNode(Node):
+    def __init__(self, type, operand, text, base):
+        super().__init__(type)
+        self.operand = operand
+        self.text = text
+        self.base = base
+
+def trace(node, text=None, base=10):
+    assert base in (2, 10, 16)
+    if text is None:
+        text = node.name
+    node = as_node(node)
+    return TraceNode(node.type, node, text, base)
+
 class WireNode(Node):
     def __init__(self, type, operand):
         super().__init__(type)
@@ -652,6 +666,12 @@ class DotGenerator(Pass):
             label = "%s|%s" % (label, node.type)
         return label
 
+    def TraceNode(self, node):
+        name, path = self.make_name(node, ':e')
+        self.vertex(name, 'box', self.header(node, 'trace'))
+        self.edge(self(node.operand) + ':w')
+        return path
+
     def ConstantNode(self, node):
         name, path = self.make_name(node, ':o')
         self.vertex(name, 'record', self.header(node, '<o> %d' % node.value))
@@ -780,6 +800,11 @@ class Transformer(Pass):
     def set_node(self, node, new_node):
         super().set(node, new_node)
         new_node.name = node.name
+        return new_node
+
+    def TraceNode(self, node):
+        new_node = self.set_node(node, TraceNode(node.type, None, node.text, node.base))
+        new_node.operand = self(node.operand)
         return new_node
 
     def WireNode(self, node):
@@ -932,6 +957,11 @@ class Linearizer(Pass):
     def instruction(self, op, type, *args):
         self.instructions.append((op, type) + tuple(args))
 
+    def TraceNode(self, node):
+        temp = self.make_temp(node)
+        self.instruction(temp, node.type, 'trace', self(node.operand), node.text, node.base)
+        return temp
+
     def InputNode(self, node):
         assert node.name is not None
         temp = self.make_temp(node)
@@ -1067,7 +1097,7 @@ $evaluate_inputs
         return bundle($evaluate_outputs)
 """)
 
-def compile(module, class_name=None, trace=False):
+def compile(module, class_name=None, trace_all=False):
     if class_name is None:
         class_name = module.__name__
 
@@ -1088,7 +1118,7 @@ def compile(module, class_name=None, trace=False):
 
     inputs, outputs, instructions = linearize(module)
 
-    if trace:
+    if trace_all:
         line('if trace:')
         for input in inputs:
             line('    self.trace["%s"] = self.%s', input, input)
@@ -1132,13 +1162,29 @@ def compile(module, class_name=None, trace=False):
         elif op == 'const':
             value = operands[0]
             line('%s = %s', dest, value)
+        elif op == 'trace':
+            value, text, base = operands
+            if text is None:
+                text = dest
+            line('%s = %s', dest, value)
+            width = types[operand].width
+            text += ": "
+            if base == 10:
+                spec = 'd'
+            elif base == 16:
+                spec = '0' + str((width + 3) // 4) + 'x'
+                text += '0x'
+            elif base == 2:
+                spec = '0' + str(width) + 'b'
+                text += '0b'
+            line('if trace: print(%s + format(%s, %s))', repr(text), value, repr(spec))
         else:
             assert False
 
-        if trace:
+        if trace_all:
             line('if trace: self.trace["%s"] = %s', dest, dest)
 
-    if trace:
+    if trace_all:
         line('if trace:')
         for output in outputs:
             line('    self.trace["%s"] = self.%s', output, output)
@@ -1184,7 +1230,7 @@ def get_operator_delay(operator, type, operand):
     width = type.width
     if operator in bitwise_binary_ops:
         return operator_delays[operator][operand]
-    elif operator in ('+', '-', '<', '<='):
+    elif operator in ('+', '-', '<', '<=', '>=', '>'):
         return math.log2(width) * add_delay_per_bit
     elif operator == 'when':
         delay = 2
@@ -1198,8 +1244,11 @@ def get_operator_delay(operator, type, operand):
         assert False
 
 class DelayAnalyzer(Pass):
+    def TraceNode(self, node):
+        return self(node.operand)
+    
     def WireNode(self, node):
-        return self(node)
+        return self(node.operand)
     
     def OutputNode(self, node):
         return self(node.operand)
