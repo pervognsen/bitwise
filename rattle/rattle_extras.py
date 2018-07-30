@@ -116,13 +116,13 @@ def scan3(xs, f):
         ys = scan3([f(x0, x1) for x0, x1 in zip(xs[::2], xs[1::2])], f)
         return unzip([xs[0]] + [f(y, x) for x, y in zip(xs[2::2], ys)], ys)
 
-def scan4(xs, f):
-    xs = list(xs)
+def scan4(x, f):
+    x = list(x)
     i = 1
-    while i < len(xs):
-        xs = [buf(x) for x in xs[:i]] + [f(x0, x1) for x0, x1 in zip(xs, xs[i:])]
+    while i < len(x):
+        x = x[:i] + [f(x0, x1) for x0, x1 in zip(x, x[i:])]
         i *= 2
-    return xs
+    return x
 
 def segscan(xs, bs, f):
     if len(xs) == 1:
@@ -566,3 +566,6 @@ if __name__ == '__main__':
     # obj.i2 = i2
     # obj.update()
     # assert obj.o == result.o
+
+    delays = analyze_delay(Cyclic)
+    print(delays)

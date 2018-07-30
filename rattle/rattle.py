@@ -2,6 +2,9 @@ from dis import dis
 from collections.abc import Iterable
 from functools import total_ordering
 
+def clog2(n):
+    return max(1, n.bit_length())
+
 @total_ordering
 class Wrapper:
     def __init__(self, value):
@@ -174,6 +177,9 @@ class Node:
 
     def __add__(self, other):
         return make_binary_node('+', self, other)
+
+    def __neg__(self):
+        return make_unary_node('-', self)
 
     def __radd__(self, other):
         return make_binary_node('+', other, self)
@@ -457,7 +463,7 @@ def as_node(x, type=None):
         return x
     elif isinstance(x, int) or isinstance(x, bool):
         if type is None:
-            n = max(1, x.bit_length())
+            n = clog2(x)
             type = bit if n == 1 else bit[n]
         return ConstantNode(type, x)
     elif isinstance(x, Iterable):
@@ -579,7 +585,7 @@ def module(x):
 UNVISITED = object()
 VISITING = object()
 
-class Visitor:
+class Pass:
     def __init__(self):
         self.values = {}
 
@@ -611,7 +617,7 @@ operand_labels = {
     'when': ['cond', 'then', 'else'],
 }
 
-class DotGenerator(Visitor):
+class DotGenerator(Pass):
     def __init__(self, show_names=True, show_types=True):
         super().__init__()
         self.show_names = show_names
@@ -767,7 +773,7 @@ def generate_dot_file(module):
     gen.line('}')
     return '\n'.join(gen.lines)
 
-class Copier(Visitor):
+class Transformer(Pass):
     def InputNode(self, node):
         return InputNode(node.type, node.name)
 
@@ -821,7 +827,7 @@ class Copier(Visitor):
         else:
             return super().default(x)
 
-class ModuleInliner(Copier):
+class ModuleInliner(Transformer):
     def __init__(self, inputs, prefix=''):
         super().__init__()
         self.inputs = inputs
@@ -888,7 +894,7 @@ def copy_module(module, module_name=None):
     if module_name is None:
         module_name = module.__name__ + "Copy"
 
-    copier = Copier()
+    copier = Transformer()
     inputs = {name: copier(node) for name, node in module.inputs.items()}
     outputs = {name: copier(node) for name, node in module.outputs.items()}
     namespace = {}
@@ -896,7 +902,7 @@ def copy_module(module, module_name=None):
     namespace.update(outputs)
     return make_module(module_name, namespace, type(module).__bases__)
 
-class WireRemover(Copier):
+class WireRemover(Transformer):
     def WireNode(self, node):
         return self(node.operand)
 
@@ -912,7 +918,7 @@ def remove_wires(module, module_name=None):
     namespace.update(outputs)
     return make_module(module_name, namespace, type(module).__bases__)
 
-class Linearizer(Visitor):
+class Linearizer(Pass):
     def __init__(self):
         super().__init__()
         self.instructions = []
@@ -985,9 +991,9 @@ def linearize(module):
         outputs[name] = (result, node.type)
     return inputs, outputs, linearizer.instructions
 
-unary_ops = {'~'}
+unary_ops = {'~', '-'}
 bitwise_binary_ops = {'&', '|', '^'}
-binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>', '==', '!=', '<=' '<', '>=', '>'}
+binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>', '==', '!=', '<=', '<', '>=', '>'}
 
 @total_ordering
 class Bundle:
@@ -1149,3 +1155,90 @@ def compile(module, class_name=None, trace=False):
     code_locals = {}
     exec(code, globals(), code_locals)
     return code_locals[class_name]
+
+def merge_delay(delays, node, delay):
+    if node in delays:
+        delays[node] = max(delays[node], delay)
+    else:
+        delays[node] = delay
+
+operator_delays = {
+    '~': [1],
+    '&': [4/3, 4/3],
+    '|': [5/3, 5/3],
+    '^': [4, 4],
+}
+
+add_delay_per_bit = 5
+
+def fanout_delay(width):
+    return clog2(width)
+
+import math
+
+@memo
+def get_operator_delay(operator, type, operand):
+    if operator in operator_delays:
+        return operator_delays[operator][operand]
+
+    width = type.width
+    if operator in bitwise_binary_ops:
+        return operator_delays[operator][operand]
+    elif operator in ('+', '-', '<', '<='):
+        return math.log2(width) * add_delay_per_bit
+    elif operator == 'when':
+        delay = 2
+        if operand == 0:
+            delay += fanout_delay(width)
+        return delay
+    elif operator in ('@', '<<', '>>'):
+        # Assume constant operands for shift, so it represents a fixed wiring pattern
+        return 0
+    else:
+        assert False
+
+class DelayAnalyzer(Pass):
+    def WireNode(self, node):
+        return self(node)
+    
+    def OutputNode(self, node):
+        return self(node.operand)
+    
+    def IndexNode(self, node):
+        return self(node.operand)
+
+    def SliceNode(self, node):
+        return self(node.operand)
+
+    def InputNode(self, node):
+        return {node.name: 0}
+
+    def ConstantNode(self, node):
+        return {}
+    
+    def InstanceInputNode(self, node):
+        return self(node.operand)
+
+    def OperatorNode(self, node):
+        delays = {}
+        for i, operand in enumerate(node.operands):
+            operator_delay = get_operator_delay(node.op, node.type, i)
+            for input, delay in self(operand).items():
+                merge_delay(delays, input, delay + operator_delay)
+        return delays
+
+    def InstanceOutputNode(self, node):
+        delays = {}
+        for name, module_delay in analyze_delay(node.module)[node.name].items():
+            for input, delay in self(node.module._connections[name]).items():
+                merge_delay(delays, input, delay + module_delay)
+        return delays
+
+@memo
+def analyze_delay(module):
+    analyzer = DelayAnalyzer()
+    delays = {}
+    for name, output in module.outputs.items():
+        delays[name] = analyzer(output)
+    return delays
+
