@@ -439,10 +439,12 @@ def funnel_right_rotator(x, n):
 def funnel_left_rotator(x, n):
     return funnel_shifter(x[1:] @ x, ~n)
 
-def funnel_shifter_unit(x, n, dir, arith):
-    n = when(dir, n, ~n)
+def funnel_shifter_unit(x, n, dir, shift, arith):
     s = rep(arith & x[-1], len(x)-1) 
-    return funnel_shifter(when(dir, x[:-1], s) @ when(dir, x[-1], x[0]) @ when(dir, s, x[1:]), n)
+    left = when(dir, x[:-1], when(shift, s, x[1:]))
+    middle = when(dir, x[-1], x[0])
+    right = when(dir, when(shift, s, x[:-1]), x[1:])
+    return funnel_shifter(left @ middle @ right, when(dir, n, ~n))
 
 @module
 class Example24:
@@ -520,8 +522,9 @@ class Example32:
     x = input(bit[N])
     n = input(bit[clog2(N)])
     dir = input(bit)
+    shift = input(bit)
     arith = input(bit)
-    y = output(funnel_shifter_unit(x, n, dir, arith))
+    y = output(funnel_shifter_unit(x, n, dir, shift, arith))
 
 open('example.dot', 'w').write(generate_dot_file(Example30))
 
@@ -720,13 +723,21 @@ if do_tests:
     example32 = compile(Example32)
     for x in uints:
         for n in shifts:
-            y = example32.evaluate(x, n, dir=0, arith=0).y
+            y = example32.evaluate(x, n, dir=0, shift=0, arith=0).y
+            assert rotl(x, n) == y
+    for x in uints:
+        for n in shifts:
+            y = example32.evaluate(x, n, dir=1, shift=0, arith=0).y
+            assert rotr(x, n) == y
+    for x in uints:
+        for n in shifts:
+            y = example32.evaluate(x, n, dir=0, shift=1, arith=0).y
             assert (x << n) & mask == y
     for x in uints:
         for n in shifts:
-            y = example32.evaluate(x, n, dir=1, arith=0).y
+            y = example32.evaluate(x, n, dir=1, shift=1, arith=0).y
             assert (x >> n) & mask == y
     for x in sints:
         for n in shifts:
-            y = example32.evaluate(x, n, dir=1, arith=1).y
+            y = example32.evaluate(x, n, dir=1, shift=1, arith=1).y
             assert (x >> n) & mask == y
