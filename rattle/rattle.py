@@ -3,7 +3,15 @@ from collections.abc import Iterable
 from functools import total_ordering
 
 def clog2(n):
-    return max(1, n.bit_length())
+    assert n > 0
+    r = 0
+    while n != 1:
+        r += 1
+        n >>= 1
+    if 2**r < n:
+        r += 1
+    assert 2**r >= n
+    return r
 
 @total_ordering
 class Wrapper:
@@ -122,7 +130,17 @@ def cat(*args):
     return make_concat_node(args)
 
 def rep(x, n):
-    return cat(*([x] * n))
+    assert n > 0
+    if 2**clog2(n) == n:
+        y = x
+        m = n
+        while m != 1:
+            y = y @ y
+            m /= 2
+        assert len(y) == n * len(x)
+        return y
+    else:
+        return cat(*([x] * n))
 
 def buf(x):
     return make_unary_node('buf', as_node(x))
@@ -475,7 +493,7 @@ def as_node(x, type=None):
         return x
     elif isinstance(x, int) or isinstance(x, bool):
         if type is None:
-            n = clog2(x)
+            n = max(1, x.bit_length())
             type = bit if n == 1 else bit[n]
         return ConstantNode(type, x)
     elif isinstance(x, Iterable):
