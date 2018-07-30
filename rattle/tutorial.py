@@ -135,7 +135,7 @@ def add(x, y, c=0):
     s, c = adc(x, y, c)
     return s
 
-N = 4
+N = 8
 
 @module
 class Example7:
@@ -325,7 +325,7 @@ def left_rotator_radix4(x, n):
         if i+2 <= len(n):
             x = mux4(n[i:i+2], x, x[-m:] @ x[:-m], x[-2*m:] @ x[:-2*m], x[-3*m:] @ x[:-3*m])
         else:
-            x = when(n[i], x[-2**i:] @ x[:-2**i], x)
+            x = when(n[i], x[-m:] @ x[:-m], x)
     return x
 
 def right_rotator_radix2(x, n):
@@ -345,10 +345,13 @@ def barrel_arithmetic_right_shifter(x, n):
     return bits(when(~i >= n, b, x[-1]) for i, b in enumerate(y))
 
 def barrel_shifter(x, n, dir, shift, arith, left_rotator=left_rotator_radix4):
+    x, n, dir, shift, arith = trace(x, base=2), trace(n), trace(dir), trace(shift), trace(arith)
     y = left_rotator(when(dir, x[-1] @ x[:-1], x), when(dir, ~n, n))
     mask = bits(~shift | when(dir, ~i >= n, i >= n) for i in range(len(y)))
     mask = trace(mask, 'mask', base=2)
-    return bits(when(mask[i], b, arith & x[-1]) for i, b in enumerate(y))
+    y = bits(when(mask[i], b, arith & x[-1]) for i, b in enumerate(y))
+    y = trace(y, 'y', base=2)
+    return y
 
 @module
 class Example16:
@@ -419,7 +422,7 @@ def funnel_shifter_radix4(x, n):
     assert 2**len(n) == len(x)
     return x
 
-funnel_shifter = funnel_shifter_radix4
+funnel_shifter = funnel_shifter_radix2
 
 def funnel_right_shifter(x, n):
     return funnel_shifter(x @ bit[len(x)-1](0), n)
@@ -472,6 +475,41 @@ class Example29:
     n = input(bit[clog2(N-1)])
     y = output(funnel_left_rotator(x, n))
 
+def right_shifter_radix2(x, n, arith):
+    s = when(arith, x[-1], 0)
+    for i, b in enumerate(n):
+        m = 2**i
+        x = when(b, x[m:] @ rep(s, m), x)
+    return x
+
+def right_shifter_radix4(x, n, arith):
+    s = when(arith, x[-1], 0)
+    for i in range(0, len(n), 2):
+        m = 2**i
+        if i+2 <= len(n):
+            x = mux4(n[i:i+2], x, x[m:] @ rep(s, m), x[2*m:] @ rep(s, 2*m), x[3*m:] @ rep(s, 3*m))
+        else:
+            x = when(n[i], x[m:] @ rep(s, m), x)
+    return x
+
+@module
+class Example30:
+    x = input(bit[N])
+    n = input(bit[clog2(N-1)])
+    arith = input(bit)
+    y = output(right_shifter_radix4(x, n, arith))
+
+def simple_shifter_unit(x, n, dir, arith, left_shifter=left_shifter_radix4, right_shifter=right_shifter_radix4):
+    return when(dir, right_shifter(x, n, arith), left_shifter(x, n))
+
+@module
+class Example31:
+    x = input(bit[N])
+    n = input(bit[clog2(N-1)])
+    dir = input(bit)
+    arith = input(bit)
+    y = output(simple_shifter_unit(x, n, dir, arith))
+
 open('example.dot', 'w').write(generate_dot_file(Example24))
 
 do_timing_analysis = False
@@ -483,8 +521,6 @@ if do_timing_analysis:
 
     for scan in (linear_scan, naive_logarithmic_scan, sklansky_scan, brent_kung_scan, kogge_stone_scan):
         print("Carry-lookahead with %s:" % scan.__name__, analyze_delay(make_carrylookahead_tester(scan)))
-
-print(analyze_delay(Example23))
 
 mask = (1 << N) - 1
 
@@ -587,60 +623,84 @@ if do_tests:
     #         y = example22.evaluate(x, n).y
     #         assert (x >> n) & mask == y
 
-    example23 = compile(Example23)
+    # example23 = compile(Example23)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=0, shift=0, arith=0).y
+    #         assert rotl(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=0, arith=0).y
+    #         assert rotr(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=0, shift=1, arith=0).y
+    #         assert (x << n) & mask == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=1, arith=0).y
+    #         assert (x >> n) & mask == y
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=1, arith=1).y
+    #         assert (x >> n) & mask == y
+
+    # example24 = compile(Example24)
+    # for x in fints:
+    #     for n in shifts:
+    #         y = example24.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example25 = compile(Example25)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example25.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example26 = compile(Example26)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example26.evaluate(x, n).y
+    #         assert (x << n) & mask == y
+
+    # example27 = compile(Example27)
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example27.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example28 = compile(Example28)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example28.evaluate(x, n).y
+    #         assert rotr(x, n) == y
+
+    # example29 = compile(Example29)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example29.evaluate(x, n).y
+    #         assert rotl(x, n) == y
+
+    example30 = compile(Example30)
     for x in uints:
         for n in shifts:
-            y = example23.evaluate(x, n, dir=0, shift=0, arith=0).y
-            assert rotl(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=0, arith=0).y
-            assert rotr(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=0, shift=1, arith=0, trace=True).y
-            assert (x << n) & mask == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=1, arith=0).y
+            y = example30.evaluate(x, n, arith=0).y
             assert (x >> n) & mask == y
     for x in sints:
         for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=1, arith=1).y
+            y = example30.evaluate(x, n, arith=1).y
             assert (x >> n) & mask == y
 
-    example24 = compile(Example24)
-    for x in fints:
-        for n in shifts:
-            y = example24.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example25 = compile(Example25)
+    example31 = compile(Example31)
     for x in uints:
         for n in shifts:
-            y = example25.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example26 = compile(Example26)
-    for x in uints:
-        for n in shifts:
-            y = example26.evaluate(x, n).y
+            y = example31.evaluate(x, n, dir=0, arith=0).y
             assert (x << n) & mask == y
-
-    example27 = compile(Example27)
+    for x in uints:
+        for n in shifts:
+            y = example31.evaluate(x, n, dir=1, arith=0).y
+            assert (x >> n) & mask == y
     for x in sints:
         for n in shifts:
-            y = example27.evaluate(x, n).y
+            y = example31.evaluate(x, n, dir=1, arith=1).y
             assert (x >> n) & mask == y
-
-    example28 = compile(Example28)
-    for x in uints:
-        for n in shifts:
-            y = example28.evaluate(x, n).y
-            assert rotr(x, n) == y
-
-    example29 = compile(Example29)
-    for x in uints:
-        for n in shifts:
-            y = example29.evaluate(x, n).y
-            assert rotl(x, n) == y

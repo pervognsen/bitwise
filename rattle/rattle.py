@@ -246,8 +246,6 @@ class TraceNode(Node):
 
 def trace(node, text=None, base=10):
     assert base in (2, 10, 16)
-    if text is None:
-        text = node.name
     node = as_node(node)
     return TraceNode(node.type, node, text, base)
 
@@ -959,7 +957,7 @@ class Linearizer(Pass):
 
     def TraceNode(self, node):
         temp = self.make_temp(node)
-        self.instruction(temp, node.type, 'trace', self(node.operand), node.text, node.base)
+        self.instruction(temp, node.type, 'trace', self(node.operand), node.text if node.text else node.operand.name, node.base)
         return temp
 
     def InputNode(self, node):
@@ -1167,7 +1165,7 @@ def compile(module, class_name=None, trace_all=False):
             if text is None:
                 text = dest
             line('%s = %s', dest, value)
-            width = types[operand].width
+            width = types[value].width
             text += ": "
             if base == 10:
                 spec = 'd'
