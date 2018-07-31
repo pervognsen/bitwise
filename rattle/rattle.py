@@ -275,8 +275,9 @@ class WireNode(Node):
     def __repr__(self):
         return "wire(%s)" % repr(self.operand)
 
-def wire(type):
-    return WireNode(type, None)
+def wire(x):
+    assert isinstance(x, NodeType)
+    return WireNode(x, None)
 
 class OperatorNode(Node):
     def __init__(self, type, op, *operands):
@@ -553,17 +554,26 @@ class Module:
         return "%s(%s)" % (type(self).__name__, ', '.join("%s=%s" % (name, value) for name, value in self._connections.items()))
 
 import types
+from platform import python_implementation
+
+is_pypy = python_implementation() == "PyPy"
 
 def surgery(func):
     code = func.__code__
-    if code.co_code[-4:] == bytes([100, 0, 83, 0]):
+    co_code = None
+    if is_pypy and code.co_code[-4:] == bytes([100, 0, 0, 83]):
+        co_code = code.co_code[:-4] + bytes([100, len(code.co_consts), 0, 131, 0, 0, 83])
+    elif not is_pypy and code.co_code[-4:] == bytes([100, 0, 83, 0]):
+        co_code = code.co_code[:-4] + bytes([100, len(code.co_consts), 131, 0, 83, 0])
+
+    if co_code:
         func.__code__ = types.CodeType(
             code.co_argcount,
             code.co_kwonlyargcount,
             code.co_nlocals,
             code.co_stacksize,
             code.co_flags,
-            code.co_code[:-4] + bytes([100, len(code.co_consts), 131, 0, 83, 0]),
+            co_code,
             code.co_consts + (locals,),
             code.co_names,
             code.co_varnames,
@@ -574,6 +584,7 @@ def surgery(func):
             code.co_freevars,
             code.co_cellvars
         )
+
     return func
 
 def make_module(module_name, namespace, bases=()):
@@ -683,10 +694,11 @@ class DotGenerator(Pass):
         return label
 
     def TraceNode(self, node):
-        name, path = self.make_name(node, ':e')
-        self.vertex(name, 'box', self.header(node, 'trace'))
-        self.edge(self(node.operand) + ':w')
-        return path
+        return self(node.operand)
+        # name, path = self.make_name(node, ':e')
+        # self.vertex(name, 'box', self.header(node, 'trace'))
+        # self.edge(self(node.operand) + ':e', name + ':w')
+        # return path
 
     def ConstantNode(self, node):
         name, path = self.make_name(node, ':o')
@@ -1090,6 +1102,10 @@ def bundle(*args, **kwargs):
     keys = tuple(range(len(args))) + tuple(kwargs.keys())
     values = tuple(args) + tuple(kwargs.values())
     return Bundle(keys, values)
+
+def label(node, name):
+#    node.name = str(name)
+    return node
 
 import string
 

@@ -110,6 +110,17 @@ class Example6:
     o = output(equals_constant(i, 5))
 
 @module
+class Add2:
+    x = input(bit)
+    y = input(bit)
+    s = output(x ^ y)
+    c = output(x & y)
+
+def add2(x, y):
+    adder = Add2(x=x, y=y)
+    return adder.s, adder.c
+
+@module
 class Add3:
     x = input(bit)
     y = input(bit)
@@ -135,7 +146,7 @@ def add(x, y, c=0):
     s, c = adc(x, y, c)
     return s
 
-N = 4
+N = 8
 
 @module
 class Example7:
@@ -440,11 +451,11 @@ def funnel_left_rotator(x, n):
     return funnel_shifter(x[1:] @ x, ~n)
 
 def funnel_shifter_unit(x, n, dir, shift, arith):
-    s = rep(arith & x[-1], len(x)-1) 
-    left = when(dir, x[:-1], when(shift, s, x[1:]))
-    middle = when(dir, x[-1], x[0])
-    right = when(dir, when(shift, s, x[:-1]), x[1:])
-    return funnel_shifter(left @ middle @ right, when(dir, n, ~n))
+    s = rep(arith & x[-1], len(x)-1)
+    low = when(dir, x[:-1], when(shift, s, x[1:]))
+    mid = when(dir, x[-1], x[0])
+    high = when(dir, when(shift, s, x[:-1]), x[1:])
+    return funnel_shifter(low @ mid @ high, when(dir, n, ~n))
 
 @module
 class Example24:
@@ -483,7 +494,7 @@ class Example29:
     y = output(funnel_left_rotator(x, n))
 
 def right_shifter_radix2(x, n, arith):
-    s = when(arith, x[-1], 0)
+    s = arith & x[-1]
     for i, b in enumerate(n):
         m = 2**i
         x = when(b, x[m:] @ rep(s, m), x)
@@ -526,7 +537,99 @@ class Example32:
     arith = input(bit)
     y = output(funnel_shifter_unit(x, n, dir, shift, arith))
 
-open('example.dot', 'w').write(generate_dot_file(Example30))
+adder = lambda x, y: x + y
+
+def weighted_partial_products(x, y):
+    assert len(x) == len(y)
+    return [(j, bits(label(xi & yj, i+j) for i, xi in enumerate(x))) for j, yj in enumerate(y)]
+
+def partial_products(x, y):
+    return [pp << i for i, pp in weighted_partial_products(x, y)]
+
+def naive_multiplier(x, y):
+    # return sum(partial_products(x, y))
+    return binary_reduce(adder, partial_products(x, y))
+
+@module
+class Example33:
+    x = input(bit[N])
+    y = input(bit[N])
+    p = output(naive_multiplier(x, y))
+
+# invariant: for s, c = csa(x, y, z), x + y + z == s + (c << 1)
+def csa(x, y, z):
+    sc = [add3(xi, yi, zi) for xi, yi, zi in zip(x, y, z)]
+    return bits(si for si, ci in sc), bits(ci for si, ci in sc) << 1
+
+def array_multiadder(xs):
+    assert len(xs) >= 2
+    x, y = xs[0], xs[1]
+    for z in xs[2:]:
+        x, y = csa(x, y, z)
+    return adder(x, y)
+
+def array_binary_multiadder(xs):
+    assert len(xs) >= 2
+    while len(xs) > 2:
+        ys = []
+        n = len(xs)
+        for i in range(0, n, 3):
+            if i+3 <= n:
+                ys.extend(csa(*xs[i:i+3]))
+            else:
+                ys.extend(xs[i:i+2])
+        xs = ys
+    return xs[0] + xs[1]
+
+def array_multiplier(x, y):
+    return array_multiadder(partial_products(x, y))
+
+@module
+class Example34:
+    x = input(bit[N])
+    y = input(bit[N])
+    p = output(array_multiplier(x, y))
+
+def wallace_tree_multiadder(weighted_terms, max_bits):
+    def put(i, x):
+        if i < max_bits:
+            next_pending[i].append(x)
+
+    next_pending = [[] for i in range(max_bits)]
+    for i, x in weighted_terms:
+        for j, b in enumerate(x):
+            put(i+j, b)
+
+    while any(len(bs) > 2 for bs in next_pending):
+        pending, next_pending = next_pending, [[] for i in range(max_bits)]
+        for i, bs in enumerate(pending):
+            n = len(bs)
+            for k in range(0, n, 3):
+                if k+3 <= n:
+                    s, c = add3(*bs[k:k+3])
+                    put(i, label(s, i))
+                    put(i+1, label(c, i+1))
+                elif k+2 <= n:
+                    s, c = add2(*bs[k:k+2])
+                    put(i, label(s, i))
+                    put(i+1, label(c, i+1))
+                else:
+                    put(i, bs[k])
+
+    x = bits(bs[0] if 0 < len(bs) else 0 for bs in next_pending)
+    y = bits(bs[1] if 1 < len(bs) else 0 for bs in next_pending)
+    return x + y
+
+def wallace_tree_multiplier(x, y):
+    return wallace_tree_multiadder(weighted_partial_products(x, y), len(x))
+
+@module
+class Example35:
+    x = input(bit[N])
+    y = input(bit[N])
+    p = output(wallace_tree_multiplier(x, y))
+
+open('example.dot', 'w').write(generate_dot_file(Example35))
 
 do_timing_analysis = False
 if do_timing_analysis:
@@ -545,6 +648,10 @@ sints = range(-2**(N-1), 2**(N-1))
 shifts = range(N)
 fints = range(2**(2*N - 1))
 
+print(analyze_delay(Example33))
+print(analyze_delay(Example34))
+print(analyze_delay(Example35))
+
 def rotl(x, n):
     return ((x << n) & mask) | ((x >> (N - n)) & mask)
 
@@ -553,191 +660,221 @@ def rotr(x, n):
 
 do_tests = True
 if do_tests:
-    example7 = compile(Example7)
+    # example7 = compile(Example7)
+    # for x in uints:
+    #     for y in uints:
+    #         assert (x + y) & mask == example7.evaluate(x, y).s
+
+    # example8 = compile(Example8)
+    # for x in uints:
+    #     for y in uints:
+    #         assert (x - y) & mask == example8.evaluate(x, y).s
+
+    # example10 = compile(Example10)
+    # for x in uints:
+    #     for y in uints:
+    #         assert (x >= y) == example10.evaluate(x, y).geu
+
+    # for x in sints:
+    #     for y in sints:
+    #         assert (x >= y) == example10.evaluate(x, y).ges
+
+    # example11 = compile(Example11)
+    # for x in uints:
+    #     for y in uints:
+    #         s = example11.evaluate(x, y).s
+    #         assert (x + y) & mask == s
+
+    # example12 = compile(Example12)
+    # for x in uints:
+    #     for y in uints:
+    #         s = example12.evaluate(x, y).s
+    #         assert (x + y) & mask == s
+    
+    # example13 = compile(Example13)
+    # for x in uints:
+    #     for y in uints:
+    #         s = example13.evaluate(x, y).s
+    #         assert (x + y) & mask == s
+
+    # example15 = compile(Example15)
+    # for x in uints:
+    #     for y in uints:
+    #         s = example15.evaluate(x, y).s
+    #         assert (x + y) & mask == s
+
+    # example16 = compile(Example16)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example16.evaluate(x, n).y
+    #         assert (x << n) & mask == y
+
+    # example17 = compile(Example17)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example17.evaluate(x, n).y
+    #         assert (x << n) & mask == y
+
+    # example18 = compile(Example18)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example18.evaluate(x, n).y
+    #         assert rotl(x, n) == y
+
+    # example19 = compile(Example19)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example19.evaluate(x, n).y
+    #         assert rotr(x, n) == y
+
+    # example20 = compile(Example20)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example20.evaluate(x, n).y
+    #         assert (x << n) & mask == y
+
+    # example21 = compile(Example21)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example21.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example22 = compile(Example22)
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example22.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example23 = compile(Example23)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=0, shift=0, arith=0).y
+    #         assert rotl(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=0, arith=0).y
+    #         assert rotr(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=0, shift=1, arith=0).y
+    #         assert (x << n) & mask == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=1, arith=0).y
+    #         assert (x >> n) & mask == y
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example23.evaluate(x, n, dir=1, shift=1, arith=1).y
+    #         assert (x >> n) & mask == y
+
+    # example24 = compile(Example24)
+    # for x in fints:
+    #     for n in shifts:
+    #         y = example24.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example25 = compile(Example25)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example25.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example26 = compile(Example26)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example26.evaluate(x, n).y
+    #         assert (x << n) & mask == y
+
+    # example27 = compile(Example27)
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example27.evaluate(x, n).y
+    #         assert (x >> n) & mask == y
+
+    # example28 = compile(Example28)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example28.evaluate(x, n).y
+    #         assert rotr(x, n) == y
+
+    # example29 = compile(Example29)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example29.evaluate(x, n).y
+    #         assert rotl(x, n) == y
+
+    # example30 = compile(Example30)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example30.evaluate(x, n, arith=0).y
+    #         assert (x >> n) & mask == y
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example30.evaluate(x, n, arith=1).y
+    #         assert (x >> n) & mask == y
+
+    # example31 = compile(Example31)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example31.evaluate(x, n, dir=0, arith=0).y
+    #         assert (x << n) & mask == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example31.evaluate(x, n, dir=1, arith=0).y
+    #         assert (x >> n) & mask == y
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example31.evaluate(x, n, dir=1, arith=1).y
+    #         assert (x >> n) & mask == y
+
+    # example32 = compile(Example32)
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example32.evaluate(x, n, dir=0, shift=0, arith=0).y
+    #         assert rotl(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example32.evaluate(x, n, dir=1, shift=0, arith=0).y
+    #         assert rotr(x, n) == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example32.evaluate(x, n, dir=0, shift=1, arith=0).y
+    #         assert (x << n) & mask == y
+    # for x in uints:
+    #     for n in shifts:
+    #         y = example32.evaluate(x, n, dir=1, shift=1, arith=0).y
+    #         assert (x >> n) & mask == y
+    # for x in sints:
+    #     for n in shifts:
+    #         y = example32.evaluate(x, n, dir=1, shift=1, arith=1).y
+    #         assert (x >> n) & mask == y
+
+    example33 = compile(Example33)
     for x in uints:
         for y in uints:
-            assert (x + y) & mask == example7.evaluate(x, y).s
-
-    example8 = compile(Example8)
-    for x in uints:
-        for y in uints:
-            assert (x - y) & mask == example8.evaluate(x, y).s
-
-    example10 = compile(Example10)
-    for x in uints:
-        for y in uints:
-            assert (x >= y) == example10.evaluate(x, y).geu
-
+            p = example33.evaluate(x, y).p
+            assert (x * y) & mask == p
     for x in sints:
         for y in sints:
-            assert (x >= y) == example10.evaluate(x, y).ges
+            p = example33.evaluate(x, y).p
+            assert (x * y) & mask == p
 
-    example11 = compile(Example11)
+    example34 = compile(Example34)
     for x in uints:
         for y in uints:
-            s = example11.evaluate(x, y).s
-            assert (x + y) & mask == s
+            p = example34.evaluate(x, y).p
+            assert (x * y) & mask == p
+    for x in sints:
+        for y in sints:
+            p = example34.evaluate(x, y).p
+            assert (x * y) & mask == p
 
-    example12 = compile(Example12)
+    example35 = compile(Example35)
     for x in uints:
         for y in uints:
-            s = example12.evaluate(x, y).s
-            assert (x + y) & mask == s
-    
-    example13 = compile(Example13)
-    for x in uints:
-        for y in uints:
-            s = example13.evaluate(x, y).s
-            assert (x + y) & mask == s
-
-    example15 = compile(Example15)
-    for x in uints:
-        for y in uints:
-            s = example15.evaluate(x, y).s
-            assert (x + y) & mask == s
-
-    example16 = compile(Example16)
-    for x in uints:
-        for n in shifts:
-            y = example16.evaluate(x, n).y
-            assert (x << n) & mask == y
-
-    example17 = compile(Example17)
-    for x in uints:
-        for n in shifts:
-            y = example17.evaluate(x, n).y
-            assert (x << n) & mask == y
-
-    example18 = compile(Example18)
-    for x in uints:
-        for n in shifts:
-            y = example18.evaluate(x, n).y
-            assert rotl(x, n) == y
-
-    example19 = compile(Example19)
-    for x in uints:
-        for n in shifts:
-            y = example19.evaluate(x, n).y
-            assert rotr(x, n) == y
-
-    example20 = compile(Example20)
-    for x in uints:
-        for n in shifts:
-            y = example20.evaluate(x, n).y
-            assert (x << n) & mask == y
-
-    example21 = compile(Example21)
-    for x in uints:
-        for n in shifts:
-            y = example21.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example22 = compile(Example22)
+            p = example35.evaluate(x, y, trace=True).p
+            assert (x * y) & mask == p
     for x in sints:
-        for n in shifts:
-            y = example22.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example23 = compile(Example23)
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=0, shift=0, arith=0).y
-            assert rotl(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=0, arith=0).y
-            assert rotr(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=0, shift=1, arith=0).y
-            assert (x << n) & mask == y
-    for x in uints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=1, arith=0).y
-            assert (x >> n) & mask == y
-    for x in sints:
-        for n in shifts:
-            y = example23.evaluate(x, n, dir=1, shift=1, arith=1).y
-            assert (x >> n) & mask == y
-
-    example24 = compile(Example24)
-    for x in fints:
-        for n in shifts:
-            y = example24.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example25 = compile(Example25)
-    for x in uints:
-        for n in shifts:
-            y = example25.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example26 = compile(Example26)
-    for x in uints:
-        for n in shifts:
-            y = example26.evaluate(x, n).y
-            assert (x << n) & mask == y
-
-    example27 = compile(Example27)
-    for x in sints:
-        for n in shifts:
-            y = example27.evaluate(x, n).y
-            assert (x >> n) & mask == y
-
-    example28 = compile(Example28)
-    for x in uints:
-        for n in shifts:
-            y = example28.evaluate(x, n).y
-            assert rotr(x, n) == y
-
-    example29 = compile(Example29)
-    for x in uints:
-        for n in shifts:
-            y = example29.evaluate(x, n).y
-            assert rotl(x, n) == y
-
-    example30 = compile(Example30)
-    for x in uints:
-        for n in shifts:
-            y = example30.evaluate(x, n, arith=0).y
-            assert (x >> n) & mask == y
-    for x in sints:
-        for n in shifts:
-            y = example30.evaluate(x, n, arith=1).y
-            assert (x >> n) & mask == y
-
-    example31 = compile(Example31)
-    for x in uints:
-        for n in shifts:
-            y = example31.evaluate(x, n, dir=0, arith=0).y
-            assert (x << n) & mask == y
-    for x in uints:
-        for n in shifts:
-            y = example31.evaluate(x, n, dir=1, arith=0).y
-            assert (x >> n) & mask == y
-    for x in sints:
-        for n in shifts:
-            y = example31.evaluate(x, n, dir=1, arith=1).y
-            assert (x >> n) & mask == y
-
-    example32 = compile(Example32)
-    for x in uints:
-        for n in shifts:
-            y = example32.evaluate(x, n, dir=0, shift=0, arith=0).y
-            assert rotl(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example32.evaluate(x, n, dir=1, shift=0, arith=0).y
-            assert rotr(x, n) == y
-    for x in uints:
-        for n in shifts:
-            y = example32.evaluate(x, n, dir=0, shift=1, arith=0).y
-            assert (x << n) & mask == y
-    for x in uints:
-        for n in shifts:
-            y = example32.evaluate(x, n, dir=1, shift=1, arith=0).y
-            assert (x >> n) & mask == y
-    for x in sints:
-        for n in shifts:
-            y = example32.evaluate(x, n, dir=1, shift=1, arith=1).y
-            assert (x >> n) & mask == y
+        for y in sints:
+            p = example35.evaluate(x, y).p
+            assert (x * y) & mask == p
