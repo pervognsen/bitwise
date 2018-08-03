@@ -146,7 +146,7 @@ def add(x, y, c=0):
     s, c = adc(x, y, c)
     return s
 
-N = 8
+N = 4
 
 @module
 class Example7:
@@ -629,6 +629,105 @@ class Example35:
     y = input(bit[N])
     p = output(wallace_tree_multiplier(x, y))
 
+def sw_euclidean_divide(n, d):
+    q = 0
+    r = n
+    while r >= d:
+        q += 1
+        r -= d
+    assert n == q*d + r
+    assert 0 <= r < d
+    return q
+
+def sw_binary_divide(n, d, num_bits):
+    q = 0
+    r = n
+    d2 = d << (num_bits - 1)
+    for i in range(num_bits):
+        q <<= 1
+        if r >= d2:
+            q |= 1
+            r -= d2
+        d2 >>= 1
+    assert n == q*d + r
+    assert 0 <= r < d
+    return q
+
+def sw_binary_divide2(n, d, num_bits):
+    q = 0
+    r = n
+    d2 = d << (num_bits - 1)
+    for i in range(num_bits):
+        q <<= 1
+        if r >= d2:
+            q |= 1
+            r -= d2
+        r <<= 1
+    return q
+
+def binary_divider(n, d):
+    q = bit[0](0)
+    r = n @ bit[len(d)-1](0)
+    d2 = bit[len(d)-1](0) @ d
+    for i in range(len(d)):
+        q, r = when(r >= d2, (1 @ q, r - d2), (0 @ q, r))
+        r <<= 1
+    return q
+
+# Restoring division
+def binary_divider2(n, d):
+    q = bit[0](0)
+    r = n @ bit[len(d)](0)
+    d2 = bit[len(d)-1](0) @ d @ 0
+    for i in range(len(d)):
+        r2 = r - d2
+        q, r = when(r2[-1], (0 @ q, r), (1 @ q, r2))
+        r <<= 1
+    return q
+
+@module
+class Example36:
+    n = input(bit[N])
+    d = input(bit[N])
+    q = output(binary_divider2(n, d))
+    assert len(q) == N
+
+def sw_nonrestoring_divide(n, d, num_bits):
+    q = 0
+    r = n
+    d2 = d << (num_bits - 1)
+    for i in range(num_bits):
+        q <<= 1
+        if r >= 0:
+            q |= 1
+            r -= d2
+        else:
+            r += d2
+        r <<= 1
+    q = q - ~q
+    if r < 0:
+        q -= 1
+    return q & ((1 << num_bits) - 1)
+
+# Non-restoring division
+def nonrestoring_binary_divider(n, d):
+    q = bit[0](0)
+    r = n @ bit[len(d)](0) @ 0
+    d2 = bit[len(d)-1](0) @ d @ 0 @ 0
+    for i in range(len(d)):
+        q, r = when(r[-1], (0 @ q, r + d2), (1 @ q, r - d2))
+        r <<= 1
+    q = q - ~q
+    q = when(r[-1], q - 1, q)
+    return q
+
+@module
+class Example37:
+    n = input(bit[N])
+    d = input(bit[N])
+    q = output(nonrestoring_binary_divider(n, d))
+    assert len(q) == N
+
 open('example.dot', 'w').write(generate_dot_file(Example35))
 
 do_timing_analysis = False
@@ -647,10 +746,10 @@ uints = range(2**N)
 sints = range(-2**(N-1), 2**(N-1))
 shifts = range(N)
 fints = range(2**(2*N - 1))
-
-print(analyze_delay(Example33))
-print(analyze_delay(Example34))
-print(analyze_delay(Example35))
+ 
+# print(analyze_delay(Example33))
+# print(analyze_delay(Example34))
+# print(analyze_delay(Example35))
 
 def rotl(x, n):
     return ((x << n) & mask) | ((x >> (N - n)) & mask)
@@ -849,32 +948,70 @@ if do_tests:
     #         y = example32.evaluate(x, n, dir=1, shift=1, arith=1).y
     #         assert (x >> n) & mask == y
 
-    example33 = compile(Example33)
-    for x in uints:
-        for y in uints:
-            p = example33.evaluate(x, y).p
-            assert (x * y) & mask == p
-    for x in sints:
-        for y in sints:
-            p = example33.evaluate(x, y).p
-            assert (x * y) & mask == p
+    # example33 = compile(Example33)
+    # for x in uints:
+    #     for y in uints:
+    #         p = example33.evaluate(x, y).p
+    #         assert (x * y) & mask == p
+    # for x in sints:
+    #     for y in sints:
+    #         p = example33.evaluate(x, y).p
+    #         assert (x * y) & mask == p
 
-    example34 = compile(Example34)
-    for x in uints:
-        for y in uints:
-            p = example34.evaluate(x, y).p
-            assert (x * y) & mask == p
-    for x in sints:
-        for y in sints:
-            p = example34.evaluate(x, y).p
-            assert (x * y) & mask == p
+    # example34 = compile(Example34)
+    # for x in uints:
+    #     for y in uints:
+    #         p = example34.evaluate(x, y).p
+    #         assert (x * y) & mask == p
+    # for x in sints:
+    #     for y in sints:
+    #         p = example34.evaluate(x, y).p
+    #         assert (x * y) & mask == p
 
-    example35 = compile(Example35)
-    for x in uints:
-        for y in uints:
-            p = example35.evaluate(x, y, trace=True).p
-            assert (x * y) & mask == p
-    for x in sints:
-        for y in sints:
-            p = example35.evaluate(x, y).p
-            assert (x * y) & mask == p
+    # example35 = compile(Example35)
+    # for x in uints:
+    #     for y in uints:
+    #         p = example35.evaluate(x, y, trace=True).p
+    #         assert (x * y) & mask == p
+    # for x in sints:
+    #     for y in sints:
+    #         p = example35.evaluate(x, y).p
+    #         assert (x * y) & mask == p
+
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = sw_euclidean_divide(n, d)
+                assert q == n // d
+
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = sw_binary_divide(n, d, N)
+                assert q == n // d
+
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = sw_binary_divide2(n, d, N)
+                assert q == n // d
+
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = sw_nonrestoring_divide(n, d, N)
+                assert q == n // d
+
+    example36 = compile(Example36)
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = example36.evaluate(n, d).q
+                assert q == n // d
+
+    example37 = compile(Example37)
+    for n in uints:
+        for d in uints:
+            if d != 0:
+                q = example37.evaluate(n, d, trace=True).q
+                assert q == n // d

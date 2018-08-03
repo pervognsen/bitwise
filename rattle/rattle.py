@@ -197,7 +197,7 @@ class Node:
         return make_binary_node('+', self, other)
 
     def __neg__(self):
-        return make_unary_node('-', self)
+        return make_unary_node('unary -', self)
 
     def __radd__(self, other):
         return make_binary_node('+', other, self)
@@ -256,16 +256,17 @@ class Node:
             raise TypeError("Invalid index type")
 
 class TraceNode(Node):
-    def __init__(self, type, operand, text, base):
+    def __init__(self, type, operand, text, base, signed):
         super().__init__(type)
         self.operand = operand
         self.text = text
         self.base = base
+        self.signed = signed
 
-def trace(node, text=None, base=10):
+def trace(node, text=None, base=10, signed=False):
     assert base in (2, 10, 16)
     node = as_node(node)
-    return TraceNode(node.type, node, text, base)
+    return TraceNode(node.type, node, text, base, signed)
 
 class WireNode(Node):
     def __init__(self, type, operand):
@@ -831,7 +832,7 @@ class Transformer(Pass):
         return new_node
 
     def TraceNode(self, node):
-        new_node = self.set_node(node, TraceNode(node.type, None, node.text, node.base))
+        new_node = self.set_node(node, TraceNode(node.type, None, node.text, node.base, node.signed))
         new_node.operand = self(node.operand)
         return new_node
 
@@ -987,7 +988,7 @@ class Linearizer(Pass):
 
     def TraceNode(self, node):
         temp = self.make_temp(node)
-        self.instruction(temp, node.type, 'trace', self(node.operand), node.text if node.text else node.operand.name, node.base)
+        self.instruction(temp, node.type, 'trace', self(node.operand), node.text if node.text else node.operand.name, node.base, node.signed)
         return temp
 
     def InputNode(self, node):
@@ -1049,9 +1050,17 @@ def linearize(module):
         outputs[name] = (result, node.type)
     return inputs, outputs, linearizer.instructions
 
-unary_ops = {'~', '-'}
+
+unary_ops = {'~', 'unary -'}
 bitwise_binary_ops = {'&', '|', '^'}
 binary_ops = bitwise_binary_ops | {'+', '-', '<<', '>>', '==', '!=', '<=', '<', '>=', '>'}
+
+rattle_op_to_python_op = {
+    'unary -': '-',
+}
+
+def get_python_op(op):
+    return rattle_op_to_python_op.get(op, op)
 
 @total_ordering
 class Bundle:
@@ -1107,6 +1116,10 @@ def label(node, name):
 #    node.name = str(name)
     return node
 
+def int_to_signed(x, n):
+    mask = 1 << (n - 1)
+    return (x & (mask - 1)) - (x & mask)
+
 import string
 
 compile_template = string.Template("""
@@ -1161,13 +1174,13 @@ def compile(module, class_name=None, trace_all=False):
         types[dest] = type
         if op in unary_ops:
             src = operands[0]
-            line('%s = (%s%s) & %s', dest, op, src, mask(type.width))
+            line('%s = (%s%s) & %s', dest, get_python_op(op), src, mask(type.width))
         elif op in bitwise_binary_ops:
             src1, src2 = operands
-            line('%s = %s %s %s', dest, src1, op, src2)
+            line('%s = %s %s %s', dest, src1, get_python_op(op), src2)
         elif op in binary_ops:
             src1, src2 = operands
-            line('%s = (%s %s %s) & %s', dest, src1, op, src2, mask(type.width))
+            line('%s = (%s %s %s) & %s', dest, src1, get_python_op(op), src2, mask(type.width))
         elif op == '@':
             offset = 0
             terms = []
@@ -1195,7 +1208,7 @@ def compile(module, class_name=None, trace_all=False):
             value = operands[0]
             line('%s = %s', dest, value)
         elif op == 'trace':
-            value, text, base = operands
+            value, text, base, signed = operands
             if text is None:
                 text = dest
             line('%s = %s', dest, value)
@@ -1209,6 +1222,8 @@ def compile(module, class_name=None, trace_all=False):
             elif base == 2:
                 spec = '0' + str(width) + 'b'
                 text += '0b'
+            if signed:
+                value = 'int_to_signed(%s, %s)' % (value, width)
             line('if trace: print(%s + format(%s, %s))', repr(text), value, repr(spec))
         else:
             assert False
