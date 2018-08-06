@@ -791,8 +791,10 @@ def simulate_test(sim, test):
             next(tester)
         except StopIteration:
             return
+
         sim_inst.update()
         sim_inst.tick()
+        sim_inst.update()
 
 do_tests = True
 if do_tests:
@@ -1061,6 +1063,7 @@ if do_tests:
         example38_instance.update()
         print("i = %s, value = %s" % (i, example38_instance.value))
         example38_instance.tick()
+        example38_instance.update()
 
     example38_instance = example38()
     example38_instance.enable = 1
@@ -1072,15 +1075,16 @@ if do_tests:
     example39_instance = example39()
     for x in uints:
         for y in uints:
-            example39_instance.x = x
-            example39_instance.y = y
-            example39_instance.enable = 1
-
             for i, outputs in enumerate(example39_instance):
-                example39_instance.enable = 0
+                if i == 0:
+                    example39_instance.x = x
+                    example39_instance.y = y
+                    example39_instance.enable = 1
+                else:
+                    example39_instance.enable = 0
 
-                if i > 0 and example39_instance.p_valid:
-                    break
+                    if example39_instance.p_valid:
+                        break
 
             assert example39_instance.p == (x*y) & mask
 
@@ -1093,7 +1097,6 @@ if do_tests:
                 yield
 
                 multiplier.enable = 0
-                yield
 
                 while not multiplier.p_valid:
                     yield

@@ -1172,6 +1172,7 @@ class SimulatorInstance:
         while True:
             self.update()
             yield self.outputs()
+            self.update()
             self.tick()
 
 compile_template = string.Template("""
