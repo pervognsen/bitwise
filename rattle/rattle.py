@@ -196,6 +196,9 @@ class Node:
     def __add__(self, other):
         return make_binary_node('+', self, other)
 
+    def __mul__(self, other):
+        return make_binary_node('*', self, other)
+
     def __neg__(self):
         return make_unary_node('unary -', self)
 
@@ -448,8 +451,32 @@ class RegisterNode(Node):
         self.next = next
         self.enable = enable
 
+    @property
+    def next(self):
+        return self._next
+
+    @next.setter
+    def next(self, node):
+        if node is not None:
+            node = as_node(node, self.type)
+            check_type(node, self.type)
+
+        self._next = node
+
+    @property
+    def enable(self):
+        return self._enable
+
+    @enable.setter
+    def enable(self, node):
+        if node is not None:
+            node = as_node(node)
+            check_type(node, bit)
+        
+        self._enable = node
+
 def register(type, init=None, next=None, enable=None):
-    return RegisterNode(type, init, next, enable)
+    return RegisterNode(type, init, next, enable=None)
 
 class ConstantNode(Node):
     def __init__(self, type, value):
@@ -826,6 +853,12 @@ class Transformer(Pass):
     def InputNode(self, node):
         return InputNode(node.type, node.name)
 
+    def RegisterNode(self, node):
+        new_node = self.set_node(node, RegisterNode(node.type, node.init, None, None))
+        new_node.next = self(node.next) if node.next is not None else None
+        new_node.enable = self(node.enable) if node.enable is not None else None
+        return new_node
+
     def set_node(self, node, new_node):
         super().set(node, new_node)
         new_node.name = node.name
@@ -977,10 +1010,14 @@ class Linearizer(Pass):
         super().__init__()
         self.instructions = []
         self.counter = 0
+        self.registers = {}
 
     def make_temp(self, node):
         name = "t%d" % self.counter
         self.counter += 1
+        return name
+
+    def make_register(self, node):
         return name
 
     def instruction(self, op, type, *args):
@@ -1028,6 +1065,15 @@ class Linearizer(Pass):
         assert node.operand is not None
         return self(node.operand)
 
+    def RegisterNode(self, node):
+        temp = self.make_temp(node)
+        self.set(node, temp)
+        name = "r%d" % self.counter
+        self.counter += 1
+        self.instruction(temp, node.type, 'register', name)
+        self.registers[name] = (node.type, node.init, self(node.next) if node.next is not None else None)
+        return temp
+
     def submodule_error(self, node):
         assert False, "Submodules must be inlined away before linearization"
 
@@ -1048,8 +1094,7 @@ def linearize(module):
     for name, node in module.outputs.items():
         result = linearizer(node)
         outputs[name] = (result, node.type)
-    return inputs, outputs, linearizer.instructions
-
+    return inputs, outputs, linearizer.instructions, linearizer.registers
 
 unary_ops = {'~', 'unary -'}
 bitwise_binary_ops = {'&', '|', '^'}
@@ -1122,14 +1167,31 @@ def int_to_signed(x, n):
 
 import string
 
+class SimulatorInstance:
+    def __iter__(self):
+        while True:
+            self.update()
+            yield self.outputs()
+            self.tick()
+
 compile_template = string.Template("""
-class $class_name:
+class $class_name(SimulatorInstance):
     def __init__(self):
         self.trace = {}
 $init
+        self.reset()
+
+    def reset(self):
+$reset
 
     def update(self, trace=False):
 $update
+
+    def tick(self):
+$tick
+
+    def outputs(self):
+        return bundle($evaluate_outputs)
 
     @classmethod
     def evaluate(cls, $evaluate_args, trace=False):
@@ -1139,7 +1201,7 @@ $evaluate_inputs
         if trace:
             for name, value in self.trace.items():
                 print(name, "=", value)
-        return bundle($evaluate_outputs)
+        return self.outputs()
 """)
 
 def compile(module, class_name=None, trace_all=False):
@@ -1161,7 +1223,7 @@ def compile(module, class_name=None, trace_all=False):
     def join(lines):
         return '\n'.join(' ' * 8 + line for line in lines)
 
-    inputs, outputs, instructions = linearize(module)
+    inputs, outputs, instructions, registers = linearize(module)
 
     if trace_all:
         line('if trace:')
@@ -1204,6 +1266,9 @@ def compile(module, class_name=None, trace_all=False):
         elif op == 'output':
             name, src = operands
             line('%s = self.%s = %s', dest, name, src)
+        elif op == 'register':
+            name = operands[0]
+            line('%s = self.%s', dest, name)
         elif op == 'const':
             value = operands[0]
             line('%s = %s', dest, value)
@@ -1231,15 +1296,26 @@ def compile(module, class_name=None, trace_all=False):
         if trace_all:
             line('if trace: self.trace["%s"] = %s', dest, dest)
 
+    for name, (type, init, next) in registers.items():
+        line('self.%s_next = %s' % (name, next))
+
     if trace_all:
         line('if trace:')
         for output in outputs:
             line('    self.trace["%s"] = self.%s', output, output)
 
+    if registers:
+        tick_str = join('self.%s = self.%s_next' % (name, name) for name, (type, init, next) in registers.items())
+        reset_str = join('self.%s = self.%s_next = %s' % (name, name, init if init is not None else 0) for name, (type, init, next) in registers.items())
+    else:
+        tick_str = reset_str = join(['pass'])
+
     substitutions = {
         'class_name': class_name,
-        'init': join('self.%s = None' % port for port in list(inputs) + list(outputs)),
+        'init': join('self.%s = 0' % port for port in list(inputs) + list(outputs)),
+        'reset': reset_str,
         'update': join(lines),
+        'tick': tick_str,
         'evaluate_args': ', '.join(inputs),
         'evaluate_inputs': join("self.%s = %s" % (input, input) for input in inputs),
         'evaluate_outputs': ', '.join("%s=self.%s" % (output, output) for output in outputs),

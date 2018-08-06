@@ -717,8 +717,9 @@ def nonrestoring_binary_divider(n, d):
     for i in range(len(d)):
         q, r = when(r[-1], (0 @ q, r + d2), (1 @ q, r - d2))
         r <<= 1
-    q = q - ~q
-    q = when(r[-1], q - 1, q)
+    # q = q - ~q
+    # q = when(r[-1], q - 1, q)
+    q = when(r[-1], q << 1, q - ~q)
     return q
 
 @module
@@ -728,7 +729,33 @@ class Example37:
     q = output(nonrestoring_binary_divider(n, d))
     assert len(q) == N
 
-open('example.dot', 'w').write(generate_dot_file(Example35))
+@module
+class Example38:
+    enable = input(bit)
+    counter = register(bit[N])
+    counter.next = when(enable, counter + 1, counter)
+    value = output(counter)
+
+@module
+class Example39:
+    enable = input(bit)
+    x = input(bit[N])
+    y = input(bit[N])
+
+    x_reg = register(bit[N])
+    y_reg = register(bit[N])
+    p_valid_reg = register(bit)
+    p_reg = register(bit[N])
+
+    x_reg.next = when(enable, x, x_reg >> 1)
+    y_reg.next = when(enable, y, y_reg << 1)
+    p_reg.next = when(enable, 0, p_reg + when(x_reg[0], y_reg, 0))
+    p_valid_reg.next = when(enable, 0, x_reg.next == 0)
+
+    p = output(p_reg)
+    p_valid = output(p_valid_reg)
+
+open('example.dot', 'w').write(generate_dot_file(Example39))
 
 do_timing_analysis = False
 if do_timing_analysis:
@@ -747,15 +774,25 @@ sints = range(-2**(N-1), 2**(N-1))
 shifts = range(N)
 fints = range(2**(2*N - 1))
  
-# print(analyze_delay(Example33))
-# print(analyze_delay(Example34))
-# print(analyze_delay(Example35))
+print(analyze_delay(Example36))
+print(analyze_delay(Example37))
 
 def rotl(x, n):
     return ((x << n) & mask) | ((x >> (N - n)) & mask)
 
 def rotr(x, n):
     return ((x >> n) & mask) | ((x << (N - n)) & mask)
+
+def simulate_test(sim, test):
+    sim_inst = sim()
+    tester = test(sim_inst)
+    while True:
+        try:
+            next(tester)
+        except StopIteration:
+            return
+        sim_inst.update()
+        sim_inst.tick()
 
 do_tests = True
 if do_tests:
@@ -978,36 +1015,36 @@ if do_tests:
     #         p = example35.evaluate(x, y).p
     #         assert (x * y) & mask == p
 
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = sw_euclidean_divide(n, d)
-                assert q == n // d
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = sw_euclidean_divide(n, d)
+    #             assert q == n // d
 
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = sw_binary_divide(n, d, N)
-                assert q == n // d
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = sw_binary_divide(n, d, N)
+    #             assert q == n // d
 
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = sw_binary_divide2(n, d, N)
-                assert q == n // d
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = sw_binary_divide2(n, d, N)
+    #             assert q == n // d
 
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = sw_nonrestoring_divide(n, d, N)
-                assert q == n // d
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = sw_nonrestoring_divide(n, d, N)
+    #             assert q == n // d
 
-    example36 = compile(Example36)
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = example36.evaluate(n, d).q
-                assert q == n // d
+    # example36 = compile(Example36)
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = example36.evaluate(n, d).q
+    #             assert q == n // d
 
     example37 = compile(Example37)
     for n in uints:
@@ -1015,3 +1052,52 @@ if do_tests:
             if d != 0:
                 q = example37.evaluate(n, d, trace=True).q
                 assert q == n // d
+
+    example38 = compile(Example38)
+
+    example38_instance = example38()
+    for i in range(10):
+        example38_instance.enable = i % 2
+        example38_instance.update()
+        print("i = %s, value = %s" % (i, example38_instance.value))
+        example38_instance.tick()
+
+    example38_instance = example38()
+    example38_instance.enable = 1
+    for i, outputs in zip(range(20), example38_instance):
+        print("i = %s, value = %s" % (i, outputs.value))
+
+    example39 = compile(Example39)
+
+    example39_instance = example39()
+    for x in uints:
+        for y in uints:
+            example39_instance.x = x
+            example39_instance.y = y
+            example39_instance.enable = 1
+
+            for i, outputs in enumerate(example39_instance):
+                example39_instance.enable = 0
+
+                if i > 0 and example39_instance.p_valid:
+                    break
+
+            assert example39_instance.p == (x*y) & mask
+
+    def example39_test(multiplier):
+        for x in uints:
+            for y in uints:
+                multiplier.x = x
+                multiplier.y = y
+                multiplier.enable = 1
+                yield
+
+                multiplier.enable = 0
+                yield
+
+                while not multiplier.p_valid:
+                    yield
+
+                assert multiplier.p == (x * y) & mask
+
+    simulate_test(example39, example39_test)
