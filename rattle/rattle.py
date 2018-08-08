@@ -13,6 +13,9 @@ def clog2(n):
     assert 2**r >= n
     return r
 
+def ispow2(n):
+    return 2**clog2(n) == n
+
 @total_ordering
 class Wrapper:
     def __init__(self, value):
@@ -648,10 +651,14 @@ def module(x):
     if isinstance(x, type):
         bases = x.__bases__
         namespace = dict(x.__dict__)
+        return make_module(module_name, namespace, bases)
     elif isinstance(x, types.FunctionType):
-        bases = ()
-        namespace = dict(surgery(x)())
-    return make_module(module_name, namespace, bases)
+        @memo
+        def constructor(*args, **kwargs):
+            bases = ()
+            namespace = dict(surgery(x)(*args, **kwargs))
+            return make_module(module_name, namespace, bases)
+        return constructor
 
 UNVISITED = object()
 VISITING = object()
@@ -878,7 +885,8 @@ class Transformer(Pass):
 
     def OutputNode(self, node):
         new_node = self.set_node(node, OutputNode(node.type, None))
-        new_node.operand = self(node.operand)
+        if node.operand is not None:
+            new_node.operand = self(node.operand)
         return new_node
 
     def OperatorNode(self, node):
@@ -1019,9 +1027,6 @@ class Linearizer(Pass):
         self.counter += 1
         return name
 
-    def make_register(self, node):
-        return name
-
     def instruction(self, op, type, *args):
         self.instructions.append((op, type) + tuple(args))
 
@@ -1040,7 +1045,7 @@ class Linearizer(Pass):
         assert node.name is not None
         assert node.operand is not None
         temp = self.make_temp(node)
-        self.instruction(temp, node.type, 'output', node.name, self(node.operand))
+        self.instruction(temp, node.type, 'output', node.name, self(node.operand) if node.operand is not None else None)
         return temp
     
     def OperatorNode(self, node):
@@ -1070,8 +1075,10 @@ class Linearizer(Pass):
     def RegisterNode(self, node):
         temp = self.make_temp(node)
         self.set(node, temp)
-        name = "r%d" % self.counter
-        self.counter += 1
+        name = node.name
+        if name is None:
+            name = "r%d" % self.counter
+            self.counter += 1
         self.instruction(temp, node.type, 'register', name)
         self.registers[name] = node
         return temp
@@ -1390,7 +1397,7 @@ class DelayAnalyzer(Pass):
         return self(node.operand)
     
     def OutputNode(self, node):
-        return self(node.operand)
+        return self(node.operand) if node.operand is not None else None
     
     def IndexNode(self, node):
         return self(node.operand)
