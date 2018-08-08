@@ -755,7 +755,40 @@ class Example39:
     p = output(p_reg)
     p_valid = output(p_valid_reg)
 
-open('example.dot', 'w').write(generate_dot_file(Example39))
+@module
+class Example40:
+    x = input(bit[N])
+    y = output(delay(x))
+
+def combinational_multiplier(x, y):
+    p = 0
+    for i in range(len(x)):
+        x, y, p = x >> 1, y << 1, p + when(x[0], y, 0)
+    return p
+
+@module
+class Example41:
+    x = input(bit[N])
+    y = input(bit[N])
+    p = output(combinational_multiplier(x, y))
+
+def pipelined_multiplier(x, y, enable):
+    p, p_valid = 0, enable
+    for i in range(len(x)):
+        x, y, p, p_valid = delay((x >> 1, y << 1, p + when(x[0], y, 0), p_valid))
+    return p, p_valid
+
+@module
+class Example42:
+    x = input(bit[N])
+    y = input(bit[N])
+    enable = input(bit)
+    p, p_valid = pipelined_multiplier(x, y, enable)
+    p = output(p)
+    p_valid = output(p_valid)
+    # p, p_valid = output(pipelined_multiplier(x, y, enable))
+
+open('example.dot', 'w').write(generate_dot_file(Example40))
 
 do_timing_analysis = False
 if do_timing_analysis:
@@ -783,18 +816,21 @@ def rotl(x, n):
 def rotr(x, n):
     return ((x >> n) & mask) | ((x << (N - n)) & mask)
 
-def simulate_test(sim, test):
+def simulate_test(sim, *tests):
     sim_inst = sim()
-    tester = test(sim_inst)
-    while True:
-        try:
-            next(tester)
-        except StopIteration:
-            return
+    testers = set(test(sim_inst) for test in tests)
+    while testers:
+        stopped = set()
+        for tester in testers:
+            try:
+                next(tester)
+            except StopIteration:
+                stopped.add(tester)
 
-        sim_inst.update()
         sim_inst.tick()
         sim_inst.update()
+
+        testers.difference_update(stopped)
 
 do_tests = True
 if do_tests:
@@ -1048,59 +1084,113 @@ if do_tests:
     #             q = example36.evaluate(n, d).q
     #             assert q == n // d
 
-    example37 = compile(Example37)
-    for n in uints:
-        for d in uints:
-            if d != 0:
-                q = example37.evaluate(n, d, trace=True).q
-                assert q == n // d
+    # example37 = compile(Example37)
+    # for n in uints:
+    #     for d in uints:
+    #         if d != 0:
+    #             q = example37.evaluate(n, d, trace=True).q
+    #             assert q == n // d
 
-    example38 = compile(Example38)
+    # example38 = compile(Example38)
 
-    example38_instance = example38()
-    for i in range(10):
-        example38_instance.enable = i % 2
-        example38_instance.update()
-        print("i = %s, value = %s" % (i, example38_instance.value))
-        example38_instance.tick()
-        example38_instance.update()
+    # example38_instance = example38()
+    # for i in range(10):
+    #     example38_instance.enable = i % 2
+    #     example38_instance.tick()
+    #     example38_instance.update()
+    #     print("i = %s, value = %s" % (i, example38_instance.value))
 
-    example38_instance = example38()
-    example38_instance.enable = 1
-    for i, outputs in zip(range(20), example38_instance):
-        print("i = %s, value = %s" % (i, outputs.value))
+    # example38_instance = example38()
+    # example38_instance.enable = 1
+    # for i, outputs in zip(range(20), example38_instance):
+    #     print("i = %s, value = %s" % (i, outputs.value))
 
-    example39 = compile(Example39)
+    # example39 = compile(Example39)
 
-    example39_instance = example39()
+    # example39_instance = example39()
+    # for x in uints:
+    #     for y in uints:
+    #         for i, outputs in enumerate(example39_instance):
+    #             if i == 0:
+    #                 example39_instance.x = x
+    #                 example39_instance.y = y
+    #                 example39_instance.enable = 1
+    #             else:
+    #                 example39_instance.enable = 0
+
+    #                 if example39_instance.p_valid:
+    #                     break
+
+    #         assert example39_instance.p == (x * y) & mask
+
+    # def example39_test(self):
+    #     for x in uints:
+    #         for y in uints:
+    #             self.x = x
+    #             self.y = y
+    #             self.enable = 1
+    #             yield
+
+    #             self.enable = 0
+    #             while not self.p_valid:
+    #                 yield
+
+    #             assert self.p == (x * y) & mask
+
+    # simulate_test(example39, example39_test)
+
+    example40 = compile(Example40)
+
+    def example40_test(self):
+        for x in uints:
+            self.x = x
+            yield
+            assert self.y == x
+
+    simulate_test(example40, example40_test)
+
+    example41 = compile(Example41)
+
     for x in uints:
         for y in uints:
-            for i, outputs in enumerate(example39_instance):
-                if i == 0:
-                    example39_instance.x = x
-                    example39_instance.y = y
-                    example39_instance.enable = 1
-                else:
-                    example39_instance.enable = 0
+            p = example41.evaluate(x, y).p
+            assert p == (x * y) & mask
 
-                    if example39_instance.p_valid:
-                        break
+    example42 = compile(Example42)
 
-            assert example39_instance.p == (x*y) & mask
-
-    def example39_test(multiplier):
+    def example42_test(self):
         for x in uints:
             for y in uints:
-                multiplier.x = x
-                multiplier.y = y
-                multiplier.enable = 1
+                self.x = x
+                self.y = y
+                self.enable = 1
                 yield
 
-                multiplier.enable = 0
-
-                while not multiplier.p_valid:
+                self.enable = 0
+                while not self.p_valid:
                     yield
 
-                assert multiplier.p == (x * y) & mask
+                assert self.p == (x * y) & mask
 
-    simulate_test(example39, example39_test)
+    simulate_test(example42, example42_test)
+
+    def example42_test_producer(self):
+        for x in uints:
+            for y in uints:
+                self.x = x
+                self.y = y
+                self.enable = 1
+                yield
+
+        self.enable = 0
+
+    def example42_test_consumer(self):
+        for x in uints:
+            for y in uints:
+                while not self.p_valid:
+                    yield
+
+                assert self.p == (x * y) & mask
+                yield
+
+    simulate_test(example42, example42_test_producer, example42_test_consumer)

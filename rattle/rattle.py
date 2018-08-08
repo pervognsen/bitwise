@@ -277,7 +277,7 @@ class WireNode(Node):
         self.operand = operand
 
     def __repr__(self):
-        return "wire(%s)" % repr(self.operand)
+        return "WireNode(...)"
 
 def wire(x):
     assert isinstance(x, NodeType)
@@ -290,7 +290,7 @@ class OperatorNode(Node):
         self.operands = list(operands)
 
     def __repr__(self):
-        return "(%s %s)" % (self.op, ' '.join(str(operand) for operand in self.operands))
+        return "OperatorNode(...)"
 
 @memo
 def make_binary_node_memo(op, left, right):
@@ -389,7 +389,7 @@ class IndexNode(Node):
         self.index = index
 
     def __repr__(self):
-        return "%s[%d]" % (self.operand, self.index)
+        return "IndexNode(...)"
 
 @memo
 def make_memoized_slice_node(operand, start, stop):
@@ -420,7 +420,7 @@ class SliceNode(Node):
         self.stop = stop
 
     def __repr__(self):
-        return "%s[%d:%d]" % (self.operand, self.start, self.stop)
+        return "SliceNode(...)"
 
 def get_type(x):
     if isinstance(x, Node):
@@ -499,7 +499,7 @@ class OutputNode(Node):
         self.operand = operand
 
     def __repr__(self):
-        return "%s(%s)" % (self.name, self.operand)
+        return "%s" % self.name
 
     def connect(self, node):
         node = as_node(node)
@@ -509,7 +509,9 @@ class OutputNode(Node):
         self.operand = node
 
 def output(x=bit):
-    if isinstance(x, NodeType):
+    if isinstance(x, tuple):
+        return tuple(output(xi) for xi in x)
+    elif isinstance(x, NodeType):
         operand = None
         type = x
     else:
@@ -579,7 +581,7 @@ class Module:
             return super().__setattr__(name, value)
 
     def __repr__(self):
-        return "%s(%s)" % (type(self).__name__, ', '.join("%s=%s" % (name, value) for name, value in self._connections.items()))
+        return "Module(...)"
 
 import types
 from platform import python_implementation
@@ -1071,7 +1073,7 @@ class Linearizer(Pass):
         name = "r%d" % self.counter
         self.counter += 1
         self.instruction(temp, node.type, 'register', name)
-        self.registers[name] = (node.type, node.init, self(node.next) if node.next is not None else None)
+        self.registers[name] = node
         return temp
 
     def submodule_error(self, node):
@@ -1094,7 +1096,16 @@ def linearize(module):
     for name, node in module.outputs.items():
         result = linearizer(node)
         outputs[name] = (result, node.type)
-    return inputs, outputs, linearizer.instructions, linearizer.registers
+    registers = {}
+    register_linearizer = Linearizer()
+    register_linearizer.registers = linearizer.registers
+    register_linearizer.counter = linearizer.counter
+    count = None
+    while count != len(register_linearizer.registers):
+        count = len(register_linearizer.registers)
+        for name, node in list(register_linearizer.registers.items()):
+            registers[name] = (node, register_linearizer(node.next))
+    return inputs, outputs, linearizer.instructions, registers, register_linearizer.instructions
 
 unary_ops = {'~', 'unary -'}
 bitwise_binary_ops = {'&', '|', '^'}
@@ -1169,11 +1180,11 @@ import string
 
 class SimulatorInstance:
     def __iter__(self):
-        while True:
-            self.update()
-            yield self.outputs()
-            self.update()
-            self.tick()
+        pass
+        # while True:
+        #     self.update()
+        #     yield self.outputs()
+        #     self.tick()
 
 compile_template = string.Template("""
 class $class_name(SimulatorInstance):
@@ -1224,7 +1235,7 @@ def compile(module, class_name=None, trace_all=False):
     def join(lines):
         return '\n'.join(' ' * 8 + line for line in lines)
 
-    inputs, outputs, instructions, registers = linearize(module)
+    inputs, outputs, instructions, registers, register_instructions = linearize(module)
 
     if trace_all:
         line('if trace:')
@@ -1232,73 +1243,74 @@ def compile(module, class_name=None, trace_all=False):
             line('    self.trace["%s"] = self.%s', input, input)
 
     types = {}
-    for instruction in instructions:
-        dest, type, op, *operands = instruction
-        types[dest] = type
-        if op in unary_ops:
-            src = operands[0]
-            line('%s = (%s%s) & %s', dest, get_python_op(op), src, mask(type.width))
-        elif op in bitwise_binary_ops:
-            src1, src2 = operands
-            line('%s = %s %s %s', dest, src1, get_python_op(op), src2)
-        elif op in binary_ops:
-            src1, src2 = operands
-            line('%s = (%s %s %s) & %s', dest, src1, get_python_op(op), src2, mask(type.width))
-        elif op == '@':
-            offset = 0
-            terms = []
-            for operand in operands:
-                width = types[operand].width
-                terms.append(operand if offset == 0 else "(%s << %d)" % (operand, offset))
-                offset += width
-            line('%s = %s', dest, ' | '.join(terms))
-        elif op == 'when':
-            cond_var, then_var, else_var = operands
-            line('%s = %s if %s else %s', dest, then_var, cond_var, else_var)
-        elif op == 'index':
-            src, index = operands
-            line('%s = (%s >> %d) & 1', dest, src, index)
-        elif op == 'slice':
-            src, start, stop = operands
-            line('%s = (%s >> %d) & %s', dest, src, start, mask(stop - start))
-        elif op == 'input':
-            name = operands[0]
-            line('%s = self.%s & %s', dest, name, mask(type.width))
-        elif op == 'output':
-            name, src = operands
-            line('%s = self.%s = %s', dest, name, src)
-        elif op == 'register':
-            name = operands[0]
-            line('%s = self.%s', dest, name)
-        elif op == 'const':
-            value = operands[0]
-            line('%s = %s', dest, value)
-        elif op == 'trace':
-            value, text, base, signed = operands
-            if text is None:
-                text = dest
-            line('%s = %s', dest, value)
-            width = types[value].width
-            text += ": "
-            if base == 10:
-                spec = 'd'
-            elif base == 16:
-                spec = '0' + str((width + 3) // 4) + 'x'
-                text += '0x'
-            elif base == 2:
-                spec = '0' + str(width) + 'b'
-                text += '0b'
-            if signed:
-                value = 'int_to_signed(%s, %s)' % (value, width)
-            line('if trace: print(%s + format(%s, %s))', repr(text), value, repr(spec))
-        else:
-            assert False
+    def emit_instructions(instructions, line=line):
+        for instruction in instructions:
+            dest, type, op, *operands = instruction
+            types[dest] = type
+            if op in unary_ops:
+                src = operands[0]
+                line('%s = (%s%s) & %s', dest, get_python_op(op), src, mask(type.width))
+            elif op in bitwise_binary_ops:
+                src1, src2 = operands
+                line('%s = %s %s %s', dest, src1, get_python_op(op), src2)
+            elif op in binary_ops:
+                src1, src2 = operands
+                line('%s = (%s %s %s) & %s', dest, src1, get_python_op(op), src2, mask(type.width))
+            elif op == '@':
+                offset = 0
+                terms = []
+                for operand in operands:
+                    width = types[operand].width
+                    terms.append(operand if offset == 0 else "(%s << %d)" % (operand, offset))
+                    offset += width
+                line('%s = %s', dest, ' | '.join(terms))
+            elif op == 'when':
+                cond_var, then_var, else_var = operands
+                line('%s = %s if %s else %s', dest, then_var, cond_var, else_var)
+            elif op == 'index':
+                src, index = operands
+                line('%s = (%s >> %d) & 1', dest, src, index)
+            elif op == 'slice':
+                src, start, stop = operands
+                line('%s = (%s >> %d) & %s', dest, src, start, mask(stop - start))
+            elif op == 'input':
+                name = operands[0]
+                line('%s = self.%s & %s', dest, name, mask(type.width))
+            elif op == 'output':
+                name, src = operands
+                line('%s = self.%s = %s', dest, name, src)
+            elif op == 'register':
+                name = operands[0]
+                line('%s = self.%s', dest, name)
+            elif op == 'const':
+                value = operands[0]
+                line('%s = %s', dest, value)
+            elif op == 'trace':
+                value, text, base, signed = operands
+                if text is None:
+                    text = dest
+                line('%s = %s', dest, value)
+                width = types[value].width
+                text += ": "
+                if base == 10:
+                    spec = 'd'
+                elif base == 16:
+                    spec = '0' + str((width + 3) // 4) + 'x'
+                    text += '0x'
+                elif base == 2:
+                    spec = '0' + str(width) + 'b'
+                    text += '0b'
+                if signed:
+                    value = 'int_to_signed(%s, %s)' % (value, width)
+                line('if trace: print(%s + format(%s, %s))', repr(text), value, repr(spec))
+            else:
+                assert False
 
-        if trace_all:
-            line('if trace: self.trace["%s"] = %s', dest, dest)
+            if trace_all:
+                line('if trace: self.trace["%s"] = %s', dest, dest)
 
-    for name, (type, init, next) in registers.items():
-        line('self.%s_next = %s' % (name, next))
+    emit_instructions(instructions)
+    update_str = join(lines)
 
     if trace_all:
         line('if trace:')
@@ -1306,8 +1318,11 @@ def compile(module, class_name=None, trace_all=False):
             line('    self.trace["%s"] = self.%s', output, output)
 
     if registers:
-        tick_str = join('self.%s = self.%s_next' % (name, name) for name, (type, init, next) in registers.items())
-        reset_str = join('self.%s = self.%s_next = %s' % (name, name, init if init is not None else 0) for name, (type, init, next) in registers.items())
+        lines = []
+        masks = set()
+        emit_instructions(register_instructions)
+        tick_str = join(lines + ['self.%s = %s' % (name, src) for name, (node, src) in registers.items()])
+        reset_str = join('self.%s = %s' % (name, node.init if node.init is not None else 0) for name, (node, src) in registers.items())
     else:
         tick_str = reset_str = join(['pass'])
 
@@ -1315,7 +1330,7 @@ def compile(module, class_name=None, trace_all=False):
         'class_name': class_name,
         'init': join('self.%s = 0' % port for port in list(inputs) + list(outputs)),
         'reset': reset_str,
-        'update': join(lines),
+        'update': update_str,
         'tick': tick_str,
         'evaluate_args': ', '.join(inputs),
         'evaluate_inputs': join("self.%s = %s" % (input, input) for input in inputs),
@@ -1384,7 +1399,7 @@ class DelayAnalyzer(Pass):
         return self(node.operand)
 
     def InputNode(self, node):
-        return {node.name: 0}
+        return {node: 0}
 
     def ConstantNode(self, node):
         return {}
@@ -1402,8 +1417,8 @@ class DelayAnalyzer(Pass):
 
     def InstanceOutputNode(self, node):
         delays = {}
-        for name, module_delay in analyze_delay(node.module)[node.name].items():
-            for input, delay in self(node.module._connections[name]).items():
+        for port, module_delay in analyze_delay(node.module)[node.name].items():
+            for input, delay in self(node.module._connections[port.name]).items():
                 merge_delay(delays, input, delay + module_delay)
         return delays
 
@@ -1411,7 +1426,22 @@ class DelayAnalyzer(Pass):
 def analyze_delay(module):
     analyzer = DelayAnalyzer()
     delays = {}
-    for name, output in module.outputs.items():
-        delays[name] = analyzer(output)
+    for output in module.outputs.values():
+        delays[output] = analyzer(output)
     return delays
+
+@memo
+def delay_memo(node):
+    reg = register(node.type)
+    reg.next = node
+    return reg
+
+def delay(node, count=1):
+    if isinstance(node, tuple):
+        return tuple(delay(x) for x in node)
+    
+    node = as_node(node)
+    for i in range(count):
+        node = delay_memo(node)
+    return node
 
