@@ -229,7 +229,8 @@ Sym *sym_global_decl(Decl *decl) {
         sym_global_put(sym->name, sym);
     }
     if (decl->kind == DECL_ENUM) {
-        Typespec *enum_typespec = enum_typespec = new_typespec_name(decl->pos, sym ? sym->name : str_intern("int"));
+        const char *name = sym ? sym->name : str_intern("int");
+        Typespec *enum_typespec = enum_typespec = new_typespec_name(decl->pos, &name, 1);
         const char *prev_item_name = NULL;
         for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
             EnumItem item = decl->enum_decl.items[i];
@@ -640,14 +641,29 @@ Type *resolve_typespec(Typespec *typespec) {
     Type *result = NULL;
     switch (typespec->kind) {
     case TYPESPEC_NAME: {
-        Sym *sym = resolve_name(typespec->name);
+        Package *package = current_package;
+        for (size_t i = 0; i < typespec->num_names - 1; i++) {
+            const char *name = typespec->names[i];
+            Sym *sym = get_package_sym(package, name);
+            if (!sym) {
+                fatal_error(typespec->pos, "Unresolved package '%s'", name);
+            }
+            if (sym->kind != SYM_PACKAGE) {
+                fatal_error(typespec->pos, "%s must denote a package", name);
+                return NULL;
+            }
+            package = sym->package;
+        }
+        const char *name = typespec->names[typespec->num_names - 1];
+        Sym *sym = get_package_sym(package, name);
         if (!sym) {
-            fatal_error(typespec->pos, "Unresolved type name '%s'", typespec->name);
+            fatal_error(typespec->pos, "Unresolved type name '%s'", name);
         }
         if (sym->kind != SYM_TYPE) {
-            fatal_error(typespec->pos, "%s must denote a type", typespec->name);
+            fatal_error(typespec->pos, "%s must denote a type", name);
             return NULL;
         }
+        resolve_sym(sym);
         set_resolved_sym(typespec, sym);
         result = sym->type;
         break;

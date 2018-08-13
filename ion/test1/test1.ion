@@ -841,6 +841,14 @@ func test_token() {
 #static_assert(offsetof(Token, val) == offsetof(Token, str))
 #static_assert(sizeof(Token) == 24)
 
+typedef my_time_t = C.time_t;
+
+func test_type_path() {
+    t1 := time(NULL);
+    t2: C.time_t = time(NULL);
+    t3: my_time_t = time(NULL);
+}
+
 func main(argc: int, argv: char**): int {
     if (argv == 0) {
         printf("argv is null\n");
@@ -870,6 +878,7 @@ func main(argc: int, argv: char**): int {
     test_ops();
     test_typeinfo();
     test_reachable();
+    test_type_path();
     gc();
     C.getchar();
     subtest1.LIBC.getchar();

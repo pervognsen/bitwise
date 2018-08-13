@@ -37,9 +37,10 @@ Typespec *new_typespec(TypespecKind kind, SrcPos pos) {
     return t;
 }
 
-Typespec *new_typespec_name(SrcPos pos, const char *name) {
+Typespec *new_typespec_name(SrcPos pos, const char **names, size_t num_names) {
     Typespec *t = new_typespec(TYPESPEC_NAME, pos);
-    t->name = name;
+    t->names = AST_DUP(names);
+    t->num_names = num_names;
     return t;
 
 }

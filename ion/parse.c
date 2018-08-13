@@ -49,9 +49,13 @@ Typespec *parse_type_func(void) {
 Typespec *parse_type_base(void) {
     if (is_token(TOKEN_NAME)) {
         SrcPos pos = token.pos;
-        const char *name = token.name;
+        const char **names = NULL;
+        buf_push(names, token.name);
         next_token();
-        return new_typespec_name(pos, name);
+        while (match_token(TOKEN_DOT)) {
+            buf_push(names, parse_name());
+        }
+        return new_typespec_name(pos, names, buf_len(names));
     } else if (match_keyword(func_keyword)) {
         return parse_type_func();
     } else if (match_token(TOKEN_LPAREN)) {
@@ -146,7 +150,7 @@ Expr *parse_expr_operand(void) {
         const char *name = token.name;
         next_token();
         if (is_token(TOKEN_LBRACE)) {
-            return parse_expr_compound(new_typespec_name(pos, name));
+            return parse_expr_compound(new_typespec_name(pos, &name, 1));
         } else {
             return new_expr_name(pos, name);
         }

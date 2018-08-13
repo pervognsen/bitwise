@@ -300,7 +300,7 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
     }
     switch (typespec->kind) {
     case TYPESPEC_NAME:
-        return strf("%s%s%s", get_gen_name_or_default(typespec, typespec->name), *str ? " " : "", str);
+        return strf("%s%s%s", get_gen_name(typespec), *str ? " " : "", str);
     case TYPESPEC_PTR:
         return typespec_to_cdecl(typespec->base, cdecl_paren(strf("*%s", str), *str));
     case TYPESPEC_CONST:

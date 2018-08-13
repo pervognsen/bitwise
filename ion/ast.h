@@ -41,7 +41,10 @@ struct Typespec {
     SrcPos pos;
     Typespec *base;
     union {
-        const char *name;
+        struct {
+            const char **names;
+            size_t num_names;
+        };
         struct {
             Typespec **args;
             size_t num_args;
