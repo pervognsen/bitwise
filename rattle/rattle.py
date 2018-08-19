@@ -507,7 +507,7 @@ class OutputNode(Node):
     def connect(self, node):
         node = as_node(node)
         if self.operand is not None:
-            assert ValueError("Output already connected")
+            raise ValueError("Output already connected")
         check_type(node, self.type)
         self.operand = node
 
