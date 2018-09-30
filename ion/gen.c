@@ -470,6 +470,7 @@ const char *typeid_kind_names[NUM_TYPE_KINDS] = {
     [TYPE_ULONG] = "TYPE_ULONG",
     [TYPE_LLONG] = "TYPE_LLONG",
     [TYPE_ULLONG] = "TYPE_ULLONG",
+    [TYPE_ENUM] = "TYPE_ENUM",
     [TYPE_FLOAT] = "TYPE_FLOAT",
     [TYPE_DOUBLE] = "TYPE_DOUBLE",
     [TYPE_CONST] = "TYPE_CONST",
@@ -1157,11 +1158,16 @@ void gen_typeinfo(Type *type) {
         gen_typeinfo_fields(type);
         genlnf("}},");
         break;
+    case TYPE_ENUM:
+        gen_typeinfo_header("TYPE_ENUM", type);
+        genf(", .name = ");
+        gen_str(get_gen_name(type->sym), false);
+        genf(", .base = ");
+        gen_typeid(type->base);
+        genf("},");
+        break;
     case TYPE_FUNC:
         genf("NULL, // Func");
-        break;
-    case TYPE_ENUM:
-        genf("NULL, // Enum");
         break;
     case TYPE_INCOMPLETE:
         genf("NULL, // Incomplete: %s", get_gen_name(type->sym));

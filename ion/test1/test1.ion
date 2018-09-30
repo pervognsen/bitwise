@@ -566,6 +566,9 @@ func print_typeinfo(type: typeid) {
     print_type(type);
     printf(" size=%d align=%d", typeinfo.size, typeinfo.align);
     switch (typeinfo.kind) {
+    case TYPE_ENUM:
+        printf(" enum=");
+        print_type(typeinfo.base);
     case TYPE_STRUCT, TYPE_UNION:
         printf(" %s={ ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union");
         for (i := 0; i < typeinfo.num_fields; i++) {
@@ -582,6 +585,12 @@ func print_typeinfo(type: typeid) {
 func println_typeinfo(type: typeid) {
     print_typeinfo(type);
     printf("\n");
+}
+
+enum Options {
+  Options_A,
+  Options_B,
+  Options_C,
 }
 
 func test_typeinfo() {
@@ -602,6 +611,11 @@ func test_typeinfo() {
     println_typeinfo(typeof(UartCtrl));
     println_typeinfo(typeof(:IntOrPtr*));
     println_typeinfo(typeof(IntOrPtr));
+
+    // Demonstrate typeinfos for enums:
+    o := Options_B;
+    println_any({&o, typeof(o)});
+    println_typeinfo(typeof(o));
 }
 
 struct Ints {
