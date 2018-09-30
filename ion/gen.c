@@ -1102,6 +1102,16 @@ void gen_typeinfo_fields(Type *type) {
     gen_indent--;
 }
 
+void gen_typeinfo_enum_items(Type *type) {
+    gen_indent++;
+    for (size_t i = 0; i < type->enumeration.num_enum_items; i++) {
+        TypeEnumItem enum_item = type->enumeration.enum_items[i];
+        const char* name = get_gen_name(enum_item.sym);
+        genf("{ .name = \"%s\", .int_value = %s },", name, name);
+    }
+    gen_indent--;
+}
+
 #define CASE(kind, name) \
     case kind: \
         genf("&(TypeInfo){" #kind ", .size = sizeof(" #name "), .align = sizeof(" #name "), .name = "); \
@@ -1164,7 +1174,9 @@ void gen_typeinfo(Type *type) {
         gen_str(get_gen_name(type->sym), false);
         genf(", .base = ");
         gen_typeid(type->base);
-        genf("},");
+        genf(", .num_enum_items = %d, .enum_items = (TypeEnumItemInfo[]) {", type->enumeration.num_enum_items);
+        gen_typeinfo_enum_items(type);
+        genf("}},");
         break;
     case TYPE_FUNC:
         genf("NULL, // Func");
