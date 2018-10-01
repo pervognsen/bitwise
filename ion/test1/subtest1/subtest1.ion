@@ -1,5 +1,9 @@
 import LIBC = libc {printf}
 
+enum SubOptions {
+    SubOptions_I, SubOptions_J, SubOptions_K,
+}
+
 func bogus_func() {
     printf("Hello, world!\n");
 //    asdf;

@@ -36,6 +36,10 @@ typedef struct TypeField {
     size_t offset;
 } TypeField;
 
+typedef struct TypeEnumItem {
+    Sym *sym;
+} TypeEnumItem;
+
 struct Type {
     TypeKind kind;
     size_t size;
@@ -50,6 +54,10 @@ struct Type {
             TypeField *fields;
             size_t num_fields;
         } aggregate;
+        struct {
+          TypeEnumItem *enum_items;
+          size_t num_enum_items;
+        } enumeration;
         struct {
             Type **params;
             size_t num_params;
@@ -428,12 +436,18 @@ Type *type_incomplete(Sym *sym) {
     return type;
 }
 
-Type *type_enum(Sym *sym, Type *base) {
+Type *type_enum(Sym *sym, Type *base, TypeEnumItem* items, size_t num_items) {
     Type *type = type_alloc(TYPE_ENUM);
     type->sym = sym;
     type->base = base;
     type->size = type_int->size;
     type->align = type_int->align;
+    TypeEnumItem *enum_items = NULL;
+    for (TypeEnumItem *it = items; it < items + num_items; it++) {
+        buf_push(enum_items, *it);
+    }
+    type->enumeration.num_enum_items = buf_len(enum_items);
+    type->enumeration.enum_items = enum_items;
     return type;
 }
 

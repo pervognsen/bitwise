@@ -819,6 +819,23 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr) {
     return type;
 }
 
+Type *resolve_decl_enum(Sym *sym, Decl *decl) {
+    assert(decl->kind == DECL_ENUM);
+    Type *base = decl->enum_decl.type ? resolve_typespec(decl->enum_decl.type) : type_int;
+    if (!is_integer_type(base)) {
+        fatal_error(decl->pos, "Base type of enum must be integer type");
+    }
+    TypeEnumItem *enum_items = NULL;
+    for (size_t i = 0; i < decl->enum_decl.num_items; i++) {
+        EnumItem item = decl->enum_decl.items[i];
+        Sym *enum_item_sym = get_package_sym(sym->home_package, item.name);
+        buf_push(enum_items, (TypeEnumItem) { .sym = enum_item_sym });
+    }
+    Type *type = type_enum(sym, base, enum_items, buf_len(enum_items));
+    buf_free(enum_items);
+    return type;
+}
+
 Type *resolve_decl_var(Decl *decl) {
     assert(decl->kind == DECL_VAR);
     return resolve_init(decl->pos, decl->var.type, decl->var.expr);
@@ -1204,11 +1221,7 @@ void resolve_sym(Sym *sym) {
         if (decl && decl->kind == DECL_TYPEDEF) {
             sym->type = resolve_typespec(decl->typedef_decl.type);
         } else if (decl->kind == DECL_ENUM) {
-            Type *base = decl->enum_decl.type ? resolve_typespec(decl->enum_decl.type) : type_int;
-            if (!is_integer_type(base)) {
-                fatal_error(decl->pos, "Base type of enum must be integer type");
-            }
-            sym->type = type_enum(sym, base);
+            sym->type = resolve_decl_enum(sym, decl);
         } else {
             sym->type = type_incomplete(sym);
         }
@@ -1241,6 +1254,13 @@ void finalize_sym(Sym *sym) {
     if (sym->decl && !is_decl_foreign(sym->decl) && !sym->decl->is_incomplete) {
         if (sym->kind == SYM_TYPE) {
             complete_type(sym->type);
+            // Enumeration values are needed for the typeinfo, and
+            // therefore we need the symbol to be resolved and emitted
+            if (!flag_notypeinfo && sym->type->kind == TYPE_ENUM) {
+                for (TypeEnumItem *it = sym->type->enumeration.enum_items; it < sym->type->enumeration.enum_items + sym->type->enumeration.num_enum_items; it++) {
+                    resolve_sym(it->sym);
+                }
+            }
         } else if (sym->kind == SYM_FUNC) {
             resolve_func_body(sym);
         }

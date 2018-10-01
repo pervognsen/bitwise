@@ -510,10 +510,53 @@ func print_any(any: Any) {
     case typeof(float):
         printf("%f", *(:float const *)any.ptr);
     default:
-        printf("<unknown>");
+        typeinfo := get_typeinfo(any.type);
+        if (typeinfo.kind == TYPE_ENUM) {
+            value := int64_from_integer({any.ptr, typeinfo.base});
+            enum_item: TypeEnumItemInfo*;
+            for (i:=0; i < typeinfo.num_enum_items; i++) {
+                if (typeinfo.enum_items[i].int_value == value) {
+                    enum_item = &typeinfo.enum_items[i];
+                }
+            }
+            if (!enum_item) {
+                printf("%lld (undefined enum item)", value);
+            } else {
+                printf("%lld (%s)", enum_item.int_value, enum_item.name);
+            }
+        } else {
+            printf("<unknown>");
+        }
     }
     printf(": ");
     print_type(any.type);
+}
+
+func int64_from_integer(any: Any) : int64 {
+    switch(any.type) {
+        case typeof(uint): {
+            return *(:uint const*) any.ptr;
+        }
+        case typeof(int): {
+            return *(:int const*) any.ptr;
+        }
+        case typeof(ulong): {
+            return *(:ulong const*) any.ptr;
+        }
+        case typeof(long): {
+            return *(:long const*) any.ptr;
+        }
+        case typeof(llong): {
+            return *(:llong const*) any.ptr;
+        }
+        case typeof(ullong): {
+            return *(:ullong const*) any.ptr;
+        }
+        default: {
+            #assert(false);
+            return 0;
+        }
+    }
 }
 
 func println_any(any: Any) {
@@ -566,6 +609,16 @@ func print_typeinfo(type: typeid) {
     print_type(type);
     printf(" size=%d align=%d", typeinfo.size, typeinfo.align);
     switch (typeinfo.kind) {
+    case TYPE_ENUM:
+        printf(" enum=");
+        print_type(typeinfo.base);
+        printf(" { ");
+        prefix := "";
+        for (i:=0; i<typeinfo.num_enum_items; i++) {
+            printf("%s%s=%lld", prefix, typeinfo.enum_items[i].name, typeinfo.enum_items[i].int_value);
+            prefix = ", ";
+        }
+        printf(" }");
     case TYPE_STRUCT, TYPE_UNION:
         printf(" %s={ ", typeinfo.kind == TYPE_STRUCT ? "struct" : "union");
         for (i := 0; i < typeinfo.num_fields; i++) {
@@ -582,6 +635,12 @@ func print_typeinfo(type: typeid) {
 func println_typeinfo(type: typeid) {
     print_typeinfo(type);
     printf("\n");
+}
+
+enum Options {
+  Options_A,
+  Options_B,
+  Options_C,
 }
 
 func test_typeinfo() {
@@ -602,6 +661,18 @@ func test_typeinfo() {
     println_typeinfo(typeof(UartCtrl));
     println_typeinfo(typeof(:IntOrPtr*));
     println_typeinfo(typeof(IntOrPtr));
+
+    // Demonstrate typeinfos for enums:
+    o := Options_B;
+    println_any({&o, typeof(o)});
+    println_typeinfo(typeof(o));
+
+    o = 32;
+    println_any({&o, typeof(o)});
+
+    so := subtest1.SubOptions_I;
+    println_any({&so, typeof(so)});
+    println_typeinfo(typeof(so));
 }
 
 struct Ints {

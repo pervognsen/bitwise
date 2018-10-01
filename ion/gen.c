@@ -470,6 +470,7 @@ const char *typeid_kind_names[NUM_TYPE_KINDS] = {
     [TYPE_ULONG] = "TYPE_ULONG",
     [TYPE_LLONG] = "TYPE_LLONG",
     [TYPE_ULLONG] = "TYPE_ULLONG",
+    [TYPE_ENUM] = "TYPE_ENUM",
     [TYPE_FLOAT] = "TYPE_FLOAT",
     [TYPE_DOUBLE] = "TYPE_DOUBLE",
     [TYPE_CONST] = "TYPE_CONST",
@@ -1101,6 +1102,16 @@ void gen_typeinfo_fields(Type *type) {
     gen_indent--;
 }
 
+void gen_typeinfo_enum_items(Type *type) {
+    gen_indent++;
+    for (size_t i = 0; i < type->enumeration.num_enum_items; i++) {
+        TypeEnumItem enum_item = type->enumeration.enum_items[i];
+        const char* name = get_gen_name(enum_item.sym);
+        genf("{ .name = \"%s\", .int_value = %s },", name, name);
+    }
+    gen_indent--;
+}
+
 #define CASE(kind, name) \
     case kind: \
         genf("&(TypeInfo){" #kind ", .size = sizeof(" #name "), .align = sizeof(" #name "), .name = "); \
@@ -1157,11 +1168,18 @@ void gen_typeinfo(Type *type) {
         gen_typeinfo_fields(type);
         genlnf("}},");
         break;
+    case TYPE_ENUM:
+        gen_typeinfo_header("TYPE_ENUM", type);
+        genf(", .name = ");
+        gen_str(get_gen_name(type->sym), false);
+        genf(", .base = ");
+        gen_typeid(type->base);
+        genf(", .num_enum_items = %d, .enum_items = (TypeEnumItemInfo[]) {", type->enumeration.num_enum_items);
+        gen_typeinfo_enum_items(type);
+        genf("}},");
+        break;
     case TYPE_FUNC:
         genf("NULL, // Func");
-        break;
-    case TYPE_ENUM:
-        genf("NULL, // Enum");
         break;
     case TYPE_INCOMPLETE:
         genf("NULL, // Incomplete: %s", get_gen_name(type->sym));

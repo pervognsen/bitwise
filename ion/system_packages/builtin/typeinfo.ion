@@ -15,6 +15,7 @@ enum TypeKind {
     TYPE_ULONG,
     TYPE_LLONG,
     TYPE_ULLONG,
+    TYPE_ENUM,
     TYPE_FLOAT,
     TYPE_DOUBLE,
     TYPE_CONST,
@@ -31,6 +32,11 @@ struct TypeFieldInfo {
     offset: int;
 }
 
+struct TypeEnumItemInfo {
+    name: char const*;
+    int_value: int64; // base type is enough to represent these values
+}
+
 struct TypeInfo {
     kind: TypeKind;
     size: int;
@@ -40,6 +46,8 @@ struct TypeInfo {
     base: typeid;
     fields: TypeFieldInfo*;
     num_fields: int;
+    enum_items: TypeEnumItemInfo*;
+    num_enum_items: int;
 }
 
 @foreign
