@@ -479,7 +479,7 @@ class RegisterNode(Node):
         self._enable = node
 
 def register(type, init=None, next=None, enable=None):
-    return RegisterNode(type, init, next, enable=None)
+    return RegisterNode(type, init, next, enable)
 
 class ConstantNode(Node):
     def __init__(self, type, value):
