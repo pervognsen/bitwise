@@ -1,0 +1,35 @@
+#static_assert(sizeof(:void*) == 8)
+
+@foreign("size_t")
+typedef usize = uint64;
+
+@foreign("ptrdiff_t")
+typedef ssize = int64;
+
+@foreign("uintptr_t")
+typedef uintptr = uint64;
+
+@foreign("intptr_t")
+typedef intptr = int64;
+
+const USIZE_MIN = UINT64_MIN;
+
+@foreign("SIZE_MAX")
+const USIZE_MAX = UINT64_MAX;
+
+@foreign("PTRDIFF_MIN")
+const SSIZE_MIN = INT64_MIN;
+
+@foreign("PTRDIFF_MAX")
+const SSIZE_MAX = INT64_MAX;
+
+const UINTPTR_MIN = UINT64_MIN;
+
+@foreign
+const UINTPTR_MAX = UINT64_MAX;
+
+@foreign
+const INTPTR_MIN = INT64_MIN;
+
+@foreign
+const INTPTR_MAX = INT64_MAX;

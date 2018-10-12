@@ -1,0 +1,11 @@
+@foreign("va_start_ptr")
+func va_start(args: va_list*, arg: void const*);
+
+@foreign("va_arg_ptr")
+func va_arg(args: va_list*, arg: Any);
+
+@foreign("va_end_ptr")
+func va_end(args: va_list*);
+
+@foreign("va_copy_ptr")
+func va_copy(dest: va_list*, src: va_list const*);

@@ -1,0 +1,84 @@
+import libc { va_list }
+
+@foreign
+enum {
+    SDL_LOG_CATEGORY_APPLICATION,
+    SDL_LOG_CATEGORY_ERROR,
+    SDL_LOG_CATEGORY_ASSERT,
+    SDL_LOG_CATEGORY_SYSTEM,
+    SDL_LOG_CATEGORY_AUDIO,
+    SDL_LOG_CATEGORY_VIDEO,
+    SDL_LOG_CATEGORY_RENDER,
+    SDL_LOG_CATEGORY_INPUT,
+    SDL_LOG_CATEGORY_TEST,
+    SDL_LOG_CATEGORY_RESERVED1,
+    SDL_LOG_CATEGORY_RESERVED2,
+    SDL_LOG_CATEGORY_RESERVED3,
+    SDL_LOG_CATEGORY_RESERVED4,
+    SDL_LOG_CATEGORY_RESERVED5,
+    SDL_LOG_CATEGORY_RESERVED6,
+    SDL_LOG_CATEGORY_RESERVED7,
+    SDL_LOG_CATEGORY_RESERVED8,
+    SDL_LOG_CATEGORY_RESERVED9,
+    SDL_LOG_CATEGORY_RESERVED10,
+    SDL_LOG_CATEGORY_CUSTOM,
+}
+
+@foreign
+enum SDL_LogPriority {
+    SDL_LOG_PRIORITY_VERBOSE = 1,
+    SDL_LOG_PRIORITY_DEBUG,
+    SDL_LOG_PRIORITY_INFO,
+    SDL_LOG_PRIORITY_WARN,
+    SDL_LOG_PRIORITY_ERROR,
+    SDL_LOG_PRIORITY_CRITICAL,
+    SDL_NUM_LOG_PRIORITIES,
+}
+
+@foreign
+func SDL_LogSetAllPriority(priority: SDL_LogPriority);
+
+@foreign
+func SDL_LogSetPriority(category: int, priority: SDL_LogPriority);
+
+@foreign
+func SDL_LogGetPriority(category: int): SDL_LogPriority;
+
+@foreign
+func SDL_LogResetPriorities();
+
+@foreign
+func SDL_Log(fmt: char const*, ...);
+
+@foreign
+func SDL_LogVerbose(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogDebug(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogInfo(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogWarn(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogError(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogCritical(category: int, fmt: char const*, ...);
+
+@foreign
+func SDL_LogMessage(category: int, priority: SDL_LogPriority, fmt: char const*, ...);
+
+@foreign
+func SDL_LogMessageV(category: int, priority: SDL_LogPriority, fmt: char const*, ap: va_list);
+
+@foreign
+typedef SDL_LogOutputFunction = func(userdata: void*, category: int, priority: SDL_LogPriority, message: char const*);
+
+@foreign
+func SDL_LogGetOutputFunction(callback: SDL_LogOutputFunction*, userdata: void**);
+
+@foreign
+func SDL_LogSetOutputFunction(callback: SDL_LogOutputFunction, userdata: void*);

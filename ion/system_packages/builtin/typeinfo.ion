@@ -1,0 +1,75 @@
+typedef typeid = ullong;
+
+enum TypeKind {
+    TYPE_NONE,
+    TYPE_VOID,
+    TYPE_BOOL,
+    TYPE_CHAR,
+    TYPE_UCHAR,
+    TYPE_SCHAR,
+    TYPE_SHORT,
+    TYPE_USHORT,
+    TYPE_INT,
+    TYPE_UINT,
+    TYPE_LONG,
+    TYPE_ULONG,
+    TYPE_LLONG,
+    TYPE_ULLONG,
+    TYPE_FLOAT,
+    TYPE_DOUBLE,
+    TYPE_CONST,
+    TYPE_PTR,
+    TYPE_ARRAY,
+    TYPE_STRUCT,
+    TYPE_UNION,
+    TYPE_FUNC,
+}
+
+struct TypeFieldInfo {
+    name: char const*;
+    type: typeid;
+    offset: int;
+}
+
+struct TypeInfo {
+    kind: TypeKind;
+    size: int;
+    align: int;
+    name: char const*;
+    count: int;
+    base: typeid;
+    fields: TypeFieldInfo*;
+    num_fields: int;
+}
+
+@foreign
+var typeinfos: TypeInfo const**;
+
+@foreign
+var num_typeinfos: int;
+
+func typeid_kind(type: typeid): TypeKind {
+    return TypeKind((type >> 24) & 0xFF);
+}
+
+func typeid_index(type: typeid): int {
+    return int(type & 0xFFFFFF);
+}
+
+func typeid_size(type: typeid): usize {
+    return usize(type >> 32);
+}
+
+func get_typeinfo(type: typeid): TypeInfo const* {
+    index := typeid_index(type);
+    if (typeinfos && index < num_typeinfos) {
+        return typeinfos[index];
+    } else {
+        return NULL;
+    }
+}
+
+struct Any {
+    ptr: void*;
+    type: typeid;
+}

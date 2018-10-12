@@ -1,0 +1,49 @@
+struct vec2 {
+    x, y: float;
+}
+
+func add2(a: vec2, b: vec2): vec2 {
+    return {a.x + b.x, a.y + b.y};
+}
+
+func sub2(a: vec2, b: vec2): vec2 {
+    return {a.x - b.x, a.y - b.y};
+}
+
+func neg2(a: vec2): vec2 {
+    return {-a.x, -a.y};
+}
+
+func mul2(a: float, b: vec2): vec2 {
+    return {a * b.x, a * b.y};
+}
+
+func addmul2(a: vec2, b: float, c: vec2): vec2 {
+    return add2(a, mul2(b, c));
+}
+
+func dot2(a: vec2, b: vec2): float {
+    return a.x*b.x + a.y*b.y;
+}
+
+func len2(a: vec2): float {
+    return sqrt(dot2(a, a));
+}
+
+func unit2(a: vec2): vec2 {
+    return mul2(1/len2(a), a);
+}
+
+func perp2(a: vec2): vec2 {
+    return {-a.y, a.x};
+}
+
+func dir2(a: vec2, b: vec2): vec2 {
+    return unit2(sub2(b, a));
+}
+
+func rot2(a: float, b: vec2): vec2 {
+    c := cos(a);
+    s := sin(a);
+    return {c*b.x - s*b.y, s*b.x + c*b.y};
+}

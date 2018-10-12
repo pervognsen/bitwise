@@ -1,0 +1,387 @@
+@foreign
+enum SDL_WindowFlags {
+    SDL_WINDOW_FULLSCREEN = 0x00000001,
+    SDL_WINDOW_OPENGL = 0x00000002,
+    SDL_WINDOW_FULLSCREEN_DESKTOP = SDL_WINDOW_FULLSCREEN | 0x00001000,
+    SDL_WINDOW_SHOWN = 0x00000002,
+    SDL_WINDOW_HIDDEN = 0x00000008,
+    SDL_WINDOW_BORDERLESS = 0x00000010,
+    SDL_WINDOW_RESIZABLE = 0x00000020,
+    SDL_WINDOW_MINIMIZED = 0x00000040,
+    SDL_WINDOW_MAXIMIZED = 0x00000080,
+    SDL_WINDOW_INPUT_GRABBED = 0x00000100,
+    SDL_WINDOW_INPUT_FOCUS = 0x00000200,
+    SDL_WINDOW_MOUSE_FOCUS = 0x00000400,
+    SDL_WINDOW_FOREIGN = 0x00000800,
+    SDL_WINDOW_ALLOW_HIGHDPI = 0x00002000,
+    SDL_WINDOW_MOUSE_CAPTURE = 0x00004000,
+    SDL_WINDOW_ALWAYS_ON_TOP = 0x00008000,
+    SDL_WINDOW_SKIP_TASKBAR  = 0x00010000,
+    SDL_WINDOW_UTILITY = 0x00020000,
+    SDL_WINDOW_TOOLTIP = 0x00040000,
+    SDL_WINDOW_POPUP_MENU = 0x00080000
+}
+
+@foreign
+enum SDL_WindowEventID {
+    SDL_WINDOWEVENT_NONE,
+    SDL_WINDOWEVENT_SHOWN,
+    SDL_WINDOWEVENT_HIDDEN,
+    SDL_WINDOWEVENT_EXPOSED,
+    SDL_WINDOWEVENT_MOVED,
+    SDL_WINDOWEVENT_RESIZED,
+    SDL_WINDOWEVENT_SIZE_CHANGED,
+    SDL_WINDOWEVENT_MINIMIZED,
+    SDL_WINDOWEVENT_MAXIMIZED,
+    SDL_WINDOWEVENT_RESTORED,
+    SDL_WINDOWEVENT_ENTER,
+    SDL_WINDOWEVENT_LEAVE,
+    SDL_WINDOWEVENT_FOCUS_GAINED,
+    SDL_WINDOWEVENT_FOCUS_LOST,
+    SDL_WINDOWEVENT_CLOSE,
+    SDL_WINDOWEVENT_TAKE_FOCUS,
+    SDL_WINDOWEVENT_HIT_TEST        
+}
+
+
+@foreign
+struct SDL_DisplayMode {
+    format: uint32;
+    w: int;
+    h: int;
+    refresh_rate: int;
+    driverdata: void*;
+}
+
+@foreign
+const SDL_WINDOWPOS_UNDEFINED = 0x1FFF0000;
+
+@foreign
+const SDL_WINDOWPOS_CENTERED = 0x2FFF0000u;
+
+@foreign
+struct SDL_Window;
+
+@foreign
+typedef SDL_GLContext = void*;
+
+@foreign
+enum SDL_GLattr {
+    SDL_GL_RED_SIZE,
+    SDL_GL_GREEN_SIZE,
+    SDL_GL_BLUE_SIZE,
+    SDL_GL_ALPHA_SIZE,
+    SDL_GL_BUFFER_SIZE,
+    SDL_GL_DOUBLEBUFFER,
+    SDL_GL_DEPTH_SIZE,
+    SDL_GL_STENCIL_SIZE,
+    SDL_GL_ACCUM_RED_SIZE,
+    SDL_GL_ACCUM_GREEN_SIZE,
+    SDL_GL_ACCUM_BLUE_SIZE,
+    SDL_GL_ACCUM_ALPHA_SIZE,
+    SDL_GL_STEREO,
+    SDL_GL_MULTISAMPLEBUFFERS,
+    SDL_GL_MULTISAMPLESAMPLES,
+    SDL_GL_ACCELERATED_VISUAL,
+    SDL_GL_RETAINED_BACKING,
+    SDL_GL_CONTEXT_MAJOR_VERSION,
+    SDL_GL_CONTEXT_MINOR_VERSION,
+    SDL_GL_CONTEXT_EGL,
+    SDL_GL_CONTEXT_FLAGS,
+    SDL_GL_CONTEXT_PROFILE_MASK,
+    SDL_GL_SHARE_WITH_CURRENT_CONTEXT,
+    SDL_GL_FRAMEBUFFER_SRGB_CAPABLE,
+    SDL_GL_CONTEXT_RELEASE_BEHAVIOR,
+    SDL_GL_CONTEXT_RESET_NOTIFICATION,
+    SDL_GL_CONTEXT_NO_ERROR
+}
+
+@foreign
+enum SDL_GLprofile {
+    SDL_GL_CONTEXT_PROFILE_CORE           = 0x0001,
+    SDL_GL_CONTEXT_PROFILE_COMPATIBILITY  = 0x0002,
+    SDL_GL_CONTEXT_PROFILE_ES             = 0x0004
+}
+
+@foreign
+enum SDL_GLcontextFlag {
+    SDL_GL_CONTEXT_DEBUG_FLAG              = 0x0001,
+    SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG = 0x0002,
+    SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG      = 0x0004,
+    SDL_GL_CONTEXT_RESET_ISOLATION_FLAG    = 0x0008
+}
+
+@foreign
+enum SDL_GLcontextReleaseFlag {
+    SDL_GL_CONTEXT_RELEASE_BEHAVIOR_NONE   = 0x0000,
+    SDL_GL_CONTEXT_RELEASE_BEHAVIOR_FLUSH  = 0x0001
+}
+
+@foreign
+enum SDL_GLContextResetNotification {
+    SDL_GL_CONTEXT_RESET_NO_NOTIFICATION = 0x0000,
+    SDL_GL_CONTEXT_RESET_LOSE_CONTEXT    = 0x0001
+}
+
+@foreign
+enum SDL_HitTestResult {
+    SDL_HITTEST_NORMAL,
+    SDL_HITTEST_DRAGGABLE,
+    SDL_HITTEST_RESIZE_TOPLEFT,
+    SDL_HITTEST_RESIZE_TOP,
+    SDL_HITTEST_RESIZE_TOPRIGHT,
+    SDL_HITTEST_RESIZE_RIGHT,
+    SDL_HITTEST_RESIZE_BOTTOMRIGHT,
+    SDL_HITTEST_RESIZE_BOTTOM,
+    SDL_HITTEST_RESIZE_BOTTOMLEFT,
+    SDL_HITTEST_RESIZE_LEFT
+}
+
+@foreign
+func SDL_GetNumVideoDrivers(): int;
+
+@foreign
+func SDL_GetVideoDriver(index: int): char const*;
+
+@foreign
+func SDL_VideoInit(driver_name: char const*): int;
+
+@foreign
+func SDL_VideoQuit();
+
+@foreign
+func SDL_GetCurrentVideoDriver(): char const*;
+
+@foreign
+func SDL_GetNumVideoDisplays(): int;
+
+@foreign
+func SDL_GetDisplayName(displayIndex: int): char const*;
+
+@foreign
+func SDL_GetDisplayBounds(displayIndex: int, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_GetDisplayDPI(displayIndex: int, ddpi: float*, hdpi: float*, vdpi: float*): int;
+
+@foreign
+func SDL_GetDisplayUsableBounds(displayIndex: int, rect: SDL_Rect*): int;
+
+@foreign
+func SDL_GetNumDisplayModes(displayIndex: int): int;
+
+@foreign
+func SDL_GetDisplayMode(displayIndex: int, modeIndex: int, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetDesktopDisplayMode(displayIndex: int, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetCurrentDisplayMode(displayIndex: int, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetClosestDisplayMode(displayIndex: int, mode: SDL_DisplayMode*, closest: SDL_DisplayMode*): SDL_DisplayMode*;
+
+@foreign
+func SDL_GetWindowDisplayIndex(window: SDL_Window*): int;
+
+@foreign
+func SDL_SetWindowDisplayMode(window: SDL_Window*, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetWindowDisplayMode(window: SDL_Window*, mode: SDL_DisplayMode*): int;
+
+@foreign
+func SDL_GetWindowPixelFormat(window: SDL_Window*): Uint32;
+
+@foreign
+func SDL_CreateWindow(title: char const*, x: int, y: int, w: int, h: int, flags: Uint32): SDL_Window*;
+
+@foreign
+func SDL_CreateWindowFrom(data: void const*): SDL_Window*;
+
+@foreign
+func SDL_GetWindowID(window: SDL_Window*): Uint32;
+
+@foreign
+func SDL_GetWindowFromID(id: Uint32): SDL_Window*;
+
+@foreign
+func SDL_GetWindowFlags(window: SDL_Window*): Uint32;
+
+@foreign
+func SDL_SetWindowTitle(window: SDL_Window*, title: char const*);
+
+@foreign
+func SDL_GetWindowTitle(window: SDL_Window*): char const*;
+
+@foreign
+func SDL_SetWindowIcon(window: SDL_Window*, icon: SDL_Surface*);
+
+@foreign
+func SDL_SetWindowData(window: SDL_Window*, name: char const*, userdata: void*): void*;
+
+@foreign
+func SDL_GetWindowData(window: SDL_Window*, name: char const*): void*;
+
+@foreign
+func SDL_SetWindowPosition(window: SDL_Window*, x: int, y: int);
+
+@foreign
+func SDL_GetWindowPosition(window: SDL_Window*, x: int*, y: int*);
+
+@foreign
+func SDL_SetWindowSize(window: SDL_Window*, w: int, h: int);
+
+@foreign
+func SDL_GetWindowSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_GetWindowBordersSize(window: SDL_Window*, top: int*, left: int*, bottom: int*, right: int*): int;
+
+@foreign
+func SDL_SetWindowMinimumSize(window: SDL_Window*, min_w: int, min_h: int);
+
+@foreign
+func SDL_GetWindowMinimumSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_SetWindowMaximumSize(window: SDL_Window*, max_w: int, max_h: int);
+
+@foreign
+func SDL_GetWindowMaximumSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_SetWindowBordered(window: SDL_Window*, bordered: SDL_bool);
+
+@foreign
+func SDL_SetWindowResizable(window: SDL_Window*, resizable: SDL_bool);
+
+@foreign
+func SDL_ShowWindow(window: SDL_Window*);
+
+@foreign
+func SDL_HideWindow(window: SDL_Window*);
+
+@foreign
+func SDL_RaiseWindow(window: SDL_Window*);
+
+@foreign
+func SDL_MaximizeWindow(window: SDL_Window*);
+
+@foreign
+func SDL_MinimizeWindow(window: SDL_Window*);
+
+@foreign
+func SDL_RestoreWindow(window: SDL_Window*);
+
+@foreign
+func SDL_SetWindowFullscreen(window: SDL_Window*, flags: Uint32): int;
+
+@foreign
+func SDL_GetWindowSurface(window: SDL_Window*): SDL_Surface*;
+
+@foreign
+func SDL_UpdateWindowSurface(window: SDL_Window*): int;
+
+@foreign
+func SDL_UpdateWindowSurfaceRects(window: SDL_Window*, rects: SDL_Rect*, numrects: int): int;
+
+@foreign
+func SDL_SetWindowGrab(window: SDL_Window*, grabbed: SDL_bool);
+
+@foreign
+func SDL_GetWindowGrab(window: SDL_Window*): SDL_bool;
+
+@foreign
+func SDL_GetGrabbedWindow(): SDL_Window*;
+
+@foreign
+func SDL_SetWindowBrightness(window: SDL_Window*, brightness: float): int;
+
+@foreign
+func SDL_GetWindowBrightness(window: SDL_Window*): float;
+
+@foreign
+func SDL_SetWindowOpacity(window: SDL_Window*, opacity: float): int;
+
+@foreign
+func SDL_GetWindowOpacity(window: SDL_Window*, out_opacity: float*): int;
+
+@foreign
+func SDL_SetWindowModalFor(modal_window: SDL_Window*, parent_window: SDL_Window*): int;
+
+@foreign
+func SDL_SetWindowInputFocus(window: SDL_Window*): int;
+
+@foreign
+func SDL_SetWindowGammaRamp(window: SDL_Window*, red: Uint16*, green: Uint16*, blue: Uint16*): int;
+
+@foreign
+func SDL_GetWindowGammaRamp(window: SDL_Window*, red: Uint16*, green: Uint16*, blue: Uint16*): int;
+
+@foreign
+typedef SDL_HitTest = func(win: SDL_Window*, area: SDL_Point*, data: void*): SDL_HitTestResult;
+
+@foreign
+func SDL_SetWindowHitTest(window: SDL_Window*, callback: SDL_HitTest, callback_data: void*): int;
+
+@foreign
+func SDL_DestroyWindow(window: SDL_Window*);
+
+@foreign
+func SDL_IsScreenSaverEnabled(): SDL_bool;
+
+@foreign
+func SDL_EnableScreenSaver();
+
+@foreign
+func SDL_DisableScreenSaver();
+
+@foreign
+func SDL_GL_LoadLibrary(path: char const*): int;
+
+@foreign
+func SDL_GL_GetProcAddress(proc: char const*): void*;
+
+@foreign
+func SDL_GL_UnloadLibrary();
+
+@foreign
+func SDL_GL_ExtensionSupported(extension: char const*): SDL_bool;
+
+@foreign
+func SDL_GL_ResetAttributes();
+
+@foreign
+func SDL_GL_SetAttribute(attr: SDL_GLattr, value: int): int;
+
+@foreign
+func SDL_GL_GetAttribute(attr: SDL_GLattr, value: int*): int;
+
+@foreign
+func SDL_GL_CreateContext(window: SDL_Window*): SDL_GLContext;
+
+@foreign
+func SDL_GL_MakeCurrent(window: SDL_Window*, context: SDL_GLContext): int;
+
+@foreign
+func SDL_GL_GetCurrentWindow(): SDL_Window*;
+
+@foreign
+func SDL_GL_GetCurrentContext(): SDL_GLContext;
+
+@foreign
+func SDL_GL_GetDrawableSize(window: SDL_Window*, w: int*, h: int*);
+
+@foreign
+func SDL_GL_SetSwapInterval(interval: int): int;
+
+@foreign
+func SDL_GL_GetSwapInterval(): int;
+
+@foreign
+func SDL_GL_SwapWindow(window: SDL_Window*);
+
+@foreign
+func SDL_GL_DeleteContext(context: SDL_GLContext);

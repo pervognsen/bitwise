@@ -1,0 +1,950 @@
+import libc {...}
+
+enum Op = uint8 {
+    ILLEGAL,
+    LUI,
+    AUIPC,
+    JAL,
+    JALR,
+    BEQ,
+    BNE,
+    BLT,
+    BGE,
+    BLTU,
+    BGEU,
+    LB,
+    LH,
+    LW,
+    LBU,
+    LHU,
+    SB,
+    SH,
+    SW,
+    ADDI,
+    SLTI,
+    SLTIU,
+    XORI,
+    ORI,
+    ANDI,
+    SLLI,
+    SRLI,
+    SRAI,
+    ADD,
+    SUB,
+    SLL,
+    SLT,
+    SLTU,
+    XOR,
+    SRL,
+    SRA,
+    OR,
+    AND,
+    FENCE,
+    FENCEI,
+    ECALL,
+    EBREAK,
+    CSRRW,
+    CSRRS,
+    CSRRC,
+    CSRRWI,
+    CSRRSI,
+    CSRRCI,
+    NUM_OPS,
+}
+
+enum Reg = uint8 {
+    X0,
+    X1,
+    X2,
+    X3,
+    X4,
+    X5,
+    X6,
+    X7,
+    X8,
+    X9,
+    X10,
+    X11,
+    X12,
+    X13,
+    X14,
+    X15,
+    X16,
+    X17,
+    X18,
+    X19,
+    X20,
+    X21,
+    X22,
+    X23,
+    X24,
+    X25,
+    X26,
+    X27,
+    X28,
+    X29,
+    X30,
+    X31,
+    NUM_REGS,
+}
+
+#static_assert(NUM_REGS == 32)
+
+typedef Csr = uint16;
+typedef SuccPred = uint8;
+
+const SHIFT_MASK = (1 << 5) - 1;
+
+struct Instruction {
+    op: Op;
+    rd, rs1, rs2: Reg;
+    imm: uint32;
+    csr: Csr;
+    succ_pred: SuccPred;
+}
+
+var funct3_to_branch_op: Op[8] = {
+    [0b000] = BEQ,
+    [0b001] = BNE,
+    [0b100] = BLT,
+    [0b101] = BGE,
+    [0b110] = BLTU,
+    [0b111] = BGEU,
+};
+
+var funct3_to_load_op: Op[8] = {
+    [0b000] = LB,
+    [0b001] = LH,
+    [0b010] = LW,
+    [0b100] = LBU,
+    [0b101] = LHU,
+};
+
+var funct3_to_store_op: Op[8] = {
+    [0b000] = SB,
+    [0b001] = SH,
+    [0b010] = SW,
+};
+
+var funct3_to_imm_op: Op[8] = {
+    [0b000] = ADDI,
+    [0b010] = SLTI,
+    [0b011] = SLTIU,
+    [0b100] = XORI,
+    [0b110] = ORI,
+    [0b111] = ANDI,
+    [0b001] = SLLI,
+    [0b101] = SRLI, // SRAI
+};
+
+// This is indexed by the concatenation of funct3 and the sixth bit of funct7.
+var funct4_to_reg_op: Op[16] = {
+    [0b0000] = ADD,
+    [0b1000] = SUB,
+    [0b0001] = SLL,
+    [0b0010] = SLT,
+    [0b0011] = SLTU,
+    [0b0100] = XOR,
+    [0b0101] = SRL,
+    [0b1101] = SRA,
+    [0b0110] = OR,
+    [0b0111] = AND,
+};
+
+var funct3_to_csr_op: Op[8] = {
+    [0b001] = CSRRW,
+    [0b010] = CSRRS,
+    [0b011] = CSRRC,
+    [0b101] = CSRRWI,
+    [0b110] = CSRRSI,
+    [0b111] = CSRRCI,
+};
+
+var op_to_mask: uint32[NUM_OPS] = {
+    // U-type instructions
+    [LUI]   = 0b00000000000000000000_00000_0110111,
+    [AUIPC] = 0b00000000000000000000_00000_0010111,
+    // J-type instructions
+    [JAL]   = 0b00000000000000000000_00000_1101111,
+    // B-type instructions
+    [BEQ]  = 0b0000000_00000_00000_000_00000_1100011,
+    [BNE]  = 0b0000000_00000_00000_001_00000_1100011,
+    [BLT]  = 0b0000000_00000_00000_100_00000_1100011,
+    [BGE]  = 0b0000000_00000_00000_101_00000_1100011,
+    [BLTU] = 0b0000000_00000_00000_110_00000_1100011,
+    [BGEU] = 0b0000000_00000_00000_111_00000_1100011,
+    // I-type instructions
+    [JALR]  = 0b000000000000_00000_000_00000_1100111,
+    [LB]    = 0b000000000000_00000_000_00000_0000011,
+    [LH]    = 0b000000000000_00000_001_00000_0000011,
+    [LW]    = 0b000000000000_00000_010_00000_0000011,
+    [LBU]   = 0b000000000000_00000_100_00000_0000011,
+    [LHU]   = 0b000000000000_00000_101_00000_0000011,
+    [ADDI]  = 0b000000000000_00000_000_00000_0010011,
+    [SLTI]  = 0b000000000000_00000_010_00000_0010011,
+    [SLTIU] = 0b000000000000_00000_011_00000_0010011,
+    [XORI]  = 0b000000000000_00000_100_00000_0010011,
+    [ORI]   = 0b000000000000_00000_110_00000_0010011,
+    [ANDI]  = 0b000000000000_00000_111_00000_0010011,
+    // R-type instructions
+    [ADD]  = 0b0000000_00000_00000_000_00000_0110011,
+    [SUB]  = 0b0100000_00000_00000_000_00000_0110011,
+    [SLL]  = 0b0000000_00000_00000_001_00000_0110011,
+    [SLT]  = 0b0000000_00000_00000_010_00000_0110011,
+    [SLTU] = 0b0000000_00000_00000_011_00000_0110011,
+    [XOR]  = 0b0000000_00000_00000_100_00000_0110011,
+    [SRL]  = 0b0000000_00000_00000_101_00000_0110011,
+    [SRA]  = 0b0100000_00000_00000_101_00000_0110011,
+    [OR]   = 0b0000000_00000_00000_110_00000_0110011,
+    [AND]  = 0b0000000_00000_00000_111_00000_0110011,
+    [SLLI] = 0b0000000_00000_00000_001_00000_0010011,
+    [SRLI] = 0b0000000_00000_00000_101_00000_0010011,
+    [SRAI] = 0b0100000_00000_00000_101_00000_0010011,
+    // S-type instructions
+    [SB] = 0b0000000_00000_00000_000_00000_0100011,
+    [SH] = 0b0000000_00000_00000_001_00000_0100011,
+    [SW] = 0b0000000_00000_00000_010_00000_0100011,
+    // CSR instructions
+    [CSRRW]  = 0b000000000000_00000_001_00000_1110011,
+    [CSRRS]  = 0b000000000000_00000_010_00000_1110011,
+    [CSRRC]  = 0b000000000000_00000_011_00000_1110011,
+    [CSRRWI] = 0b000000000000_00000_101_00000_1110011,
+    [CSRRSI] = 0b000000000000_00000_110_00000_1110011,
+    [CSRRCI] = 0b000000000000_00000_111_00000_1110011,
+    // Miscellaneous instructions
+    [FENCE]  = 0b0000_0000_0000_00000_000_00000_0001111,
+    [FENCEI] = 0b0000_0000_0000_00000_001_00000_0001111,
+    [ECALL]  = 0b000000000000_00000_000_00000_1110011,
+    [EBREAK] = 0b000000000001_00000_000_00000_1110011,
+};
+
+var op_to_name: char const*[NUM_OPS] = {
+    [LUI] = "LUI",
+    [AUIPC] = "AUIPC",
+    [JAL] = "JAL",
+    [JALR] = "JALR",
+    [BEQ] = "BEQ",
+    [BNE] = "BNE",
+    [BLT] = "BLT",
+    [BGE] = "BGE",
+    [BLTU] = "BLTU",
+    [BGEU] = "BGEU",
+    [LB] = "LB",
+    [LH] = "LH",
+    [LW] = "LW",
+    [LBU] = "LBU",
+    [LHU] = "LHU",
+    [SB] = "SB",
+    [SH] = "SH",
+    [SW] = "SW",
+    [ADDI] = "ADDI",
+    [SLTI] = "SLTI",
+    [SLTIU] = "SLTIU",
+    [XORI] = "XORI",
+    [ORI] = "ORI",
+    [ANDI] = "ANDI",
+    [SLLI] = "SLLI",
+    [SRLI] = "SRLI",
+    [SRAI] = "SRAI",
+    [ADD] = "ADD",
+    [SUB] = "SUB",
+    [SLL] = "SLL",
+    [SLT] = "SLT",
+    [SLTU] = "SLTU",
+    [XOR] = "XOR",
+    [SRL] = "SRL",
+    [SRA] = "SRA",
+    [OR] = "OR",
+    [AND] = "AND",
+    [FENCE] = "FENCE",
+    [FENCEI] = "FENCEI",
+    [ECALL] = "ECALL",
+    [EBREAK] = "EBREAK",
+    [CSRRW] = "CSRRW",
+    [CSRRS] = "CSRRS",
+    [CSRRC] = "CSRRC",
+    [CSRRWI] = "CSRRWI",
+    [CSRRSI] = "CSRRSI",
+    [CSRRCI] = "CSRRCI",
+};
+
+const U_IMMEDIATE_MIN = -(1 << 30);
+const U_IMMEDIATE_MAX = 1 << 30 - 1;
+const U_IMMEDIATE_ALIGN = 1 << 12;
+
+const I_IMMEDIATE_MIN = -(1 << 10);
+const I_IMMEDIATE_MAX = 1 << 10 - 1;
+const I_IMMEDIATE_ALIGN = 1;
+
+const S_IMMEDIATE_MIN = I_IMMEDIATE_MIN;
+const S_IMMEDIATE_MAX = I_IMMEDIATE_MAX;
+const S_IMMEDIATE_ALIGN = I_IMMEDIATE_ALIGN;
+
+const J_IMMEDIATE_MIN = -(1 << 19);
+const J_IMMEDIATE_MAX = 1 << 19 - 1;
+const J_IMMEDIATE_ALIGN = 2;
+
+const B_IMMEDIATE_MIN = -(1 << 11);
+const B_IMMEDIATE_MAX = 1 << 11 - 1;
+const B_IMMEDIATE_ALIGN = 2;
+
+func sign_extend(data: uint32, width: uint32): uint32 {
+    return uint32(int32(data << (32 - width)) >> (32 - width));
+}
+
+func bits(data: uint32, start: uint32, len: uint32): uint32 {
+    return (data >> start) & ((1 << len) - 1);
+}
+
+func decode_u_immediate(data: uint32): uint32 {
+    imm_12_31 := bits(data, 12, 20) << 12;
+    imm_0_31 := imm_12_31;
+    return sign_extend(imm_0_31, 32);
+}
+
+func decode_j_immediate(data: uint32): uint32 {
+    imm_1_10 := bits(data, 21, 10) << 1;
+    imm_11 := bits(data, 20, 1) << 11;
+    imm_12_19 := bits(data, 12, 8) << 12;
+    imm_20 := bits(data, 31, 1) << 20;
+    imm_0_20 := imm_1_10 | imm_11 | imm_12_19 | imm_20;
+    return sign_extend(imm_0_20, 21);
+}
+
+func decode_b_immediate(data: uint32): uint32 {
+    imm_1_4 := bits(data, 8, 4) << 1;
+    imm_5_10 := bits(data, 25, 6) << 5;
+    imm_11 := bits(data, 7, 1) << 11;
+    imm_12 := bits(data, 31, 1) << 12;
+    imm_0_12 := imm_1_4 | imm_5_10 | imm_11 | imm_12;
+    return sign_extend(imm_0_12, 13);
+}
+
+func decode_i_immediate(data: uint32): uint32 {
+    imm_0_11 := bits(data, 20, 12);
+    return sign_extend(imm_0_11, 12);
+}
+
+func decode_s_immediate(data: uint32): uint32 {
+    imm_0_4 := bits(data, 7, 5);
+    imm_5_11 := bits(data, 25, 7) << 5;
+    imm_0_11 := imm_0_4 | imm_5_11;
+    return sign_extend(imm_0_11, 12);
+}
+
+func decode_instruction(data: uint32): Instruction {
+    opcode := bits(data, 0, 7);
+    funct3 := bits(data, 12, 3);
+    funct7 := bits(data, 25, 7);
+    rd := bits(data, 7, 5);
+    rs1 := bits(data, 15, 5);
+    rs2 := bits(data, 20, 5);
+    switch (opcode) {
+    case 0b0110111: // LUI
+        return {op = LUI, rd = rd, imm = decode_u_immediate(data)};
+    case 0b0010111: // AUIPC
+        return {op = AUIPC, rd = rd, imm = decode_u_immediate(data)};
+    case 0b1101111: // JAL
+        return {op = JAL, rd = rd, imm = decode_j_immediate(data)};
+    case 0b1100111: // JALR
+        if (funct3 == 0b000) {
+            return {op = JALR, rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
+        }
+    case 0b1100011: // BEQ, BNE, BLT, BGE, BLTU, BGEU
+        return {op = funct3_to_branch_op[funct3], rs1 = rs1, rs2 = rs2, imm = decode_b_immediate(data)};
+    case 0b0000011: // LB, LH, LW, LBU, LHU
+        return {op = funct3_to_load_op[funct3], rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
+    case 0b0100011: // SB, SH, SW
+        return {op = funct3_to_store_op[funct3], rs1 = rs1, rs2 = rs2, imm = decode_s_immediate(data)};
+    case 0b0010011: // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+        op := funct3_to_imm_op[funct3];
+        switch (op) {
+        case SLLI:
+            if (funct7 == 0b0000000) {
+                return {op = SLLI, rd = rd, rs1 = rs1, imm = rs2};
+            }
+        case SRLI:
+            if (funct7 == 0b0000000) {
+                return {op = SRLI, rd = rd, rs1 = rs1, imm = rs2};
+            } else if (funct7 == 0b0100000) {
+                return {op = SRAI, rd = rd, rs1 = rs1, imm = rs2};
+            }
+        default:
+            return {op = op, rd = rd, rs1 = rs1, imm = decode_i_immediate(data)};
+        }
+    case 0b0110011: // ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
+        if (funct7 & 0b1011111 == 0) {
+            funct4 := funct3 | (bits(funct7, 5, 1) << 3);
+            return {op = funct4_to_reg_op[funct4], rd = rd, rs1 = rs1, rs2 = rs2};
+        }
+    case 0b0001111: // FENCE, FENCEI
+        if (data == 0b0000_0000_0000_00000_001_00000_0001111) {
+            return {op = FENCEI};
+        } else if (data & 0b1111_0000_0000_11111_111_11111_0000000 == 0) {
+            return {op = FENCE, succ_pred = bits(data, 20, 8)};
+        }
+    case 0b1110011: // ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
+        if (data == 0b000000000000_00000_000_00000_1110011) {
+            return {op = ECALL};
+        } else if (data == 0b000000000001_00000_000_00000_1110011) {
+            return {op = EBREAK};
+        } else {
+            op := funct3_to_csr_op[funct3];
+            csr := bits(data, 20, 12);
+            if (bits(funct3, 2, 1)) {
+                return {op = op, rd = rd, csr = csr, imm = bits(data, 15, 5)};
+            } else {
+                return {op = op, rd = rd, csr = csr, rs1 = rs1};
+            }
+        }
+    default:
+    }
+    return {op = ILLEGAL};
+}
+
+func encode_u_immediate(imm: uint32): uint32 {
+    imm_12_31 := bits(imm, 12, 20) << 12;
+    return imm_12_31;
+}
+
+func encode_i_immediate(imm: uint32): uint32 {
+    imm_0_11 := bits(imm, 0, 12) << 20;
+    return imm_0_11;
+}
+
+func encode_s_immediate(imm: uint32): uint32 {
+    imm_0_4 := bits(imm, 0, 5) << 7;
+    imm_5_11 := bits(imm, 5, 7) << 25;
+    return imm_0_4 | imm_5_11;
+}
+
+func encode_b_immediate(imm: uint32): uint32 {
+    imm_1_4 := bits(imm, 1, 4) << 8;
+    imm_5_10 := bits(imm, 5, 6) << 25;
+    imm_11 := bits(imm, 11, 1) << 7;
+    imm_12 := bits(imm, 12, 1) << 31;
+    return imm_1_4 | imm_5_10 | imm_11 | imm_12;
+}
+
+func encode_j_immediate(imm: uint32): uint32 {
+    imm_1_10 := bits(imm, 1, 10) << 21;
+    imm_11 := bits(imm, 11, 1) << 20;
+    imm_12_19 := bits(imm, 12, 8) << 12;
+    imm_20 := bits(imm, 20, 1) << 31;
+    return imm_1_10 | imm_11 | imm_12_19 | imm_20;
+}
+
+func encode_instruction(instr: Instruction): uint32 {
+    mask := op_to_mask[instr.op];
+    rd := instr.rd << 7;
+    rs1 := instr.rs1 << 15;
+    rs2 := instr.rs2 << 20;
+    switch (instr.op) {
+    case LUI, AUIPC:
+        return mask | rd | encode_u_immediate(instr.imm);
+    case JAL:
+        return mask | rd | encode_j_immediate(instr.imm);
+    case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+        return mask | rs1 | rs2 | encode_b_immediate(instr.imm);
+    case JALR, LB, LH, LW, LBU, LHU, ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
+        return mask | rd | rs1 | encode_i_immediate(instr.imm);
+    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+        return mask | rd | rs1 | rs2;
+    case SLLI, SRLI, SRAI:
+        imm := bits(instr.imm, 0, 5) << 20;
+        return mask | rd | rs1 | imm;
+    case SB, SH, SW:
+        return mask | rs1 | rs2 | encode_s_immediate(instr.imm);
+    case FENCE:
+        succ_pred := instr.succ_pred << 20;
+        return mask | succ_pred;
+    case FENCEI, ECALL, EBREAK:
+        return mask;
+    case CSRRW, CSRRS, CSRRC:
+        csr := instr.csr << 20;
+        return mask | rd | rs1 | csr;
+    case CSRRWI, CSRRSI, CSRRCI:
+        csr := bits(instr.csr, 0, 12) << 20;
+        imm := bits(instr.imm, 0, 5) << 15;
+        return mask | rd | imm | csr;
+    default:
+        return 0;
+    }
+}
+
+func print_instruction(buf: char*, pc: uint32, instr: Instruction) {
+    op := instr.op;
+    if (op == ILLEGAL || op >= NUM_OPS) {
+        sprintf(buf, "ILLEGAL");
+        return;
+    }
+    buf += sprintf(buf, "%s", op_to_name[op]);
+    switch (op) {
+    case LUI, AUIPC:
+        sprintf(buf, " x%d, %d", instr.rd, instr.imm);
+    case JAL:
+        sprintf(buf, " x%d, [0x%x]", instr.rd, pc + instr.imm);
+    case JALR:
+        sprintf(buf, " x%d, [x%d, %d]", instr.rd, instr.rs1, instr.imm);
+    case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+        sprintf(buf, " x%d, x%d, [0x%x]", instr.rs1, instr.rs2, pc + instr.imm);
+    case LB, LH, LW, LBU, LHU:
+        sprintf(buf, " x%d, [x%d, %d]", instr.rd, instr.rs1, instr.imm);
+    case SB, SH, SW:
+        sprintf(buf, " [x%d, %d], x%d", instr.rs1, instr.imm, instr.rs2);
+    case ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI:
+        sprintf(buf, " x%d, x%d, %d", instr.rd, instr.rs1, instr.imm);
+    case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+        sprintf(buf, " x%d, x%d, x%d", instr.rd, instr.rs1, instr.rs2);
+    case CSRRW, CSRRS, CSRRC:
+        break;
+    case CSRRWI, CSRRSI, CSRRCI:
+        break;
+    case FENCE, FENCEI, ECALL, EBREAK:
+        // No operands to print
+        break;
+    }
+}
+
+struct Bus {
+    ram: uint8*;
+    ram_start: uint32;
+    ram_end: uint32;
+}
+
+const GETCHAR_ADDR = 0xFFFFFF00;
+const PUTCHAR_ADDR = 0xFFFFFF04;
+
+func bus_load_word(bus: Bus*, addr: uint32): uint32 {
+    if (bus.ram_start <= addr && addr + 4 <= bus.ram_end) {
+        return *(:uint32*)(bus.ram + addr - bus.ram_start);
+    } else if (addr == GETCHAR_ADDR) {
+        return getchar();
+    } else {
+        return 0;
+    }
+}
+
+func bus_load_halfword(bus: Bus*, addr: uint32): uint16 {
+    if (bus.ram_start <= addr && addr + 2 <= bus.ram_end) {
+        return *(:uint16*)(bus.ram + addr - bus.ram_start);
+    } else {
+        return 0;
+    }
+}
+
+func bus_load_byte(bus: Bus*, addr: uint32): uint8 {
+    if (bus.ram_start <= addr && addr + 1 <= bus.ram_end) {
+        return *(:uint8*)(bus.ram + addr - bus.ram_start);
+    } else {
+        return 0;
+    }
+}
+
+func bus_store_word(bus: Bus*, addr: uint32, data: uint32) {
+    if (bus.ram_start <= addr && addr + 4 <= bus.ram_end) {
+        *(:uint32*)(bus.ram + addr - bus.ram_start) = data;
+    } else if (addr == PUTCHAR_ADDR) {
+        putchar(data);
+    }
+}
+
+func bus_store_halfword(bus: Bus*, addr: uint32, data: uint16) {
+    if (bus.ram_start <= addr && addr + 2 <= bus.ram_end) {
+        *(:uint16*)(bus.ram + addr - bus.ram_start) = data;
+    }
+}
+
+func bus_store_byte(bus: Bus*, addr: uint32, data: uint8) {
+    if (bus.ram_start <= addr && addr + 1 <= bus.ram_end) {
+        *(:uint8*)(bus.ram + addr - bus.ram_start) = data;
+    }
+}
+
+struct Breakpoint {
+    enabled: bool;
+    addr: uint32;
+    callback: func(hart: Hart*, breakpoint: Breakpoint*, instr: Instruction const*);
+}
+
+struct Hart {
+    pc: uint32;
+    regs: uint32[32];
+    cycles: uint32;
+    bus: Bus*;
+    trace_load_enabled: bool;
+    trace_load_callback: func(hart: Hart*, addr: uint32, size: int);
+    trace_store_enabled: bool;
+    trace_store_callback: func(hart: Hart*, addr: uint32, data: uint32, size: int);
+    breakpoint: Breakpoint;
+}
+
+func fetch_instruction(hart: Hart*, addr: uint32): uint32 {
+    return bus_load_word(hart.bus, addr);
+}
+
+func read_reg(hart: Hart*, reg: Reg): uint32 {
+    return hart.regs[reg];
+}
+
+func write_reg(hart: Hart*, reg: Reg, val: uint32) {
+    if (reg) {
+        hart.regs[reg] = val;
+    }
+}
+
+func load_word(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 4);
+    }
+    return bus_load_word(hart.bus, addr);
+}
+
+func load_halfword(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 2);
+    }
+    return bus_load_halfword(hart.bus, addr);
+}
+
+func load_byte(hart: Hart*, addr: uint32): uint32 {
+    if (hart.trace_load_enabled) {
+        hart.trace_load_callback(hart, addr, 1);
+    }
+    return bus_load_byte(hart.bus, addr);
+}
+
+func store_word(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 4);
+    }
+    bus_store_word(hart.bus, addr, data);
+}
+
+func store_halfword(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 2);
+    }
+    bus_store_halfword(hart.bus, addr, data);
+}
+
+func store_byte(hart: Hart*, addr: uint32, data: uint32) {
+    if (hart.trace_store_enabled) {
+        hart.trace_store_callback(hart, addr, data, 1);
+    }
+    bus_store_byte(hart.bus, addr, data);
+}
+
+func read_csr(hart: Hart*, csr: Csr): uint32 {
+    return 0;
+}
+
+func write_csr(hart: Hart*, csr: Csr, data: uint32) {
+}
+
+func step(hart: Hart*) {
+    pc := hart.pc;
+    instr_data := fetch_instruction(hart, pc);
+    instr := decode_instruction(instr_data);
+    if (hart.breakpoint.enabled && hart.breakpoint.addr == pc) {
+        hart.breakpoint.callback(hart, &hart.breakpoint, &instr);
+    }
+    rs1 := instr.rs1;
+    rs2 := instr.rs2;
+    rd := instr.rd;
+    imm := instr.imm;
+    csr := instr.csr;
+    rs1_val := hart.regs[rs1];
+    rs2_val := hart.regs[rs2];
+    next_pc := pc + 4;
+    branch_pc := pc + imm;
+    @complete
+    switch (instr.op) {
+    case ILLEGAL:
+        break;
+    case LUI:
+        write_reg(hart, rd, imm);
+    case AUIPC:
+        write_reg(hart, rd, pc + imm);
+    case JAL:
+        write_reg(hart, rd, next_pc);
+        next_pc = branch_pc;
+    case JALR:
+        write_reg(hart, rd, next_pc);
+        next_pc = (rs1_val + imm) & ~1;
+    case BEQ:
+        if (rs1_val == rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BNE:
+        if (rs1_val != rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BLT:
+        if (int32(rs1_val) < int32(rs2_val)) {
+            next_pc = branch_pc;
+        }
+    case BGE:
+        if (int32(rs1_val) >= int32(rs2_val)) {
+            next_pc = branch_pc;
+        }
+    case BLTU:
+        if (rs1_val < rs2_val) {
+            next_pc = branch_pc;
+        }
+    case BGEU:
+        if (rs1_val >= rs2_val) {
+            next_pc = branch_pc;
+        }
+    case LB:
+        write_reg(hart, rd, sign_extend(load_byte(hart, rs1_val + imm), 8));
+    case LH:
+        write_reg(hart, rd, sign_extend(load_halfword(hart, rs1_val + imm), 16));
+    case LW:
+        write_reg(hart, rd, load_word(hart, rs1_val + imm));
+    case LBU:
+        write_reg(hart, rd, load_byte(hart, rs1_val + imm));
+    case LHU:
+        write_reg(hart, rd, load_halfword(hart, rs1_val + imm));
+    case SB:
+        store_byte(hart, rs1_val + imm, rs2_val);
+    case SH:
+        store_halfword(hart, rs1_val + imm, rs2_val);
+    case SW:
+        store_word(hart, rs1_val + imm, rs2_val);
+    case ADDI:
+        write_reg(hart, rd, rs1_val + imm);
+    case SLTI:
+        write_reg(hart, rd, int32(rs1_val) < int32(imm));
+    case SLTIU:
+        write_reg(hart, rd, rs1_val < imm);
+    case XORI:
+        write_reg(hart, rd, rs1_val ^ imm);
+    case ORI:
+        write_reg(hart, rd, rs1_val | imm);
+    case ANDI:
+        write_reg(hart, rd, rs1_val & imm);
+    case SLLI:
+        write_reg(hart, rd, rs1_val << imm);
+    case SRLI:
+        write_reg(hart, rd, rs1_val >> imm);
+    case SRAI:
+        write_reg(hart, rd, int32(rs1_val) >> imm);
+    case ADD:
+        write_reg(hart, rd, rs1_val + rs2_val);
+    case SUB:
+        write_reg(hart, rd, rs1_val - rs2_val);
+    case SLL:
+        write_reg(hart, rd, rs1_val << (rs2_val & SHIFT_MASK));
+    case SLT:
+        write_reg(hart, rd, int32(rs1_val) < int32(rs2_val));
+    case SLTU:
+        write_reg(hart, rd, rs1_val < rs2_val);
+    case XOR:
+        write_reg(hart, rd, rs1_val ^ rs2_val);
+    case SRL:
+        write_reg(hart, rd, rs1_val >> (rs2_val & SHIFT_MASK));
+    case SRA:
+        write_reg(hart, rd, int32(rs1_val) >> (rs2_val & SHIFT_MASK));
+    case OR:
+        write_reg(hart, rd, rs1_val | rs2_val);
+    case AND:
+        write_reg(hart, rd, rs1_val & rs2_val);
+    case FENCE, FENCEI:
+        // We don't need to do anything for fences for now.
+        break;
+    case ECALL, EBREAK:
+        // Not yet implemented
+        break;
+    case CSRRW:
+        if (rd) {
+            csr_val := read_csr(hart, csr);
+            write_reg(hart, rd, csr_val);
+        }
+        write_csr(hart, csr, rs1_val);
+    case CSRRS:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_csr(hart, csr, csr_val | rs1_val);
+        }
+    case CSRRC:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_csr(hart, csr, csr_val & ~rs1_val);
+        }
+    case CSRRWI:
+        if (rd) {
+            csr_val := read_csr(hart, csr);
+            write_reg(hart, rd, csr_val);
+        }
+        write_csr(hart, csr, imm);
+    case CSRRSI:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (imm) {
+            write_csr(hart, csr, csr_val | imm);
+        }
+    case CSRRCI:
+        csr_val := read_csr(hart, csr);
+        write_reg(hart, rd, csr_val);
+        if (rs1) {
+            write_csr(hart, csr, csr_val & ~imm);
+        }
+    }
+    hart.pc = next_pc;
+    hart.cycles++;
+}
+
+func print_hart_state(hart: Hart*) {
+    instr_data := fetch_instruction(hart, hart.pc);
+    instr := decode_instruction(instr_data);
+    instr_str: char[128];
+    print_instruction(instr_str, hart.pc, instr);
+    printf("%s\n\n", instr_str);
+    printf("pc = %d (0x%x)\n", hart.pc, hart.pc);
+    for (reg := 1; reg < 32; reg += 4) {
+        printf("%2d = %10d | ", reg, hart.regs[reg]);
+        if (reg + 1 < 32) {
+            printf("%2d = %10d | ", reg+1, hart.regs[reg+1]);
+        }
+        if (reg + 2 < 32) {
+            printf("%2d = %10d | ", reg+2, hart.regs[reg+2]);
+        }
+        if (reg + 3 < 32) {
+            printf("%2d = %10d", reg+3, hart.regs[reg+3]);
+        }
+        printf("\n");
+    }
+}
+
+func test_invertible_coding(instr: Instruction) {
+    encoded_data := encode_instruction(instr);
+    decoded_instr := decode_instruction(encoded_data);
+    #assert(memcmp(&instr, &decoded_instr, sizeof(instr)) == 0);
+}
+
+func round_down(val: uint32, align: uint32): uint32 {
+    return val & ~(align - 1);
+}
+
+func random_uint32(): uint32 {
+    return rand() + rand() << 16;
+}
+
+func random_aligned(min: int32, max: int32, align: int32): uint32 {
+    return round_down(min + random_uint32() % (max - min), align);
+}
+
+func random_csr(): uint32 {
+    return random_aligned(0, (1 << 12) - 1, 1);
+}
+
+const NUM_TEST_IMMEDIATES = 128;
+
+var test_u_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_j_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_b_immediates: uint32[NUM_TEST_IMMEDIATES];
+var test_i_immediates: uint32[NUM_TEST_IMMEDIATES];
+
+var test_csrs: uint32[] = {
+    0b111111111111,
+    0b101011011011,
+    0b010001100001,
+};
+
+const NUM_TEST_CSRS = sizeof(test_csrs) / sizeof(*test_csrs);
+
+func init_test_immediates(dest: uint32*, dest_len: int, min: int32, max: int32, align: int32) {
+    #assert(round_down(uint32(min), align) == min);
+    end := dest + dest_len;
+    *dest++ = round_down(uint32(min), align);
+    *dest++ = round_down(uint32(max), align);
+    while (dest != end) {
+        *dest++ = random_aligned(min, max, align);
+    }
+}
+
+func init_test() {
+    init_test_immediates(test_u_immediates, NUM_TEST_IMMEDIATES, U_IMMEDIATE_MIN, U_IMMEDIATE_MAX, U_IMMEDIATE_ALIGN);
+    init_test_immediates(test_j_immediates, NUM_TEST_IMMEDIATES, J_IMMEDIATE_MIN, J_IMMEDIATE_MAX, J_IMMEDIATE_ALIGN);
+    init_test_immediates(test_b_immediates, NUM_TEST_IMMEDIATES, B_IMMEDIATE_MIN, B_IMMEDIATE_MAX, B_IMMEDIATE_ALIGN);
+    init_test_immediates(test_i_immediates, NUM_TEST_IMMEDIATES, I_IMMEDIATE_MIN, I_IMMEDIATE_MAX, I_IMMEDIATE_ALIGN);
+}
+
+func test_random_invertible_codings() {
+    for (op := 1; op < NUM_OPS; op++) {
+        switch (op) {
+        case LUI, AUIPC:
+            for (rd := 0; rd < 32; rd++) {
+                for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = test_u_immediates[i]});
+                }
+            }
+        case BEQ, BNE, BLT, BGE, BLTU, BGEU:
+            for (rs1 := 0; rs1 < 32; rs1++) {
+                for (rs2 := 0; rs2 < 32; rs2++) {
+                    for (i := 0; i < NUM_TEST_IMMEDIATES; i++) { 
+                        test_invertible_coding({op = op, rs1 = rs1, rs2 = rs2, imm = test_b_immediates[i]});
+                    }
+                }
+            }
+        case JAL:
+            for (rd := 0; rd < 32; rd++) {
+                for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                    test_invertible_coding({op = op, rd = rd, imm = test_j_immediates[i]});
+                }
+            }
+        case ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (rs2 := 0; rs2 < 32; rs2++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, rs2 = rs2});
+                    }
+                }
+            }
+        case ADDI, SLTI, SLTIU, XORI, ORI, ANDI:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (i := 0; i < NUM_TEST_IMMEDIATES; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = test_i_immediates[i]});
+                    }
+                }
+            }
+        case SLLI, SRLI, SRAI:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (imm := 0; imm < 32; imm++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, imm = imm});
+                    }
+                }
+            }
+        case CSRRW, CSRRS, CSRRC:
+            for (rd := 0; rd < 32; rd++) {
+                for (rs1 := 0; rs1 < 32; rs1++) {
+                    for (i := 0; i < NUM_TEST_CSRS; i++) {
+                        test_invertible_coding({op = op, rd = rd, rs1 = rs1, csr = test_csrs[i]});
+                    }
+                }
+            }
+        case CSRRWI, CSRRSI, CSRRCI:
+            for (rd := 0; rd < 32; rd++) {
+                for (imm := 0; imm < 32; imm++) {
+                    for (i := 0; i < NUM_TEST_CSRS; i++) {
+                        test_invertible_coding({op = op, rd = rd, imm = imm, csr = test_csrs[i]});
+                    }
+                }
+            }
+        }
+    }
+}
+
+func test_main() {
+    srand(0);
+    init_test();
+    for (op := 1; op < NUM_OPS; op++) {
+        #assert(op_to_mask[op] != 0);
+    }
+    test_random_invertible_codings();
+}

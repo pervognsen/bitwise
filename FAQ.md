@@ -109,8 +109,8 @@ to manage the Python environment and its package dependencies.
 For Verilog, we'll be using the open source Verilator tool for cycle-accurate simulation and the free
 WebPACK version of Xilinx's FPGA toolchain Vivado for everything related to Xilinx FPGAs.
 
-**Q: Where can I can ask questions or have discussions about Bitwise?
+**Q: Where can I can ask questions or have discussions about Bitwise?**
 
 You use the [forums](https://bitwise.handmade.network/forums) or the [Discord](https://discord.gg/7TSA6ZF)
 chat server. GitHub issues and pull requests are not an appropriate venue for discussions. Please read the
-[community guidelines](GUIDELINES.md) 
+[community guidelines](GUIDELINES.md)

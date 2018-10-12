@@ -1,0 +1,6 @@
+#foreign(header = "<errno.h>")
+
+@foreign var errno: int;
+
+@foreign const EDOM   = 33;
+@foreign const ERANGE = 34;

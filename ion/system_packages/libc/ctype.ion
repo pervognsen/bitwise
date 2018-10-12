@@ -1,0 +1,44 @@
+#foreign(header = "<ctype.h>")
+
+@foreign
+func isalnum(c: int): int;
+
+@foreign
+func isalpha(c: int): int;
+
+@foreign
+func isblank(c: int): int;
+
+@foreign
+func iscntrl(c: int): int;
+
+@foreign
+func isdigit(c: int): int;
+
+@foreign
+func isgraph(c: int): int;
+
+@foreign
+func islower(c: int): int;
+
+@foreign
+func isprint(c: int): int;
+
+@foreign
+func ispunct(c: int): int;
+
+@foreign
+func isspace(c: int): int;
+
+@foreign
+func isupper(c: int): int;
+
+@foreign
+func isxdigit(c: int): int;
+
+@foreign
+func tolower(c: int): int;
+
+@foreign
+func toupper(c: int): int;
+

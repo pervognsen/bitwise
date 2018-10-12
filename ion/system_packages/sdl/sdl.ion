@@ -1,0 +1,78 @@
+#foreign(header = "<SDL.h>")
+
+@foreign
+typedef Sint8 = schar;
+
+@foreign
+typedef Uint8 = uchar;
+
+@foreign
+typedef Sint16 = short;
+
+@foreign
+typedef Uint16 = ushort;
+
+@foreign
+typedef Sint32 = int;
+
+@foreign
+typedef Uint32 = uint;
+
+@foreign
+typedef Sint64 = llong;
+
+@foreign
+typedef Uint64 = ullong;
+
+@foreign
+const SDL_INIT_TIMER = 0x00000001u;
+
+@foreign
+const SDL_INIT_AUDIO = 0x00000010u;
+
+@foreign
+const SDL_INIT_VIDEO = 0x00000020u;
+
+@foreign
+const SDL_INIT_JOYSTICK = 0x00000200u;
+
+@foreign
+const SDL_INIT_HAPTIC = 0x00001000u;
+
+@foreign
+const SDL_INIT_GAMECONTROLLER = 0x00002000u;
+
+@foreign
+const SDL_INIT_EVENTS = 0x00004000u;
+
+@foreign
+const SDL_INIT_NOPARACHUTE = 0x00100000u;
+
+@foreign
+const SDL_INIT_EVERYTHING = SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS |
+    SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMECONTROLLER;
+
+@foreign
+func SDL_GetError(): char const*;
+
+@foreign
+func SDL_strdup(str: char const*): char*;
+
+@foreign
+func SDL_free(mem: void*);
+
+@foreign
+func SDL_Init(flags: uint32): int;
+
+@foreign
+func SDL_ClearError();
+
+@foreign
+func SDL_Quit();
+
+@foreign
+enum SDL_bool {
+    SDL_FALSE = 0,
+    SDL_TRUE  = 1
+}
+

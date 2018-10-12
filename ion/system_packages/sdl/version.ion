@@ -1,0 +1,15 @@
+@foreign
+struct SDL_version {
+    major: Uint8;
+    minor: Uint8;
+    patch: Uint8;
+}
+
+@foreign
+func SDL_GetVersion(ver: SDL_version*);
+
+@foreign
+func SDL_GetRevision(): char const*;
+
+@foreign
+func SDL_GetRevisionNumber(): int;

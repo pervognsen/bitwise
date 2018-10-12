@@ -1,3 +1,369 @@
+# Bitwise, Day 53: Logic Design, Part 5
+- Carry-lookahead adder tutorial: http://www.eng.tau.ac.il/~guy/Papers/PPC_adder_tutorial.pdf
+
+# Bitwise, Day 52: Logic Design, Part 4
+
+# Bitwise, Day 51: Logic Design, Part 3
+
+# Bitwise, Day 50: Logic Design, Part 2
+
+# Bitwise, Day 49: Logic Design
+
+# Bitwise, Day 48: Hardware Design Overview
+- Intro
+- Roadmap
+
+# Bitwise, Day 47: Domain-Specific Languages In Python, Part 5
+
+# Bitwise, Day 46: Domain-Specific Languages In Python, Part 4
+
+# Bitwise, Day 45: Domain-Specific Languages In Python, Part 3
+
+# Bitwise, Day 44: Domain-Specific Languages In Python, Part 2
+- Review
+- Continue where we left off
+
+# Bitwise, Day 43: Domain-Specific Languages In Python
+- Intro
+
+# Bitwise, Day 42: How To Program Assembly Language, Part 3
+- Finish off the tutorial
+
+# Bitwise, Day 41: How To Program Assembly Language, Part 2
+- Continue where we left off
+
+# Bitwise, Day 40: How To Program Assembly Language
+- Disclaimer, intended audience, goals and non-goals
+- Approach
+- Examples
+
+# Bitwise, Day 39: Implementing Forth, Part 5
+- Video: 
+- Refactoring, bootstrapping
+- Continue designing/coding
+
+# Bitwise, Day 38: Implementing Forth, Part 4
+- Video: 
+- Continue coding
+
+# Bitwise, Day 37: Implementing Forth, Part 3
+- Video: https://www.youtube.com/watch?v=TA8blMaNqxY
+- Follow up from last time
+- Continue coding
+
+# Bitwise, Day 36: Implementing Forth, Part 2
+- Video: https://www.youtube.com/watch?v=SPErnyotJrk
+- Pay particular attention to "Under the hood" and "Extending the compiler" in Starting Forth
+- More references:
+- https://yosefk.com/blog/my-history-with-forth-stack-machines.html
+- http://wiki.laptop.org/go/Forth_Lessons
+
+# Bitwise, Day 35: Implementing Forth
+- Video: https://www.youtube.com/watch?v=rlayTh3sjiw
+- References:
+- https://www.forth.com/starting-forth/
+- https://www.ioccc.org/1992/buzzard.2.design
+- https://github.com/nornagon/jonesforth
+
+# Bitwise, Day 34: More Compiler Hacking
+- Video: https://www.youtube.com/watch?v=UvYeis032Ok
+- Fix since last time
+- Continue coding
+
+# Bitwise, Day 33: Compiler Hacking
+- Video: https://www.youtube.com/watch?v=N4lPlDWHkRI
+- Non-value operands (types, packages), package prefixed symbols, etc
+- Start coding
+
+# Bitwise, Day 32: More Simulator Features
+- Video: https://www.youtube.com/watch?v=RPs-QLExKm0
+- Review assembler changes since last time
+- Missing simulator features
+- Start coding
+
+# Bitwise, Day 31: Parameterized Macros
+- Video: https://www.youtube.com/watch?v=is6H67viWfs
+- Changes since last time
+- Parameterized macros, unintentional name capture, pre-expansion
+- Start coding
+
+# Bitwise, Day 30: Assembler Macro Expansion
+- Video: https://www.youtube.com/watch?v=oGb1Rk37Fh0
+- Overview of new experimental features
+- Macros in assemblers
+- Start coding
+
+# Bitwise, Day 29: More Assembler Hacking
+- Video: https://www.youtube.com/watch?v=_6zAlm0Edrw
+- Continue coding
+
+# Bitwise, Day 28: RISC-V Static Assembler, Part 3
+- Video: https://www.youtube.com/watch?v=CRAMT1QRRjo
+- Continue coding
+
+# Bitwise, Day 27: RISC-V Static Assembler, Part 2
+- Video: https://www.youtube.com/watch?v=t6diq8J9W0E
+- Extra: https://www.youtube.com/watch?v=DRKUJBc4y6A
+- Review changes
+- Continue where we left off
+
+# Bitwise, Day 26: RISC-V Static Assembler
+- Video: https://www.youtube.com/watch?v=zd91F4_UdyE
+- Annotated guide: https://bitwise.handmade.network/episode/bitwise
+- Supporting Miblo: https://miblodelcarpio.co.uk/cinera/#pledge
+- Roadmap for next few weeks
+- Start working on static assembler
+
+# Bitwise, Day 25: RISC-V Dynamic Assembler, Part 2
+- Video: https://www.youtube.com/watch?v=ISNB7ARzUiE
+- Review changes
+- More coding
+
+# Bitwise, Day 24: RISC-V Dynamic Assembler
+- Video: https://www.youtube.com/watch?v=dmrhbzq3SNg
+- Extra: https://www.youtube.com/watch?v=5iosVysbc-c
+- Review improvements/polish on decoder from last time
+- Review new encoder, tests, simple simulator
+- Static vs dynamic assembler
+- Start coding
+
+# Bitwise, Day 23: RISC-V Toolchain Implementation
+- Video: https://www.youtube.com/watch?v=zDOd3inaOsY
+- Extra: https://www.youtube.com/watch?v=kRmvjEpziuM
+- Overview of basic toolchain components
+- Jump into coding immediately
+
+# Bitwise, Day 22: RISC-V Toolchain
+- Video: https://www.youtube.com/watch?v=g6UJGcrQNY8
+- Review
+- Start coding
+
+# Bitwise, Day 21: Packages Demo & RISC-V Intro
+- Video: https://www.youtube.com/watch?v=dvaTa6UHR48
+- Demo packages and other compiler changes
+- RISC-V intro
+- Instruction set manual: https://github.com/riscv/riscv-isa-manual/blob/master/release/riscv-spec-v2.2.pdf
+- Plan for coming period
+
+# Bitwise, Day 20: Packages
+- Video: https://www.youtube.com/watch?v=AVrGUfymPQs
+- Extra: https://www.youtube.com/watch?v=N6ndXk3DVg0
+- Review diffs
+- Package design
+- Start working on implementation
+
+# Bitwise, Day 19: Noir Demo & Dynamic Type Info
+- Video: https://www.youtube.com/watch?v=PfDIP96xEdM
+- Extra: https://www.youtube.com/watch?v=4i12O0S_Vjo
+- Demo of Noir so far
+- Ion dynamic type info
+
+# Bitwise, Day 18: Making Noir
+- Review/follow-up
+- Noir's genesis in experimental Mu library: https://gist.github.com/pervognsen/6a67966c5dc4247a0021b95c8d0a7b72
+- Old Mu videos: https://www.youtube.com/watch?v=NG_mUhc8LRw, https://www.youtube.com/watch?v=pAIdfsT7-EU
+- Start working on Noir
+
+# Bitwise, Day 17: Ion Version 0
+- Video: https://www.youtube.com/watch?v=Oeqeqw4OHPE
+- Extra: https://www.youtube.com/watch?v=DoPG4OCnh7A
+- Plan for this week
+- Review
+- Homework
+- Start work on Ion library/application
+
+Homework: Choose-Your-Own-Adventure Compiler Hacking
+
+Implement as many of the following features as you like in the Ion compiler (either the official Ion compiler or your own version). Make sure to reuse the existing functionality as much as possible. Each feature should take no more than ~50 lines of code to implement. If you run out of stuff to do, you can play around with adding other lightweight language extensions with a similar level of implementation complexity. 
+
+    if (file := fopen("foo.txt", "r")) {
+        // ...
+    }
+    =>
+    {
+        FILE *file = fopen("foo.txt", "r");
+        if (file) {
+            // ...
+        }
+    }
+
+    if (n := fread(...); n != size) {
+        // ...
+    }
+    =>
+    {
+        size_t n = fread(...);
+        if (n != size) {
+            // ...
+        }        
+    }
+
+    while (x := init(); !done(x)) {
+        // ...
+    }
+    =>
+    {
+        X x = init();
+        while (!done(x)) {
+            // ...
+        }
+    }
+
+Extra credit:
+
+Here is a more complicated feature you can try to implement if you want more of a challenge.
+
+Defer:
+- Defer statements have stack-order deferred execution.
+- Type checked/resolved at definition site.
+- Disallow returns, breaks, continues, defers in defer bodies, inits must be in blocks.
+
+The easiest implementation of the code generation is to have a Stmt* stack of deferred statements.
+You need to maintain pointers into the stack to track the top of the stack, the innermost enclosing
+block and the innermost enclosing loop so you can determine what range of deferred statements to
+generate when exiting scopes either normally or via return, break and continue.
+
+For the sanity checking of defer bodies, you can add a bool deferred parameter to the resolve_stmt
+family of functions so the different cases can check whether they're legal in the context of
+a defer body. So STMT_BREAK, STMT_CONTINUE, STMT_RETURN, STMT_DEFER would be illegal if deferred
+is set to true. Most statements just propagate the deferred flag down to the recursive calls,
+except STMT_DEFER, which will pass true.
+
+Example:
+
+    window := create_window();
+    defer destroy_window(window);
+    while (...) {
+        file := fopen("foo.txt", "r");
+        defer fclose(file);
+        if (...) {
+            return 0;
+        }
+        if (...) {
+            continue;
+        }
+        if (...) {
+            mem := malloc(get_file_size(file));
+            defer free(mem);
+            if (...) {
+                break;
+            }
+        }
+    }
+    return 0;
+    =>
+    Window *window = create_window();
+    while (...) {
+        FILE *file = fopen("foo.txt", "r");
+        if (...) {
+            fclose(file);
+            destroy_window(window);
+            return 0;
+        }
+        if (...) {
+            fclose(file);
+            continue;
+        }
+        if (...) {
+            void *mem = malloc(get_file_size(file));
+            if (...) {
+                free(mem);
+                fclose(file);
+                break;
+            }
+            free(mem);
+        }
+        fclose(file);
+    }
+    destroy_window(window);
+    return 0;
+
+# Bitwise, Day 16: Weekend Edition
+- Video: https://www.youtube.com/watch?v=jNbar0lj93g
+- Review
+- Random stuff
+
+# Bitwise, Day 15: More Compiler Hacking
+- Video: https://www.youtube.com/watch?v=s5_RV3y4L18
+- Review diffs
+- Continue coding
+
+# Day 14: Types Revisited
+- Video: https://www.youtube.com/watch?v=Dq2gKTdL1uI
+- Extra: https://www.youtube.com/watch?v=amSiLEFcjq4
+- More homework coming soon
+- Review diffs
+- Start filling in the rest of the type system
+
+# Day 13: More Code Generation
+- Video, Part 1: https://www.youtube.com/watch?v=uIjd094EKPM
+- Video, Part 2: https://www.youtube.com/watch?v=PVnRVadB7g0
+- Follow-up on failed optimization from last time
+- Continue work on code generation
+
+# Day 12: More Optimization & Clean-Up
+- Video: https://www.youtube.com/watch?v=Hf5PevrUx4g
+- Fun: http://nothings.org/computer/judy/
+- Review code from extra stream
+- Notes on hash tables
+- More profiling and coding
+
+# Day 11: End-to-End Workflow & Clean-Up
+- Video: https://www.youtube.com/watch?v=Y4ykmb9zdJM
+- Extra: https://www.youtube.com/watch?v=Fj4g7HrjZBU
+- Quick review of code from extra stream
+- Next steps
+- Start coding
+
+# Day 10: C Code Generation
+- Video: https://www.youtube.com/watch?v=X9YWYlp8iQg
+- Extra: https://www.youtube.com/watch?v=C4H8UJDXfak
+- Overview
+- C declaration syntax
+- Start coding
+
+# Day 9: Functions & Statements
+- Video: https://www.youtube.com/watch?v=VRMxHYuW2BY
+- Fun: [Compiler Construction - The Art of Niklaus Wirth](https://pdfs.semanticscholar.org/036f/c4effda4bbbe9f6a9ee762df717bd0af1324.pdf)
+- Diff review
+- Continue coding
+
+# Day 8: Type Checking/Inference, Constant Evaluation (March 28, 2018)
+- Video: https://www.youtube.com/watch?v=-eCwBwTbjAI
+- Extra: https://www.youtube.com/watch?v=ls_YmJ21JZg
+- Why separated algorithm from last time can't always work
+- Demo code for new approach that does work
+- Continue coding
+
+# Day 7: More Order-Independent Declarations (March 26, 2018)
+- Video: https://www.youtube.com/watch?v=4AOnbPDyQXw
+- New: Git tags for each day, e.g. git checkout day6
+- New: [Annotated Episode Guide](https://bitwise.handmade.network/episode/bitwise) by [Miblo del Carpio](https://twitter.com/miblo_)
+- Please give feedback (how useful are the annotations, etc) on [forums](https://bitwise.handmade.network/forums)
+- Review diffs
+- Continue coding
+
+# Day 6: Order-Independent Declarations (March 23, 2018)
+- Video: https://www.youtube.com/watch?v=0WpCnd9E-eg
+- Code: https://github.com/pervognsen/bitwise/blob/63060b2e009a00b73f93c4c5ae010697c9634a4b/ion/resolve.c
+- Quick diff review
+- Start on order-independent declarations
+
+# Day 5: Ion Parser/AST Code Review (March 21, 2018)
+- Video: https://www.youtube.com/watch?v=YvoyKQYNy20
+- "Working" parser and AST printer, needs more test coverage
+- Review/explain major high points of new code, design choices
+
+# Day 4: Lexer, Parser, AST Marathon (March 19, 2018)
+- Video: https://www.youtube.com/watch?v=bM_JOa-dadY
+- Extra: https://www.youtube.com/watch?v=t0YAOfZcSfw
+- Semidaily streams (Monday/Wednesday/Friday), random bonus streams
+- New forums for discussions/questions: https://bitwise.handmade.network/forums
+- Alternative video/audio download option: https://bitwise.handmade.network/forums/t/2999-bitwise_videos_on_resilio_sync
+- Annotated videos hopefully coming soon
+- Diff: https://github.com/pervognsen/bitwise/commit/147e36d9158ed34ea757b071fa7fe2b08186e0e2
+- Today: Coding marathon on stream, less talking, more coding, see how much we can get done
+
 # Note
 
 I'm taking a 3-day weekend since week 1 has been very busy. We'll be back Monday,
@@ -11,7 +377,7 @@ is coming up with these kinds of throw-away mini-projects for myself to do.
 
 Next week we will move to semidaily streams, 3 a week, since the feedback I'm getting
 is that it's too hard to keep up with the video content, and I also need alone time
-to focus engineering tasks. Long term I think the semidaily cadence will be good for
+to focus on engineering tasks. Long term I think the semidaily cadence will be good for
 everyone, but let's try it and see.
 
 # Day 3: More Programming & Parsing (March 15, 2018)

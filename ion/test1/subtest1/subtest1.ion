@@ -1,0 +1,24 @@
+import LIBC = libc {printf}
+
+func bogus_func() {
+    printf("Hello, world!\n");
+//    asdf;
+//    "asdf" << 42;
+}
+
+func func3() {
+    printf("func3\n");
+}
+
+func func4() {
+}
+
+func func2() {
+    func3();
+    func4();
+}
+
+func func1(): int {
+    func2();
+    return 42;
+}

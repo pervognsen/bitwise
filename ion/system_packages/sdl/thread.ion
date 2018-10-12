@@ -1,0 +1,141 @@
+@foreign
+enum SDL_ThreadPriority {
+    SDL_THREAD_PRIORITY_LOW,
+    SDL_THREAD_PRIORITY_NORMAL,
+    SDL_THREAD_PRIORITY_HIGH,
+}
+
+@foreign struct SDL_Thread;
+@foreign struct SDL_atomic_t;
+@foreign struct SDL_cond;
+@foreign struct SDL_mutex;
+@foreign struct SDL_sem;
+
+@foreign typedef SDL_threadID   = ulong;
+@foreign typedef SDL_TLSID      = uint;
+@foreign typedef SDL_SpinLock   = int;
+@foreign typedef SDL_ThreadFunction = func(data: void*): int;
+
+
+@foreign
+func SDL_CreateThread(fn: SDL_ThreadFunction, name: char const*, data: void*): SDL_Thread*;
+
+@foreign
+func SDL_DetachThread(thread: SDL_Thread*);
+
+@foreign
+func SDL_GetThreadID(thread: SDL_Thread*): SDL_threadID;
+
+@foreign
+func SDL_GetThreadName(thread: SDL_Thread*): char const*;
+
+@foreign
+func SDL_SetThreadPriority(priority: SDL_ThreadPriority): int;
+
+@foreign
+func SDL_TLSCreate(): SDL_TLSID;
+
+@foreign
+func SDL_TLSGet(id: SDL_TLSID): void*;
+
+@foreign
+func SDL_TLSSet(id: SDL_TLSID, value: void const*, destructor: func(void*)): int;
+
+@foreign
+func SDL_ThreadID(): SDL_threadID;
+
+@foreign
+func SDL_WaitThread(thread: SDL_Thread*, status: int*);
+
+@foreign
+func SDL_CondBroadcast(cond: SDL_cond*): int;
+
+@foreign
+func SDL_CondSignal(cond: SDL_cond*): int;
+
+@foreign
+func SDL_CondWait(cond: SDL_cond*, mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_CondWaitTimeout(cond: SDL_cond*, mutex: SDL_mutex*, ms: uint32): int;
+
+@foreign
+func SDL_CreateCond(): SDL_cond*;
+
+@foreign
+func SDL_CreateMutex(): SDL_mutex*;
+
+@foreign
+func SDL_CreateSemaphore(initial_value: uint32): SDL_sem*;
+
+@foreign
+func SDL_DestroyCond(cond: SDL_cond*);
+
+@foreign
+func SDL_DestroyMutex(mutex: SDL_mutex*);
+
+@foreign
+func SDL_DestroySemaphore(sem: SDL_sem*);
+
+@foreign
+func SDL_LockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_SemPost(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemTryWait(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemValue(sem: SDL_sem*): uint32;
+
+@foreign
+func SDL_SemWait(sem: SDL_sem*): int;
+
+@foreign
+func SDL_SemWaitTimeout(sem: SDL_sem*, ms: uint32): int;
+
+@foreign
+func SDL_TryLockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_UnlockMutex(mutex: SDL_mutex*): int;
+
+@foreign
+func SDL_AtomicLock(lock: SDL_SpinLock*);
+
+@foreign
+func SDL_AtomicUnlock(lock: SDL_SpinLock*);
+
+@foreign
+func SDL_AtomicIncRef(a: SDL_atomic_t*);
+
+@foreign
+func SDL_AtomicDecRef(a: SDL_atomic_t*): SDL_bool;
+
+@foreign
+func SDL_AtomicAdd(a: SDL_atomic_t*, v: int): int;
+
+@foreign
+func SDL_AtomicCAS(a: SDL_atomic_t*, oldval: int, newval: int): SDL_bool;
+
+@foreign
+func SDL_AtomicCASPtr(a: void**, oldval: void*, newval: void*): SDL_bool;
+
+@foreign
+func SDL_AtomicGet(a: SDL_atomic_t*): int;
+
+@foreign
+func SDL_AtomicGetPtr(a: void**): void*;
+
+@foreign
+func SDL_AtomicSet(a: SDL_atomic_t*, v: int): int;
+
+@foreign
+func SDL_AtomicSetPtr(a: void**, v: void*): void*;
+
+@foreign
+func SDL_AtomicTryLock(lock: SDL_SpinLock*): SDL_bool;
+
+@foreign
+func SDL_CompilerBarrier();

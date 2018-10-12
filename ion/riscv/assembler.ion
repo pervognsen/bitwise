@@ -1,0 +1,2577 @@
+import libc {...}
+import riscv {...}
+
+func min(x: int, y: int): int {
+    return x <= y ? x : y;
+}
+
+func max(x: int, y: int): int {
+    return x >= y ? x : y;
+}
+
+func clamp_max(x: int, x_max: int): int {
+    return min(x, x_max);
+}
+
+func clamp_min(x: int, x_min: int): int {
+    return max(x, x_min);
+}
+
+func is_pow2(x: int): bool {
+    return x > 0 && x & (x - 1) == 0;
+}
+
+func align_down_uint(x: uint, alignment: uint): uint {
+    return x & ~(alignment - 1);
+}
+
+func align_up_uint(x: uint, alignment: uint): uint {
+    return (x + alignment - 1) & ~(alignment - 1);
+}
+
+func align_down_ptr(ptr: void*, alignment: uintptr): void* {
+    return (:void*)(uintptr(ptr) & ~(alignment - 1));
+}
+
+func align_up_ptr(ptr: void*, alignment: uintptr): void* {
+    return (:void*)((uintptr(ptr) + alignment - 1) & ~(alignment - 1));
+}
+
+struct BufHdr {
+    cookie: uint64;
+    len: int;
+    cap: int;
+    buf: char[1];
+}
+
+const BUF_COOKIE = 0x7e8f46b625f1b602;
+
+func buf_hdr(buf: void*): BufHdr* {
+    return buf ? (:BufHdr*)((:char*)buf - offsetof(BufHdr, buf)) : NULL;
+}
+
+func buf_cookie(buf: void*): uint64 {
+    return buf ? buf_hdr(buf).cookie : BUF_COOKIE;
+}
+
+func buf_len(buf: void*): int {
+    return buf ? buf_hdr(buf).len : 0;
+}
+
+func buf_cap(buf: void*): int {
+    return buf ? buf_hdr(buf).cap : 0;
+}
+
+func buf_grow(buf_ptr: void*, min_cap: int, elem_size: int) {
+    buf := *(:void**)buf_ptr;
+    #assert(buf_cookie(buf) == BUF_COOKIE);
+    #assert(buf_cap(buf) <= (INT_MAX - 1)/2);
+    min_cap = clamp_min(min_cap, 16);
+    new_cap := clamp_min(2 * buf_cap(buf), min_cap);
+    #assert(new_cap <= (INT_MAX - offsetof(BufHdr, buf)) / elem_size);
+    new_size := offsetof(BufHdr, buf) + new_cap*elem_size;
+    new_hdr: BufHdr* = realloc(buf_hdr(buf), new_size);
+    if (!buf) {
+        new_hdr.cookie = BUF_COOKIE;
+        new_hdr.len = 0;
+    }
+    new_hdr.cap = new_cap;
+    *(:void**)buf_ptr = new_hdr.buf;
+}
+
+func buf_fit(buf_ptr: void*, min_cap: int, elem_size: int) {
+    buf := *(:void**)buf_ptr;
+    if (buf_cap(buf) < min_cap) {
+        buf_grow(&buf, min_cap, elem_size);
+    }
+    *(:void**)buf_ptr = buf;
+}
+
+func buf_push(buf_ptr: void*, elem_ptr: void const*, elem_size: int) {
+    buf := *(:void**)buf_ptr;
+    #assert(buf_cookie(buf) == BUF_COOKIE);
+    buf_fit(&buf, buf_len(buf) + 1, elem_size);
+    memcpy((:char*)buf + buf_len(buf)*elem_size, elem_ptr, elem_size);
+    buf_hdr(buf).len++;
+    *(:void**)buf_ptr = buf;
+}
+
+func buf_free(buf_ptr: void*) {
+    buf := *(:void**)buf_ptr;
+    if (buf) {
+        free(buf_hdr(buf));
+    }
+    buf = NULL;
+    *(:void**)buf_ptr = buf;
+}
+
+func strbuf_push(buf_ptr: char**, elem: char) {
+    buf_push(buf_ptr, &elem, sizeof(elem));
+}
+
+func strbuf_end(buf: char*): char* {
+    return buf + buf_len(buf);
+}
+
+func strbuf_printf(buf_ptr: char**, fmt: char const*, ...) {
+    buf := *buf_ptr;
+    args: va_list;
+    va_start(&args, &fmt);
+    cap := buf_cap(buf) - buf_len(buf);
+    n := 1 + vsnprintf(strbuf_end(buf), cap, fmt, args);
+    va_end(&args);
+    if (n > cap) {
+        buf_fit((:void**)&buf, n + buf_len(buf), sizeof(char));
+        va_start(&args, &fmt);
+        new_cap := buf_cap(buf) - buf_len(buf);
+        n = 1 + vsnprintf(strbuf_end(buf), new_cap, fmt, args);
+        #assert(n <= new_cap);
+        va_end(&args);
+    }
+    buf_hdr(buf).len += n - 1;
+    *buf_ptr = buf;
+}
+
+func ptrbuf_push(buf_ptr: void*, elem: void*) {
+    buf_push(buf_ptr, &elem, sizeof(elem));
+}
+
+struct Arena {
+    ptr: char*;
+    end: char*;
+    blocks: char**;
+}
+
+const ARENA_ALIGNMENT = 8;
+const ARENA_BLOCK_SIZE = 1024 * 1024;
+
+func arena_grow(arena: Arena*, min_size: int) {
+    size := align_up_uint(clamp_min(min_size, ARENA_BLOCK_SIZE), ARENA_ALIGNMENT);
+    arena.ptr = malloc(size);
+    #assert(arena.ptr == align_down_ptr(arena.ptr, ARENA_ALIGNMENT));
+    arena.end = arena.ptr + size;
+    ptrbuf_push(&arena.blocks, arena.ptr);
+}
+
+func arena_alloc(arena: Arena*, size: int): void* {
+    if (size > int(arena.end - arena.ptr)) {
+        arena_grow(arena, size);
+        #assert(size <= int(arena.end - arena.ptr));
+    }
+    ptr := arena.ptr;
+    arena.ptr = align_up_ptr(arena.ptr + size, ARENA_ALIGNMENT);
+    #assert(arena.ptr <= arena.end);
+    #assert(ptr == align_down_ptr(ptr, ARENA_ALIGNMENT));
+    return ptr;
+}
+
+func arena_free(arena: Arena*) {
+    for (i := 0; i < buf_len(arena.blocks); i++) {
+        free(arena.blocks[i]);
+    }
+    buf_free(&arena.blocks);
+}
+
+func hash_uint64(x: uint64): uint64 {
+    x *= 0xff51afd7ed558ccd;
+    x ^= x >> 32;
+    return x;
+}
+
+func hash_ptr(ptr: void const*): uint64 {
+    return hash_uint64(uintptr(ptr));
+}
+
+func hash_mix(x: uint64, y: uint64): uint64 {
+    x ^= y;
+    x *= 0xff51afd7ed558ccd;
+    x ^= x >> 32;
+    return x;
+}
+
+func hash_bytes(ptr: void const*, len: int): uint64 {
+    x: uint64 = 0xcbf29ce484222325;
+    buf := (:char const*)ptr;
+    for (i := 0; i < len; i++) {
+        x ^= buf[i];
+        x *= 0x100000001b3;
+        x ^= x >> 32;
+    }
+    return x;
+}
+
+struct Map {
+    keys: uint64*;
+    vals: uint64*;
+    len: int;
+    cap: int;
+}
+
+func map_free(map: Map*) {
+    free(map.keys);
+    free(map.vals);
+}
+
+func map_get_uint64_from_uint64(map: Map*, key: uint64): uint64 {
+    if (map.len == 0) {
+        return 0;
+    }
+    #assert(is_pow2(map.cap));
+    i := int(hash_uint64(key));
+    #assert(map.len < map.cap);
+    for (;;) {
+        i &= map.cap - 1;
+        if (map.keys[i] == key) {
+            return map.vals[i];
+        } else if (!map.keys[i]) {
+            return 0;
+        }
+        i++;
+    }
+    return 0;
+}
+
+func map_grow(map: Map*, new_cap: int) {
+    new_cap = clamp_min(new_cap, 16);
+    new_map := Map{
+        keys = calloc(new_cap, sizeof(uint64)),
+        vals = malloc(new_cap * sizeof(uint64)),
+        cap = new_cap,
+    };
+    for (i := 0; i < map.cap; i++) {
+        if (map.keys[i]) {
+            map_put_uint64_from_uint64(&new_map, map.keys[i], map.vals[i]);
+        }
+    }
+    free((:void*)map.keys);
+    free(map.vals);
+    *map = new_map;
+}
+
+func map_put_uint64_from_uint64(map: Map*, key: uint64, val: uint64) {
+    #assert(key);
+    #assert(val);
+    if (2*map.len >= map.cap) {
+        map_grow(map, 2*map.cap);
+    }
+    #assert(2*map.len < map.cap);
+    #assert(is_pow2(map.cap));
+    i := int(hash_uint64(key));
+    for (;;) {
+        i &= map.cap - 1;
+        if (!map.keys[i]) {
+            map.len++;
+            map.keys[i] = key;
+            map.vals[i] = val;
+            return;
+        } else if (map.keys[i] == key) {
+            map.vals[i] = val;
+            return;
+        }
+        i++;
+    }
+}
+
+func map_get(map: Map*, key: void const*): void* {
+    return (:void*)map_get_uint64_from_uint64(map, uint64(key));
+}
+
+func map_put(map: Map*, key: void const*, val: void*) {
+    map_put_uint64_from_uint64(map, uint64(key), uint64(val));
+}
+
+func map_get_from_uint64(map: Map*, key: uint64): void* {
+    return (:void*)map_get_uint64_from_uint64(map, key);
+}
+
+func map_put_from_uint64(map: Map*, key: uint64, val: void*) {
+    map_put_uint64_from_uint64(map, key, uint64(val));
+}
+
+func map_test() {
+    map := Map{};
+    n := 1024;
+    for (i: uint64 = 1; i < n; i++) {
+        map_put_uint64_from_uint64(&map, i, i+1);
+    }
+    for (i: uint64 = 1; i < n; i++) {
+        val := map_get_uint64_from_uint64(&map, i);
+        #assert(val == i+1);
+    }
+}
+
+struct Intern {
+    len: int;
+    next: Intern*;
+    str: char[1];
+}
+
+struct Interns {
+    arena: Arena;
+    map: Map;
+}
+
+func interns_free(interns: Interns*) {
+    arena_free(&interns.arena);
+    map_free(&interns.map);
+}
+
+func str_intern_range(interns: Interns*, start: char const*, end: char const*): char const* {
+    len := int(end - start);
+    hash := hash_bytes(start, len);
+    key := hash ? hash : 1;
+    intern: Intern* = map_get_from_uint64(&interns.map, key);
+    for (it := intern; it; it = it.next) {
+        if (it.len == len && strncmp(it.str, start, len) == 0) {
+            return it.str;
+        }
+    }
+    new_intern: Intern* = arena_alloc(&interns.arena, offsetof(Intern, str) + len + 1);
+    *new_intern = {
+        len = len,
+        next = intern,
+    };
+    memcpy(new_intern.str, start, len);
+    new_intern.str[len] = 0;
+    map_put_from_uint64(&interns.map, key, new_intern);
+    return new_intern.str;
+}
+
+func str_intern(interns: Interns*, str: char const*): char const* {
+    return str_intern_range(interns, str, str + strlen(str));
+}
+
+struct AnonLabel {
+    index: int;
+    addr: uint32;
+}
+
+const MAX_LOCAL_SYMS = 128;
+const MAX_TEMP_TOKENS = 1024;
+const MAX_MACRO_PARAMS = 16;
+
+struct Assembler {
+    input: char const*;
+    str: char const*;
+    filename: char const*;
+    disable_expansion: bool;
+    line: int;
+    pass: int;
+    token: Token;
+    token_list: TokenList*;
+    token_list_stack: TokenListStack;
+    interns: Interns;
+    arena: Arena;
+    syms: Map;
+    local_syms: Sym[MAX_LOCAL_SYMS];
+    local_syms_start: Sym*;
+    local_syms_end: Sym*;
+    temp_tokens: Token[MAX_TEMP_TOKENS];
+    temp_tokens_end: Token*;
+    addr: uint32;
+    buf: uint8*;
+    buf_size: uint32;
+    anon_labels: AnonLabel*;
+    next_anon_label: int;
+}
+
+func get_name(asm: Assembler*, str: char const*): char const* {
+    return str_intern(&asm.interns, str);
+}
+
+func set_anon_label(asm: Assembler*, index: int) {
+    label := AnonLabel{index = index, addr = asm.addr};
+    if (asm.next_anon_label == buf_len(asm.anon_labels)) {
+        buf_push(&asm.anon_labels, &label, sizeof(label));
+    } else {
+        asm.anon_labels[asm.next_anon_label] = label;
+    }
+    asm.next_anon_label++;
+}
+
+func get_forward_anon_label(asm: Assembler*, index: int): uint32 {
+    for (i := asm.next_anon_label; i < buf_len(asm.anon_labels); i++) {
+        label := asm.anon_labels[i];
+        if (label.index == index) {
+            return label.addr;
+        }
+    }
+    return 0;
+}
+
+func get_backward_anon_label(asm: Assembler*, index: int): uint32 {
+    for (i := asm.next_anon_label - 1; i >= 0; i--) {
+        label := asm.anon_labels[i];
+        if (label.index == index) {
+            return label.addr;
+        }
+    }
+    return 0;
+}
+
+enum TokenKind {
+    TOKEN_EOF,
+    TOKEN_NEWLINE,
+    TOKEN_INT,
+    TOKEN_STR,
+    TOKEN_NAME,
+    TOKEN_DOLLAR_NAME,
+    TOKEN_XREG,
+    TOKEN_INSTR,
+    // ...
+    TOKEN_DOLLAR,
+    TOKEN_COMMA,
+    TOKEN_COLON,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    TOKEN_LBRACKET,
+    TOKEN_RBRACKET,
+    TOKEN_ASSIGN,
+    TOKEN_NEG,
+    TOKEN_NOT,
+    // Multiplicative precedence
+    TOKEN_FIRST_MUL,
+    TOKEN_MUL = TOKEN_FIRST_MUL,
+    TOKEN_DIV,
+    TOKEN_MOD,
+    TOKEN_AND,
+    TOKEN_LSHIFT,
+    TOKEN_RSHIFT,
+    TOKEN_LAST_MUL = TOKEN_RSHIFT,
+    // Additive precedence
+    TOKEN_FIRST_ADD,
+    TOKEN_ADD = TOKEN_FIRST_ADD,
+    TOKEN_SUB,
+    TOKEN_XOR,
+    TOKEN_OR,
+    TOKEN_LAST_ADD = TOKEN_OR,
+    // Comparative precedence
+    TOKEN_FIRST_CMP,
+    TOKEN_EQ = TOKEN_FIRST_CMP,
+    TOKEN_NOTEQ,
+    TOKEN_LT,
+    TOKEN_GT,
+    TOKEN_LTEQ,
+    TOKEN_GTEQ,
+    TOKEN_LAST_CMP = TOKEN_GTEQ,
+    TOKEN_AND_AND,
+    TOKEN_OR_OR,
+    NUM_TOKENS,
+}
+
+struct Token {
+    kind: TokenKind;
+    line: int;
+    union {
+        val: llong;
+        str: char const*;
+    }
+}
+
+struct TokenList {
+    tokens: Token*;
+    index: int;
+    num_tokens: int;
+    temp_tokens_end: Token*;
+    local_syms_start: Sym*;
+    local_syms_end: Sym*;
+}
+
+const MAX_TOKEN_LIST_STACK = 128;
+
+struct TokenListStack {
+    token_lists: TokenList[MAX_TOKEN_LIST_STACK];
+    num_token_lists: int;
+}
+
+var token_kind_names: char const*[] = {
+    [TOKEN_EOF] = "end of file",
+    [TOKEN_LPAREN] = "(",
+    [TOKEN_RPAREN] = ")",
+    [TOKEN_LBRACKET] = "[",
+    [TOKEN_RBRACKET] = "]",
+    [TOKEN_LPAREN] = "(",
+    [TOKEN_DOLLAR] = "$",
+    [TOKEN_COMMA] = "comma",
+    [TOKEN_COLON] = ":",
+    [TOKEN_NEWLINE] = "newline",
+    [TOKEN_NAME] = "name",
+    [TOKEN_INT] = "integer",
+    [TOKEN_STR] = "string",
+    [TOKEN_XREG] = "x-register",
+    [TOKEN_ASSIGN] = "=",
+    [TOKEN_NEG] = "~",
+    [TOKEN_NOT] = "!",
+    [TOKEN_MUL] = "*",
+    [TOKEN_DIV] = "/",
+    [TOKEN_MOD] = "%",
+    [TOKEN_AND] = "&",
+    [TOKEN_LSHIFT] = "<<",
+    [TOKEN_RSHIFT] = ">>",
+    [TOKEN_ADD] = "+",
+    [TOKEN_SUB] = "-",
+    [TOKEN_OR] = "|",
+    [TOKEN_XOR] = "^",
+    [TOKEN_EQ] = "==",
+    [TOKEN_NOTEQ] = "!=",
+    [TOKEN_LT] = "<",
+    [TOKEN_GT] = ">",
+    [TOKEN_LTEQ] = "<=",
+    [TOKEN_GTEQ] = ">=",
+    [TOKEN_AND_AND] = "&&",
+    [TOKEN_OR_OR] = "||",
+};
+
+func token_kind_name(kind: TokenKind): char const* {
+    if (kind < sizeof(token_kind_names)/sizeof(*token_kind_names)) {
+        return token_kind_names[kind];
+    } else {
+        return "<unknown>";
+    }
+}
+
+func token_info(token: Token): char const* {
+    if (token.kind == TOKEN_NAME) {
+        return token.str;
+    } else {
+        return token_kind_name(token.kind);
+    }
+}
+
+var char_to_digit: uint8[256] = {
+    ['0'] = 0,
+    ['1'] = 1,
+    ['2'] = 2,
+    ['3'] = 3,
+    ['4'] = 4,
+    ['5'] = 5,
+    ['6'] = 6,
+    ['7'] = 7,
+    ['8'] = 8,
+    ['9'] = 9,
+    ['a'] = 10, ['A'] = 10,
+    ['b'] = 11, ['B'] = 11,
+    ['c'] = 12, ['C'] = 12,
+    ['d'] = 13, ['D'] = 13,
+    ['e'] = 14, ['E'] = 14,
+    ['f'] = 15, ['F'] = 15,
+};
+
+func asm_verror(asm: Assembler*, fmt: char const*, args: va_list) {
+    printf("%s(%d): error: ", asm.filename, asm.token.line);
+    vprintf(fmt, args);
+    printf("\n");
+}
+
+func asm_error(asm: Assembler*, fmt: char const*, ...) {
+    args: va_list;
+    va_start(&args, &fmt);
+    asm_verror(asm, fmt, args);
+    va_end(&args);  
+    exit(1);
+}
+
+func asm_vscan_error(asm: Assembler*, fmt: char const*, args: va_list) {
+    printf("%s(%d): error: ", asm.filename, asm.line);
+    vprintf(fmt, args);
+    printf("\n");
+}
+
+func scan_error(asm: Assembler*, fmt: char const*, ...) {
+    args: va_list;
+    va_start(&args, &fmt);
+    asm_vscan_error(asm, fmt, args);
+    va_end(&args);
+    exit(1);
+}
+
+func scan_int(asm: Assembler*): Token {
+    base := 10;
+    start_digits := asm.str;
+    if (*asm.str == '0') {
+        asm.str++;
+        if (tolower(*asm.str) == 'x') {
+            asm.str++;
+            base = 16;
+            start_digits = asm.str;
+        } else if (tolower(*asm.str) == 'b') {
+            asm.str++;
+            base = 2;
+            start_digits = asm.str;
+        } else if (isdigit(*asm.str)) {
+            base = 8;
+            start_digits = asm.str;
+        }
+    }
+    val: llong;
+    for (;;) {
+        if (*asm.str == '_') {
+            asm.str++;
+            continue;
+        }
+        digit := char_to_digit[uchar(*asm.str)];
+        if (digit == 0 && *asm.str != '0') {
+            break;
+        }
+        if (digit >= base) {
+            scan_error(asm, "Digit '%c' out of range for base %d", *asm.str, base);
+            digit = 0;
+        }
+        if (val > (LLONG_MAX - digit)/base) {
+            scan_error(asm, "Integer literal overflow");
+            while (isdigit(*asm.str)) {
+                asm.str++;
+            }
+            val = 0;
+            break;
+        }
+        val = val*base + digit;
+        asm.str++;
+    }
+    if (asm.str == start_digits) {
+        scan_error(asm, "Expected base %d digit, got '%c'", base, *asm.str);
+    }
+    return {
+        kind = TOKEN_INT,
+        val = val,
+    };
+}
+
+var escape_to_char: char[256] = {
+    ['0'] = '\0',
+    ['\''] = '\'',
+    ['"'] = '"',
+    ['\\'] = '\\',
+    ['n'] = '\n',
+    ['r'] = '\r',
+    ['t'] = '\t',
+    ['v'] = '\v',
+    ['b'] = '\b',
+    ['a'] = '\a',
+    ['0'] = 0,
+};
+
+func scan_hex_escape(asm: Assembler*): int {
+    #assert(*asm.str == 'x');
+    asm.str++;
+    val := char_to_digit[uchar(*asm.str)];
+    if (!val && *asm.str != '0') {
+        scan_error(asm, "\\x needs at least 1 hex digit");
+    }
+    asm.str++;
+    digit := char_to_digit[uchar(*asm.str)];
+    if (digit || *asm.str == '0') {
+        val *= 16;
+        val += digit;
+        if (val > 0xFF) {
+            scan_error(asm, "\\x argument out of range");
+            val = 0xFF;
+        }
+        asm.str++;
+    }
+    return val;
+}
+
+func scan_char(asm: Assembler*): Token {
+    #assert(*asm.str == '\'');
+    asm.str++;
+    val := 0;
+    if (*asm.str == '\'') {
+        scan_error(asm, "Char literal cannot be empty");
+        asm.str++;
+    } else if (*asm.str == '\n') {
+        scan_error(asm, "Char literal cannot contain newline");
+    } else if (*asm.str == '\\') {
+        asm.str++;
+        if (*asm.str == 'x') {
+            val = scan_hex_escape(asm);
+        } else {
+            val = escape_to_char[uchar(*asm.str)];
+            if (val == 0 && *asm.str != '0') {
+                scan_error(asm, "Invalid char literal escape '\\%c'", *asm.str);
+            }
+            asm.str++;
+        }
+    } else {
+        val = *asm.str;
+        asm.str++;
+    }
+    if (*asm.str != '\'') {
+        scan_error(asm, "Expected closing char quote, got '%c'", *asm.str);
+    } else {
+        asm.str++;
+    }
+    return {
+        kind = TOKEN_INT,
+        val = val,
+    };
+}
+
+func scan_str(asm: Assembler*): Token {
+    #assert(*asm.str == '"');
+    asm.str++;
+    buf: char*;
+    if (asm.str[0] == '"' && asm.str[1] == '"') {
+        asm.str += 2;
+        while (*asm.str) {
+            if (asm.str[0] == '"' && asm.str[1] == '"' && asm.str[2] == '"') {
+                asm.str += 3;
+                break;
+            }
+            if (*asm.str != '\r') {
+                strbuf_push(&buf, *asm.str);
+            }
+            if (*asm.str == '\n') {
+                asm.line++;
+            }
+            asm.str++;
+        }
+        if (!*asm.str) {
+            scan_error(asm, "Unexpected end of file within multi-line string literal");
+        }
+    } else {
+        while (*asm.str && *asm.str != '"') {
+            val := *asm.str;
+            if (val == '\n') {
+                scan_error(asm, "String literal cannot contain newline");
+                break;
+            } else if (val == '\\') {
+                asm.str++;
+                if (*asm.str == 'x') {
+                    val = scan_hex_escape(asm);
+                } else {
+                    val = escape_to_char[uchar(*asm.str)];
+                    if (val == 0 && *asm.str != '0') {
+                        asm_error(asm, "Invalid string literal escape '\\%c'", *asm.str);
+                    }
+                    asm.str++;
+                }
+            } else {
+                asm.str++;
+            }
+            strbuf_push(&buf, val);
+        }
+        if (*asm.str) {
+            #assert(*asm.str == '"');
+            asm.str++;
+        } else {
+            scan_error(asm, "Unexpected end of file within string literal");
+        }
+    }
+    strbuf_push(&buf, 0);
+    return {
+        kind = TOKEN_STR,
+        str = buf,
+    };
+}
+
+func scan_token(asm: Assembler*): Token {
+    :repeat
+    line := asm.line;
+    token: Token;
+    switch (*asm.str) {
+    case '\0':
+        token.kind = TOKEN_EOF;
+    case ' ', '\n', '\r', '\t', '\v':
+        newline := false;
+        while (isspace(*asm.str)) {
+            if (*asm.str == '\n') {
+                asm.line++;
+                newline = true;
+            }
+            asm.str++;
+        }
+        if (newline) {
+            token.kind = TOKEN_NEWLINE;
+        } else {
+            goto repeat;
+        }
+    case '0'...'9':
+        token = scan_int(asm);
+    case '\'':
+        token = scan_char(asm);
+    case '"':
+        token = scan_str(asm);
+    case 'a'...'z', 'A'...'Z', '_', '.', '$':
+        dollar := false;
+        if (*asm.str == '$') {
+            dollar = true;
+            asm.str++;
+        }
+        start := asm.str;
+        while (isalnum(*asm.str) || *asm.str == '_' || *asm.str == '.') {
+            asm.str++;
+        }
+        if (asm.str == start) {
+            #assert(dollar);
+            token.kind = TOKEN_DOLLAR;
+        } else {
+            token.kind = dollar ? TOKEN_DOLLAR_NAME : TOKEN_NAME;
+            token.str = str_intern_range(&asm.interns, start, asm.str);
+        }
+    case '(':
+        token.kind = TOKEN_LPAREN;
+        asm.str++;
+    case ')':
+        token.kind = TOKEN_RPAREN;
+        asm.str++;
+    case '[':
+        token.kind = TOKEN_LBRACKET;
+        asm.str++;
+    case ']':
+        token.kind = TOKEN_RBRACKET;
+        asm.str++;
+    case ',':
+        token.kind = TOKEN_COMMA;
+        asm.str++;
+    case '<':
+        token.kind = TOKEN_LT;
+        asm.str++;
+        if (*asm.str == '<') {
+            token.kind = TOKEN_LSHIFT;
+            asm.str++;
+        } else if (*asm.str == '=') {
+            token.kind = TOKEN_LTEQ;
+            asm.str++;
+        }
+    case '>':
+        token.kind = TOKEN_GT;
+        asm.str++;
+        if (*asm.str == '>') {
+            token.kind = TOKEN_RSHIFT;
+            asm.str++;
+        } else if (*asm.str == '=') {
+            token.kind = TOKEN_GTEQ;
+            asm.str++;
+        }
+    case '!':
+        token.kind = TOKEN_NOT;
+        asm.str++;
+        if (*asm.str == '=') {
+            token.kind = TOKEN_NOTEQ;
+            asm.str++;
+        }
+    case '~':
+        token.kind = TOKEN_NEG;
+        asm.str++;
+    case '-':
+        token.kind = TOKEN_SUB;
+        asm.str++;
+    case '+':
+        token.kind = TOKEN_ADD;
+        asm.str++;
+    case '*':
+        token.kind = TOKEN_MUL;
+        asm.str++;
+    case '%':
+        token.kind = TOKEN_MOD;
+        asm.str++;
+    case '^':
+        token.kind = TOKEN_XOR;
+        asm.str++;
+    case '|':
+        token.kind = TOKEN_OR;
+        asm.str++;
+        if (*asm.str == '|') {
+            token.kind = TOKEN_OR_OR;
+            asm.str++;
+        }
+    case '&':
+        token.kind = TOKEN_AND;
+        asm.str++;
+        if (*asm.str == '&') {
+            token.kind = TOKEN_AND_AND;
+            asm.str++;
+        }
+    case '=':
+        token.kind = TOKEN_ASSIGN;
+        asm.str++;
+        if (*asm.str == '=') {
+            token.kind = TOKEN_EQ;
+            asm.str++;
+        }
+    case ':':
+        token.kind = TOKEN_COLON;
+        asm.str++;
+    case '/':
+        token.kind = TOKEN_DIV;
+        asm.str++;
+        if (*asm.str == '/') {
+            asm.str++;
+            while (*asm.str && *asm.str != '\n') {
+                asm.str++;
+            }
+            goto repeat;
+        } else if (*asm.str == '*') {
+            asm.str++;
+            level := 1;
+            while (*asm.str && level > 0) {
+                if (asm.str[0] == '/' && asm.str[1] == '*') {
+                    level++;
+                    asm.str += 2;
+                } else if (asm.str[0] == '*' && asm.str[1] == '/') {
+                    level--;
+                    asm.str += 2;
+                } else {
+                    if (*asm.str == '\n') {
+                        asm.line++;
+                    }
+                    asm.str++;
+                }
+            }
+            goto repeat;
+        }
+    default:
+        scan_error(asm, "Unexpected character '%c'", *asm.str);
+    }
+    token.line = line;
+    return token;
+}
+
+func push_token_list(asm: Assembler*, tokens: Token*, num_tokens: int, temp_tokens_end: Token*, local_syms_start: Sym*, local_syms_end: Sym*) {
+    i := asm.token_list_stack.num_token_lists++;
+    if (i == MAX_TOKEN_LIST_STACK) {
+        asm_error(asm, "Macro expansion stack overflow");
+    }
+    asm.token_list = &asm.token_list_stack.token_lists[i];
+    *asm.token_list = {
+        tokens = tokens,
+        num_tokens = num_tokens,
+        index = 0,
+        temp_tokens_end = temp_tokens_end,
+        local_syms_start = local_syms_start,
+        local_syms_end = local_syms_end,
+    };
+}
+
+func pop_token_list(asm: Assembler*) {
+    n := --asm.token_list_stack.num_token_lists;
+    #assert(n > 0);
+    asm.temp_tokens_end = asm.token_list.temp_tokens_end;
+    asm.local_syms_start = asm.token_list.local_syms_start;
+    asm.local_syms_end = asm.token_list.local_syms_end;
+    asm.token_list = &asm.token_list_stack.token_lists[n - 1];
+}
+
+func next_raw_token(asm: Assembler*) {
+    while (asm.token_list.index == asm.token_list.num_tokens) {
+        pop_token_list(asm);
+    }
+    i := asm.token_list.index++;
+    asm.token = asm.token_list.tokens[i];
+}
+
+struct MacroArg {
+    tokens: Token*;
+    num_tokens: int;
+}
+
+func parse_macro_arg(asm: Assembler*): MacroArg {
+    tokens := asm.temp_tokens_end;
+    next := tokens;
+    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        if (is_token(asm, TOKEN_COMMA)) {
+            break;
+        }
+        if (next == asm.temp_tokens + MAX_TEMP_TOKENS) {
+            asm_error(asm, "Temp tokens stack overflow");
+        }
+        *next++ = asm.token;
+        next_token(asm);
+    }
+    asm.temp_tokens_end = next;
+    return {
+        tokens = tokens,
+        num_tokens = int(next - tokens),
+    };
+}
+
+func expand_macro(asm: Assembler*, sym: Sym*) {
+    macro := sym.macro;
+    temp_tokens_end := asm.temp_tokens_end;
+    args: MacroArg[MAX_MACRO_PARAMS];
+    if (macro.num_params) {
+        next_token(asm);
+        args[0] = parse_macro_arg(asm);
+        for (i := 1; i < macro.num_params; i++) {
+            expect_token(asm, TOKEN_COMMA);
+            args[i] = parse_macro_arg(asm);
+        }
+    }
+    local_syms_start := asm.local_syms_start;
+    local_syms_end := asm.local_syms_end;
+    asm.local_syms_start = asm.local_syms_end;
+    for (i := 0; i < macro.num_params; i++) {
+        push_local_sym(asm, macro.params[i], args[i].tokens, args[i].num_tokens);
+    }
+    push_token_list(asm, macro.tokens, macro.num_tokens, temp_tokens_end, local_syms_start, local_syms_end);
+}
+
+func next_token(asm: Assembler*) {
+    :repeat
+    next_raw_token(asm);
+    if (!asm.disable_expansion && asm.token.kind == TOKEN_DOLLAR_NAME) {
+        name := asm.token.str;
+        if (sym := get_sym(asm, name); sym && sym.kind == SYM_MACRO) {
+            expand_macro(asm, sym);
+            goto repeat;
+        } else {
+            asm_error(asm, "No macro or macro parameter named '%s'", name);
+        }
+    }
+}
+
+func init_assembler(asm: Assembler*, filename: char const*, input: char const*) {
+    *asm = {
+        input = input,
+        filename = filename,
+        local_syms_start = asm.local_syms,
+        local_syms_end = asm.local_syms,
+        temp_tokens_end = asm.temp_tokens,
+    };
+    init_instrs(asm);
+    init_regs(asm);
+    init_cmds(asm);
+}
+
+func init_scan(asm: Assembler*) {
+    asm.str = asm.input;
+    asm.line = 1;
+    token := scan_token(asm);
+    tokens: Token*;
+    while (token.kind != TOKEN_EOF) {
+        buf_push(&tokens, &token, sizeof(token));
+        token = scan_token(asm);
+    }
+    buf_push(&tokens, &token, sizeof(token));
+    push_token_list(asm, tokens, buf_len(tokens), asm.temp_tokens_end, asm.local_syms_start, asm.local_syms_end);
+}
+
+func init_pass(asm: Assembler*) {
+    init_scan(asm);
+    asm.addr = 0;
+    asm.next_anon_label = 0;
+    next_token(asm);
+}
+
+func is_token(asm: Assembler*, kind: TokenKind): bool {
+    return asm.token.kind == kind;
+}
+
+func is_token_name(asm: Assembler*, name: char const*): bool {
+    return asm.token.kind == TOKEN_NAME && asm.token.str == name;
+}
+
+func match_token(asm: Assembler*, kind: TokenKind): bool {
+    if (is_token(asm, kind)) {
+        next_token(asm);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+func match_name(asm: Assembler*, name: char const*): bool {
+    if (is_token_name(asm, name)) {
+        next_token(asm);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+func expect_token(asm: Assembler*, kind: TokenKind): bool {
+    if (is_token(asm, kind)) {
+        next_token(asm);
+        return true;
+    } else {
+        asm_error(asm, "Expected %s, got %s", token_kind_name(kind), token_info(asm.token));
+        return false;
+    }
+}
+
+enum InstrKind = uint8 {
+    INSTR_REG,
+    INSTR_IMM,
+    INSTR_UPPER_IMM,
+    INSTR_JAL,
+    INSTR_JALR,
+    INSTR_BRANCH,
+    INSTR_NULLARY,
+    INSTR_CSR_REG,
+    INSTR_CSR_IMM,
+    INSTR_LOAD,
+    INSTR_STORE,
+    INSTR_FENCE,
+}
+
+struct InstrDef {
+    name: char const*;
+    kind: InstrKind;
+    op: Op;
+}
+
+enum SymKind = uint8 {
+    SYM_NONE,
+    SYM_CONST,
+    SYM_MACRO,
+    SYM_LABEL,
+    SYM_XREG,
+    SYM_INSTR,
+    SYM_CMD,
+}
+
+typedef Cmd = func(asm: Assembler*);
+
+struct MacroDef {
+    params: char const**;
+    num_params: int;
+    tokens: Token*;
+    num_tokens: int;
+}
+
+struct Sym {
+    name: char const*;
+    kind: SymKind;
+    union {
+        xreg: Reg;
+        instr: InstrDef*;
+        addr: uint32;
+        cmd: Cmd;
+        macro: MacroDef;
+        val: llong;
+    }
+}
+
+func get_sym(asm: Assembler*, name: char const*): Sym* {
+    for (it := asm.local_syms_end; it != asm.local_syms_start; it--) {
+        sym := it - 1;
+        if (sym.name == name) {
+            return sym;
+        }
+    }
+    return map_get(&asm.syms, name);
+}
+
+func push_local_sym(asm: Assembler*, name: char const*, tokens: Token*, num_tokens: int) {
+    if (asm.local_syms_end == asm.local_syms + MAX_LOCAL_SYMS) {
+        asm_error(asm, "Local symbol stack overflow");
+    }
+    sym := asm.local_syms_end++;
+    sym.name = name;
+    sym.kind = SYM_MACRO;
+    sym.macro = {tokens = tokens, num_tokens = num_tokens};
+}
+
+var reg_to_imm_op: Op[NUM_OPS] = {
+    [ADD] = ADDI,
+    [SUB] = ADDI,
+    [SLT] = SLTI,
+    [SLTU] = SLTIU,
+    [SLL] = SLLI,
+    [SRL] = SRLI,
+    [SRA] = SRAI,
+    [AND] = ANDI,
+    [OR] =  ORI,
+    [XOR] = XORI,
+};
+
+var instr_defs: InstrDef[] = {
+    {"lui", INSTR_UPPER_IMM, LUI},
+    {"auipc", INSTR_UPPER_IMM, AUIPC},
+    {"jal", INSTR_JAL, JAL},
+    {"jalr", INSTR_JALR, JALR},
+    {"beq", INSTR_BRANCH, BEQ},
+    {"bne", INSTR_BRANCH, BNE},
+    {"blt", INSTR_BRANCH, BLT},
+    {"bge", INSTR_BRANCH, BGE},
+    {"bltu", INSTR_BRANCH, BLTU},
+    {"bgeu", INSTR_BRANCH, BGEU},
+    {"lb", INSTR_LOAD, LB},
+    {"lh", INSTR_LOAD, LH},
+    {"lw", INSTR_LOAD, LW},
+    {"lbu", INSTR_LOAD, LBU},
+    {"lhu", INSTR_LOAD, LHU},
+    {"sb", INSTR_STORE, SB},
+    {"sh", INSTR_STORE, SH},
+    {"sw", INSTR_STORE, SW},
+    {"addi", INSTR_IMM, ADDI},
+    {"slti", INSTR_IMM, SLTI},
+    {"sltiu", INSTR_IMM, SLTIU},
+    {"xori", INSTR_IMM, XORI},
+    {"ori", INSTR_IMM, ORI},
+    {"andi", INSTR_IMM, ANDI},
+    {"slli", INSTR_IMM, SLLI},
+    {"srli", INSTR_IMM, SRLI},
+    {"srai", INSTR_IMM, SRAI},
+    {"add", INSTR_REG, ADD},
+    {"sub", INSTR_REG, SUB},
+    {"sll", INSTR_REG, SLL},
+    {"slt", INSTR_REG, SLT},
+    {"sltu", INSTR_REG, SLTU},
+    {"xor", INSTR_REG, XOR},
+    {"srl", INSTR_REG, SRL},
+    {"sra", INSTR_REG, SRA},
+    {"or", INSTR_REG, OR},
+    {"and", INSTR_REG, AND},
+    {"fence", INSTR_FENCE, FENCE},
+    {"fencei", INSTR_NULLARY, FENCEI},
+    {"ecall", INSTR_NULLARY, ECALL},
+    {"ebreak", INSTR_NULLARY, EBREAK},
+    {"csrrw", INSTR_CSR_REG, CSRRW},
+    {"csrrs", INSTR_CSR_REG, CSRRS},
+    {"csrrc", INSTR_CSR_REG, CSRRC},
+    {"csrrwi", INSTR_CSR_IMM, CSRRWI},
+    {"csrrsi", INSTR_CSR_IMM, CSRRSI},
+    {"csrrci", INSTR_CSR_IMM, CSRRCI},
+};
+
+struct CmdDef {
+    name: char const*;
+    cmd: Cmd;
+}
+
+var cmd_defs: CmdDef[] = {
+    {".org", cmd_org},
+    {".align", cmd_align},
+    {".fill", cmd_fill},
+    {".uint8", cmd_uint8},
+    {".uint16", cmd_uint16},
+    {".uint32", cmd_uint32},
+    {".char", cmd_uint8},
+    {".byte", cmd_uint8},
+    {".ptr", cmd_uint32},
+    {".int", cmd_uint32},
+    {".str", cmd_str},
+    {".strz", cmd_strz},
+    {".define", cmd_define},
+    {".print", cmd_print},
+    {".assert", cmd_assert},
+    {".macro", cmd_macro},
+    {".endmacro", cmd_endmacro},
+    {".if", cmd_if},
+    {".elseif", cmd_elseif},
+    {".else", cmd_else},
+    {".endif", cmd_endif},
+    {".set", cmd_set},
+    {".reg", cmd_reg},
+    {"li", cmd_li},
+    {"la", cmd_la},
+    {"jmp", cmd_jmp},
+    {"j", cmd_jmp},
+    {"jr", cmd_jmp_reg},
+    {"call", cmd_call},
+    {"ret", cmd_ret},
+    {"mv", cmd_mov},
+    {"mov", cmd_mov},
+    {"seqz", cmd_seqz},
+    {"snez", cmd_snez},
+};
+
+func add_sym(asm: Assembler*, name: char const*): Sym* {
+    name = get_name(asm, name);
+    #assert(!get_sym(asm, name));
+    sym: Sym* = arena_alloc(&asm.arena, sizeof(Sym));
+    *sym = {name = name};
+    map_put(&asm.syms, name, sym);
+    return sym;
+}
+
+func init_instrs(asm: Assembler*) {
+    num_instrs := sizeof(instr_defs) / sizeof(*instr_defs);
+    for (i := 0; i < num_instrs; i++) {
+        instr := instr_defs + i;
+        sym := add_sym(asm, instr.name);
+        sym.kind = SYM_INSTR;
+        sym.instr = instr;
+    }
+}
+
+func init_regs(asm: Assembler*) {
+    for (i := 0; i < 32; i++) {
+        buf: char[4];
+        sprintf(buf, "x%d", i);
+        sym := add_sym(asm, buf);
+        sym.kind = SYM_XREG;
+        sym.xreg = i;
+    }
+}
+
+func cmd_str(asm: Assembler*) {
+    str := asm.token.str;
+    expect_token(asm, TOKEN_STR);
+    asm_bytes(asm, str, uint32(strlen(str)));
+}
+
+func cmd_strz(asm: Assembler*) {
+    str := asm.token.str;
+    expect_token(asm, TOKEN_STR);
+    asm_bytes(asm, str, uint32(strlen(str)));
+    asm_uint8(asm, 0);
+}
+
+func cmd_assert(asm: Assembler*) {
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_CONST) {
+        asm_error(asm, "Assertion operand must be a constant");
+    }
+    if (!expr.val && asm.pass == 1) {
+        asm_error(asm, "Assertion failed");
+    }
+}
+
+func cmd_print(asm: Assembler*) {
+    for (;;) {
+        if (is_token(asm, TOKEN_STR)) {
+            str := asm.token.str;
+            next_token(asm);
+            if (asm.pass == 1) {
+                printf("%s", str);
+            }
+        } else {
+            expr := parse_expr(asm);
+            if (asm.pass == 1) {
+                @complete
+                if (expr.kind == EXPR_CONST) {
+                    printf("%lld", expr.val);
+                } else if (expr.kind == EXPR_ADDR) {
+                    printf("%d", expr.addr);
+                }
+            }
+        }
+        if (!match_token(asm, TOKEN_COMMA)) {
+            break;
+        }
+        printf(" ");
+    }
+    printf("\n");
+}
+
+func parse_line_tokens(asm: Assembler*): Token* {
+    tokens: Token*;
+    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        buf_push(&tokens, &asm.token, sizeof(asm.token));
+        next_token(asm);
+    }
+    return tokens;
+}
+
+func cmd_define(asm: Assembler*) {
+    asm.disable_expansion = true;
+    sym := parse_sym(asm);
+    tokens := parse_line_tokens(asm);
+    asm.disable_expansion = false;
+    sym.kind = SYM_MACRO;
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
+}
+
+func cmd_endmacro(asm: Assembler*) {
+    asm_error(asm, ".endmacro outside of .macro body");
+}
+
+func cmd_macro(asm: Assembler*) {
+    asm.disable_expansion = true;
+    sym := parse_sym(asm);
+    params: char const**;
+    if (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        first_param := parse_name(asm);
+        buf_push((:void*)&params, &first_param, sizeof(first_param));
+        while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+            expect_token(asm, TOKEN_COMMA);
+            param := parse_name(asm);
+            buf_push((:void*)&params, &param, sizeof(param));
+        }
+    }
+    if (is_token(asm, TOKEN_EOF)) {
+        asm_error(asm, "End of file while parsing .macro parameter list");
+    }
+    next_token(asm);
+    if (buf_len((:void*)params) > MAX_MACRO_PARAMS) {
+        asm_error(asm, "Too many macro parameters");
+    }
+    endmacro_name := get_name(asm, ".endmacro");
+    tokens: Token*;
+    while (!is_token(asm, TOKEN_EOF) && !is_token_name(asm, endmacro_name)) {
+        buf_push(&tokens, &asm.token, sizeof(asm.token));
+        next_raw_token(asm);
+    }
+    if (is_token(asm, TOKEN_EOF)) {
+        asm_error(asm, "End of file while parsing .macro body");
+    }
+    asm.disable_expansion = false;
+    next_token(asm);
+    sym.kind = SYM_MACRO;
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens), params = params, num_params = buf_len((:void*)params)};
+}
+
+func cmd_set(asm: Assembler*) {
+    sym := parse_sym(asm);
+    tokens := parse_line_tokens(asm);
+    sym.kind = SYM_MACRO;
+    sym.macro = {tokens = tokens, num_tokens = buf_len(tokens)};
+}
+
+func cmd_uint8(asm: Assembler*) {
+    do {
+        imm := parse_const(asm);
+        asm_uint8(asm, uint8(imm));
+    } while (match_token(asm, TOKEN_COMMA));
+}
+
+func cmd_uint16(asm: Assembler*) {
+    do {
+        imm := parse_const(asm);
+        asm_uint16(asm, uint16(imm));
+    } while (match_token(asm, TOKEN_COMMA));
+}
+
+func cmd_uint32(asm: Assembler*) {
+    do {
+        expr := parse_expr(asm);
+        @complete
+        switch (expr.kind) {
+        case EXPR_CONST:
+            asm_uint32(asm, uint32(expr.val));
+        case EXPR_ADDR:
+            asm_uint32(asm, expr.addr);
+        }
+    } while (match_token(asm, TOKEN_COMMA));
+}
+
+func cmd_fill(asm: Assembler*) {
+    repeat := parse_const(asm);
+    if (repeat <= 0) {
+        asm_error(asm, "fill's repeat argument must be positive");
+    }
+    size: llong = 1;
+    value: llong = 0;
+    if (match_token(asm, TOKEN_COMMA)) {
+        size = parse_const(asm);
+        if (match_token(asm, TOKEN_COMMA)) {
+            value = parse_const(asm);
+        }
+    }
+    if (size <= 0) {
+        asm_error(asm, "fill's size argument must be positive");
+    }
+    if (size > sizeof(value)) {
+        size = sizeof(value);
+    }
+    for (i := 0; i < repeat; i++) {
+        asm_bytes(asm, &value, uint32(size));
+    }
+}
+
+func cmd_reg(asm: Assembler*) {
+    sym := parse_sym(asm);
+    xreg := parse_xreg(asm);
+    sym.kind = SYM_XREG;
+    sym.xreg = xreg;
+}
+
+func skip_line(asm: Assembler*) {
+    while (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        next_token(asm);
+    }
+    parse_newlines(asm);
+}
+
+func cmd_if(asm: Assembler*) {
+    cond := parse_const(asm);
+    expect_token(asm, TOKEN_NEWLINE);
+    parse_newlines(asm);
+    if_name := get_name(asm, ".if");
+    elseif_name := get_name(asm, ".elseif");
+    else_name := get_name(asm, ".else");
+    endif_name := get_name(asm, ".endif");
+    else_taken := false;
+    any_taken := cond;
+    level := 0;
+    asm.disable_expansion = !cond;
+    while (level >= 0) {
+        parse_newlines(asm);
+        if (match_name(asm, endif_name)) {
+            skip_line(asm);
+            level--;
+        } else if (match_name(asm, elseif_name)) {
+            if (else_taken) {
+                asm_error(asm, ".elseif after .else clause");
+            }
+            cond = parse_const(asm) && !any_taken;
+            asm.disable_expansion = !cond;
+            any_taken = cond || any_taken;
+            expect_token(asm, TOKEN_NEWLINE);
+            parse_newlines(asm);
+        } else if (match_name(asm, else_name)) {
+            if (else_taken) {
+                asm_error(asm, "Multiple .else clauses");
+            }
+            cond = !any_taken;
+            asm.disable_expansion = !cond;
+            else_taken = true;
+            skip_line(asm);
+        } else if (cond) {
+            parse_line(asm);
+        } else {
+            if (match_name(asm, if_name)) {
+                level++;
+            }
+            skip_line(asm);
+        }
+    }
+    asm.disable_expansion = false;
+}
+
+func cmd_endif(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .endif");
+}
+
+func cmd_elseif(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .elseif");
+}
+
+func cmd_else(asm: Assembler*) {
+    asm_error(asm, "Unbalanced .else");
+}
+
+func cmd_org(asm: Assembler*) {
+    expr := parse_expr(asm);
+    @complete
+    switch (expr.kind) {
+    case EXPR_CONST:
+        asm.addr = uint32(expr.val);
+    case EXPR_ADDR:
+        asm.addr = expr.addr;
+    }
+}
+
+func cmd_align(asm: Assembler*) {
+    imm := parse_const(asm);
+    if (imm <= 0) {
+        asm_error(asm, "Alignment must be positive");
+    }
+    alignment := uint32(imm);
+    asm.addr = (asm.addr + alignment - 1) / alignment * alignment;
+}
+
+func asm_li(asm: Assembler*, rd: Reg, imm: int32) {
+    if (I_IMMEDIATE_MIN <= int32(imm) && imm <= I_IMMEDIATE_MAX) {
+        asm_instr(asm, {op = ADDI, rd = rd, rs1 = X0, imm = uint32(imm)});
+    } else {
+        asm_instr(asm, {op = LUI, rd = rd, imm = imm_hi(uint32(imm))});
+        asm_instr(asm, {op = ADDI, rd = rd, rs1 = rd, imm = imm_lo(uint32(imm))});
+    }
+}
+
+func cmd_la(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    expect_token(asm, TOKEN_COMMA);
+    addr := parse_addr(asm);
+    if (addr.kind != ADDR_LABEL) {
+        asm_error(asm, "Expected label");
+    }
+    offset := addr.val - asm.addr;
+    asm_instr(asm, {op = AUIPC, rd = rd, imm = imm_hi(offset)});
+    asm_instr(asm, {op = ADDI, rd = rd, rs1 = rd, imm = imm_lo(offset)});
+}
+
+func cmd_li(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    expect_token(asm, TOKEN_COMMA);
+    imm := parse_const(asm);
+    asm_li(asm, rd, int32(imm));
+}
+
+func asm_jmp(asm: Assembler*, addr: Addr) {
+    @complete
+    if (addr.kind == ADDR_LABEL) {
+        offset: int32 = addr.val - asm.addr;
+        if (J_IMMEDIATE_MIN <= offset && offset <= J_IMMEDIATE_MAX) {
+            asm_instr(asm, {op = JAL, rd = X0, imm = uint32(offset)});
+        } else {
+            asm_error(asm, "Jump target is out of range");
+        }
+    } else if (addr.kind == ADDR_REG_OFFSET) {
+        imm := int32(addr.val);
+        if (I_IMMEDIATE_MIN <= imm && imm <= I_IMMEDIATE_MAX) {
+            asm_instr(asm, {op = JALR, rd = X0, rs1 = addr.reg, imm = imm});
+        } else {
+            asm_error(asm, "Jump immediate offset is out of range");
+        }
+    }
+}
+
+func cmd_jmp(asm: Assembler*) {
+    addr := parse_addr(asm);
+    asm_jmp(asm, addr);
+}
+
+func cmd_jmp_reg(asm: Assembler*) {
+    addr := parse_addr(asm);
+    if (addr.kind != ADDR_REG_OFFSET) {
+        asm_error(asm, "Jump target must be register-based");
+    }
+    asm_jmp(asm, addr);
+}
+
+func cmd_call(asm: Assembler*) {
+    addr := parse_label(asm);
+    offset := addr - asm.addr;
+    asm_instr(asm, {op = AUIPC, rd = X6, imm = imm_hi(offset)});
+    asm_instr(asm, {op = JALR, rd = X1, rs1 = X6, imm = imm_lo(offset)});
+}
+
+func cmd_ret(asm: Assembler*) {
+    asm_instr(asm, {op = JALR, rd = X0, rs1 = X1});
+}
+
+func cmd_seqz(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    rs := rd;
+    if (match_token(asm, TOKEN_COMMA)) {
+        rs = parse_xreg(asm);
+    }
+    asm_instr(asm, {op = SLTIU, rd = rd, rs1 = rs, imm = 1});
+}
+
+func cmd_snez(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    rs := rd;
+    if (match_token(asm, TOKEN_COMMA)) {
+        rs = parse_xreg(asm);
+    }
+    asm_instr(asm, {op = SLTU, rd = rd, rs1 = X0, rs2 = rs});
+}
+
+func cmd_mov(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    expect_token(asm, TOKEN_COMMA);
+    if (is_token(asm, TOKEN_NAME)) {
+        rs1 := parse_xreg(asm);
+        asm_instr(asm, {op = ADDI, rd = rd, rs1 = rs1});
+    } else {
+        imm := parse_const(asm);
+        asm_li(asm, rd, int32(imm));
+    }
+}
+
+func cmd_sub(asm: Assembler*) {
+    rd := parse_xreg(asm);
+    expect_token(asm, TOKEN_COMMA);
+    if (is_token(asm, TOKEN_NAME)) {
+        rs := parse_xreg(asm);
+        rs1: Reg;
+        rs2: Reg;
+        if (match_token(asm, TOKEN_COMMA)) {
+            rs1 = rs;
+            if (!is_token(asm, TOKEN_NAME)) {
+                imm := -parse_const(asm);
+                if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+                    asm_error(asm, "Immediate is out of range");
+                }
+                asm_imm_op(asm, ADDI, rd, rs1, uint32(imm));
+                return;
+            }
+            rs2 = parse_xreg(asm);
+        } else {
+            rs1 = rd;
+            rs2 = rs;
+        }
+        asm_reg_op(asm, SUB, rd, rs1, rs2);
+    } else {
+        rs1 := rd;
+        imm := -parse_const(asm);
+        if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+            asm_error(asm, "Immediate is out of range");
+        }
+        asm_imm_op(asm, ADDI, rd, rs1, uint32(imm));
+    }}
+
+func init_cmds(asm: Assembler*) {
+    num_cmds := sizeof(cmd_defs) / sizeof(*cmd_defs);
+    for (i := 0; i < num_cmds; i++) {
+        cmd_def := cmd_defs + i;
+        sym := add_sym(asm, cmd_def.name);
+        sym.kind = SYM_CMD;
+        sym.cmd = cmd_def.cmd;
+    }
+}
+
+enum ExprKind {
+    EXPR_CONST,
+    EXPR_ADDR,
+}
+
+struct Expr {
+    kind: ExprKind;
+    union {
+        val: llong;
+        addr: uint32;
+    }
+}
+
+func parse_expr_base(asm: Assembler*): Expr {
+    expr: Expr;
+    if (is_token(asm, TOKEN_INT)) {
+        expr.kind = EXPR_CONST;
+        expr.val = asm.token.val;
+        next_token(asm);
+    } else if (is_token(asm, TOKEN_NAME)) {
+        sym := parse_sym(asm);
+        if (sym.kind == SYM_CONST) {
+            expr.kind = EXPR_CONST;
+            expr.val = sym.val;
+        } else if (sym.kind == SYM_LABEL) {
+            expr.kind = EXPR_ADDR;
+            expr.addr = sym.addr;
+        } else if (sym.kind == SYM_NONE) {
+            sym.kind = SYM_LABEL;
+            sym.addr = -1;
+            expr.kind = EXPR_ADDR;
+            expr.addr = -1;
+        } else {
+            asm_error(asm, "No constant named '%s'", sym.name);
+        }
+    } else if (match_token(asm, TOKEN_DOLLAR)) {
+        expr.kind = EXPR_ADDR;
+        expr.addr = asm.addr;
+    } else if (match_token(asm, TOKEN_GT)) {
+        index := int(asm.token.val);
+        expect_token(asm, TOKEN_INT);
+        expr.kind = EXPR_ADDR;
+        expr.addr = get_forward_anon_label(asm, index);
+    } else if (match_token(asm, TOKEN_LT)) {
+        index := int(asm.token.val);
+        expect_token(asm, TOKEN_INT);
+        expr.kind = EXPR_ADDR;
+        expr.addr = get_backward_anon_label(asm, index);
+    } else if (match_token(asm, TOKEN_LPAREN)) {
+        expr = parse_expr(asm);
+        expect_token(asm, TOKEN_RPAREN);
+    } else {
+        asm_error(asm, "Unexpected token %s in expression", token_kind_name(asm.token.kind));
+    }
+    return expr;
+}
+
+func is_unary_op(asm: Assembler*): bool {
+    return is_token(asm, TOKEN_ADD) || is_token(asm, TOKEN_SUB) || is_token(asm, TOKEN_NEG) || is_token(asm, TOKEN_NOT);
+}
+
+func parse_expr_unary(asm: Assembler*): Expr {
+    expr: Expr;
+    if (match_token(asm, TOKEN_ADD)) {
+        expr = parse_expr_unary(asm);
+    } else if (match_token(asm, TOKEN_SUB)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary - must be constant");
+        }
+        expr.val = -expr.val;
+    } else if (match_token(asm, TOKEN_NEG)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary ~ must be constant");
+        }
+        expr.val = ~expr.val;
+    } else if (match_token(asm, TOKEN_NOT)) {
+        expr = parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of unary ! must be constant");
+        }
+        expr.val = ~expr.val;
+    } else {
+        expr = parse_expr_base(asm);
+    }
+    return expr;
+}
+
+func is_mul_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_MUL <= asm.token.kind && asm.token.kind <= TOKEN_LAST_MUL;
+}
+
+func parse_expr_mul(asm: Assembler*): Expr {
+    expr := parse_expr_unary(asm);
+    while (is_mul_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_unary(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+        @complete
+        switch (op) {
+        case TOKEN_MUL:
+            expr.val *= expr2.val;
+        case TOKEN_DIV:
+            if (expr2.val == 0) {
+                asm_error(asm, "Division by 0");
+            }
+            expr.val /= expr2.val;
+        case TOKEN_MOD:
+            if (expr2.val == 0) {
+                asm_error(asm, "Division by 0");
+            }
+            expr.val %= expr2.val;
+        case TOKEN_AND:
+            expr.val &= expr2.val;
+        case TOKEN_LSHIFT:
+            expr.val <<= expr2.val;
+        case TOKEN_RSHIFT:
+            expr.val >>= expr2.val;
+        }
+    }
+    return expr;
+}
+
+func is_add_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_ADD <= asm.token.kind && asm.token.kind <= TOKEN_LAST_ADD;
+}
+
+func parse_expr_add(asm: Assembler*): Expr {
+    expr := parse_expr_mul(asm);
+    while (is_add_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_mul(asm);
+        if (expr.kind == EXPR_CONST && expr2.kind == EXPR_ADDR) {
+            if (op != TOKEN_ADD) {
+                asm_error(asm, "Constants can only be added to addresses");
+            }
+            expr.kind = EXPR_ADDR;
+            expr.addr = uint32(expr2.addr + expr.val);
+        } else if (expr.kind == EXPR_ADDR && expr2.kind == EXPR_CONST) {
+            if (op != TOKEN_ADD) {
+                asm_error(asm, "Addresses can only be added to constants");
+            }
+            expr.kind = EXPR_ADDR;
+            expr.addr = uint32(expr.addr + expr2.val);
+        } else if (expr.kind == EXPR_ADDR && expr2.kind == EXPR_ADDR) {
+            if (op != TOKEN_SUB) {
+                asm_error(asm, "Address operands can only be subtracted");
+            }
+            // With multiple sections, it should only be constant for same-section addresses.
+            expr.kind = EXPR_CONST;
+            expr.val = llong(expr.addr) - llong(expr2.addr);
+        } else if (expr.kind == EXPR_CONST && expr2.kind == EXPR_CONST) {
+            @complete
+            switch (op) {
+            case TOKEN_ADD:
+                expr.val += expr2.val;
+            case TOKEN_SUB:
+                expr.val -= expr2.val;
+            case TOKEN_XOR:
+                expr.val ^= expr2.val;
+            case TOKEN_OR:
+                expr.val |= expr2.val;
+            }
+        } else {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+    }
+    return expr;
+}
+
+func is_cmp_op(asm: Assembler*): bool {
+    return TOKEN_FIRST_CMP <= asm.token.kind && asm.token.kind <= TOKEN_LAST_CMP;
+}
+
+func parse_expr_cmp(asm: Assembler*): Expr {
+    expr := parse_expr_add(asm);
+    while (is_cmp_op(asm)) {
+        op := asm.token.kind;
+        next_token(asm);
+        expr2 := parse_expr_add(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of %s must be constant", token_kind_name(op));
+        }
+        @complete
+        switch (op) {
+        case TOKEN_EQ:
+            expr.val = expr.val == expr2.val;
+        case TOKEN_NOTEQ:
+            expr.val = expr.val != expr2.val;
+        case TOKEN_LT:
+            expr.val = expr.val < expr2.val;
+        case TOKEN_GT:
+            expr.val = expr.val > expr2.val;
+        case TOKEN_LTEQ:
+            expr.val = expr.val <= expr2.val;
+        case TOKEN_GTEQ:
+            expr.val = expr.val >= expr2.val;
+        }
+    }
+    return expr;
+}
+
+func parse_expr_and(asm: Assembler*): Expr {
+    expr := parse_expr_cmp(asm);
+    while (match_token(asm, TOKEN_AND_AND)) {
+        expr2 := parse_expr_and(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of && must be constant");
+        }
+        expr.val = expr.val && expr2.val;
+    }
+    return expr;
+}
+
+func parse_expr_or(asm: Assembler*): Expr {
+    expr := parse_expr_and(asm);
+    while (match_token(asm, TOKEN_OR_OR)) {
+        expr2 := parse_expr_and(asm);
+        if (expr.kind != EXPR_CONST || expr2.kind != EXPR_CONST) {
+            asm_error(asm, "Operand of || must be constant");
+        }
+        expr.val = expr.val || expr2.val;
+    }
+    return expr;
+}
+
+func parse_expr(asm: Assembler*): Expr {
+    return parse_expr_or(asm);
+}
+
+func parse_name(asm: Assembler*): char const* {
+    token := asm.token;
+    expect_token(asm, TOKEN_NAME);
+    return token.str;
+}
+
+func parse_sym(asm: Assembler*): Sym* {
+    name := parse_name(asm);
+    sym := get_sym(asm, name);
+    if (!sym) {
+        sym = add_sym(asm, name);
+    }
+    return sym;
+}
+
+func parse_xreg(asm: Assembler*): Reg {
+    if (is_token(asm, TOKEN_INT) && asm.token.val == 0) {
+        next_token(asm);
+        return 0;
+    } else {
+        sym := parse_sym(asm);
+        if (sym.kind != SYM_XREG) {
+            asm_error(asm, "Expected xreg, got '%s'", sym.name);
+            return 0;
+        }
+        return sym.xreg;
+    }
+}
+
+func parse_const(asm: Assembler*): llong {
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_CONST) {
+        asm_error(asm, "Operand must be constant");
+    }
+    val := expr.val;
+    return val;
+}
+
+enum AddrKind {
+    ADDR_NONE,
+    ADDR_REG_OFFSET,
+    ADDR_IMM,
+    ADDR_LABEL,
+}
+
+struct Addr {
+    kind: AddrKind;
+    reg: Reg;
+    val: uint32;
+}
+
+func parse_addr(asm: Assembler*): Addr {
+    addr: Addr;
+    if (match_token(asm, TOKEN_LBRACKET)) {
+        if (is_xreg(asm)) {
+            reg := parse_xreg(asm);
+            val: uint32;
+            if (match_token(asm, TOKEN_COMMA)) {
+                val = uint32(parse_const(asm));
+            }
+            addr.kind = ADDR_REG_OFFSET;
+            addr.reg = reg;
+            addr.val = val;
+        } else {
+            addr.kind = ADDR_IMM;
+            addr.val = uint32(parse_const(asm));
+        }
+        expect_token(asm, TOKEN_RBRACKET);
+    } else {
+        addr.kind = ADDR_LABEL;
+        addr.val = parse_label(asm);
+    }
+    return addr;
+}
+
+func parse_label(asm: Assembler*): uint32 {
+    expr := parse_expr(asm);
+    if (expr.kind != EXPR_ADDR) {
+        asm_error(asm, "Expected address operand");
+    }
+    return expr.addr;
+}
+
+func parse_reg_to_imm_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg) {
+    imm := parse_const(asm);
+    if (op == SUB) {
+        imm = -imm;
+    }
+    if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+        asm_error(asm, "Immediate is out of range");
+    }
+    imm_op := reg_to_imm_op[op];
+    if (!imm_op) {
+        asm_error(asm, "Instruction does not have immediate variant");
+    }
+    asm_imm_op(asm, imm_op, rd, rs1, uint32(imm));
+}
+
+func is_xreg(asm: Assembler*): bool {
+    if (!is_token(asm, TOKEN_NAME)) {
+        return false;
+    }
+    sym := get_sym(asm, asm.token.str);
+    return sym && sym.kind == SYM_XREG;
+}
+
+func is_xreg_or_zero(asm: Assembler*): bool {
+    return is_xreg(asm) || is_token(asm, TOKEN_INT) && asm.token.val == 0;
+}
+
+func parse_instr(asm: Assembler*, instr_def: InstrDef*) {
+    op := instr_def.op;
+    switch (instr_def.kind) {
+    case INSTR_REG:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        if (is_xreg_or_zero(asm)) {
+            rs := parse_xreg(asm);
+            rs1: Reg;
+            rs2: Reg;
+            if (match_token(asm, TOKEN_COMMA)) {
+                rs1 = rs;
+                if (is_xreg_or_zero(asm)) {
+                    rs2 = parse_xreg(asm);
+                } else {
+                    parse_reg_to_imm_op(asm, op, rd, rs1);
+                    return;
+                }
+            } else {
+                rs1 = rd;
+                rs2 = rs;
+            }
+            asm_reg_op(asm, op, rd, rs1, rs2);
+        } else {
+            parse_reg_to_imm_op(asm, op, rd, rd);
+        }
+    case INSTR_IMM:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        rs1 := rd;
+        if (is_xreg(asm)) {
+            rs1 = parse_xreg(asm);
+            expect_token(asm, TOKEN_COMMA);
+        }
+        imm := parse_const(asm);
+        if (imm < I_IMMEDIATE_MIN || imm > I_IMMEDIATE_MAX) {
+            asm_error(asm, "Immediate is out of range");
+        }
+        asm_imm_op(asm, op, rd, rs1, uint32(imm));
+    case INSTR_LOAD:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        addr := parse_addr(asm);
+        @complete
+        switch (addr.kind) {
+        case ADDR_REG_OFFSET:
+            asm_instr(asm, {op = op, rd = rd, rs1 = addr.reg, imm = addr.val});
+        case ADDR_LABEL:
+            offset := addr.val - asm.addr;
+            asm_instr(asm, {op = AUIPC, rd = rd, imm = imm_hi(offset)});
+            asm_instr(asm, {op = op, rd = rd, rs1 = rd, imm = imm_lo(offset)});
+        case ADDR_IMM:
+            asm_li(asm, rd, addr.val);
+            asm_instr(asm, {op = op, rd = rd, rs1 = rd});
+        }
+    case INSTR_STORE:
+        addr := parse_addr(asm);
+        expect_token(asm, TOKEN_COMMA);
+        rs2 := parse_xreg(asm);
+        @complete
+        switch (addr.kind) {
+        case ADDR_REG_OFFSET:
+            asm_instr(asm, {op = op, rs1 = addr.reg, rs2 = rs2, imm = addr.val});
+        case ADDR_LABEL:
+            expect_token(asm, TOKEN_COMMA);
+            rt := parse_xreg(asm);
+            offset := addr.val - asm.addr;
+            asm_instr(asm, {op = AUIPC, rd = rt, imm = imm_hi(offset)});
+            asm_instr(asm, {op = op, rs1 = rt, rs2 = rs2, imm = imm_lo(offset)});
+        case ADDR_IMM:
+            expect_token(asm, TOKEN_COMMA);
+            rt := parse_xreg(asm);
+            asm_li(asm, rt, addr.val);
+            asm_instr(asm, {op = op, rs1 = rt, rs2 = rs2});
+        }
+    case INSTR_BRANCH:
+        rs1 := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        rs2 := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        addr := parse_label(asm);
+        offset: int32 = addr - asm.addr;
+        if (B_IMMEDIATE_MIN <= offset && offset <= B_IMMEDIATE_MAX) {
+            asm_instr(asm, {op = op, rs1 = rs1, rs2 = rs2, imm = offset});
+        } else {
+            asm_error(asm, "Branch target is out of range");
+        }
+    case INSTR_JAL:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        addr := parse_label(asm);
+        offset: int32 = addr - asm.addr;
+        if (J_IMMEDIATE_MIN <= offset && offset <= J_IMMEDIATE_MAX) {
+            asm_instr(asm, {op = JAL, rd = rd, imm = offset});
+        } else {
+            asm_error(asm, "Jump immediate offset is out of range");
+        }
+    case INSTR_JALR:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        addr := parse_addr(asm);
+        if (addr.kind != ADDR_REG_OFFSET) {
+            asm_error(asm, "Jump target must be register-based");
+        }
+        imm: int32 = addr.val;
+        if (I_IMMEDIATE_MIN <= imm && imm <= I_IMMEDIATE_MAX) {
+            asm_instr(asm, {op = JALR, rd = rd, rs1 = addr.reg, imm = imm});
+        } else {
+            asm_error(asm, "Jump immediate offset is out of range");
+        }
+    case INSTR_UPPER_IMM:
+        rd := parse_xreg(asm);
+        expect_token(asm, TOKEN_COMMA);
+        imm := parse_const(asm);
+        asm_instr(asm, {op = op, rd = rd, imm = uint32(imm)});
+    }
+}
+
+func imm_hi(imm: uint32): uint32 {
+    return imm + 0x800;
+}
+
+func imm_lo(imm: uint32): uint32 {
+    return imm;
+}
+
+func asm_bytes(asm: Assembler*, data: void const*, size: uint32) {
+    if (asm.addr + size > asm.buf_size) {
+        new_buf_size := clamp_min(2 * asm.buf_size, asm.addr + size);
+        asm.buf = realloc(asm.buf, new_buf_size);
+        memset(asm.buf + asm.buf_size, new_buf_size - asm.buf_size, 0);
+        asm.buf_size = new_buf_size;
+    }
+    memcpy(asm.buf + asm.addr, data, size);
+    asm.addr += size;
+}
+
+func asm_uint8(asm: Assembler*, data: uint8) {
+    asm_bytes(asm, &data, 1);
+}
+
+func asm_uint16(asm: Assembler*, data: uint16) {
+    asm_bytes(asm, &data, 2);
+}
+
+func asm_uint32(asm: Assembler*, data: uint32) {
+    asm_bytes(asm, &data, 4);
+}
+
+func asm_str(asm: Assembler*, str: char const*) {
+    asm_bytes(asm, str, strlen(str) + 1);
+}
+
+func asm_instr(asm: Assembler*, instr: Instruction) {
+    asm_uint32(asm, encode_instruction(instr));
+}
+
+func asm_reg_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg, rs2: Reg) {
+    asm_instr(asm, {op = op, rd = rd, rs1 = rs1, rs2 = rs2});
+}
+
+func asm_imm_op(asm: Assembler*, op: Op, rd: Reg, rs1: Reg, imm: uint32) {
+    asm_instr(asm, {op = op, rd = rd, rs1 = rs1, imm = imm});
+}
+
+func asm_mv(asm: Assembler*, dest: Reg, src: Reg) {
+    asm_reg_op(asm, ADD, dest, src, X0);
+}
+
+func push_temp_token(asm: Assembler*, token: Token) {
+    if (asm.temp_tokens_end == asm.temp_tokens + MAX_TEMP_TOKENS) {
+        asm_error(asm, "Temp tokens stack overflow");
+    }
+    *asm.temp_tokens_end++ = token;
+}
+
+func parse_newlines(asm: Assembler*) {
+    while (match_token(asm, TOKEN_NEWLINE)) {
+    }
+}
+
+func parse_line(asm: Assembler*) {
+    parse_newlines(asm);
+    while (is_token(asm, TOKEN_INT)) {
+        index := int(asm.token.val);
+        next_token(asm);
+        set_anon_label(asm, index);
+        expect_token(asm, TOKEN_COLON);
+    }
+    if (is_token(asm, TOKEN_NAME)) {
+        sym := parse_sym(asm);
+        while (match_token(asm, TOKEN_COLON)) {
+            if (sym.kind != SYM_NONE && sym.kind != SYM_LABEL) {
+                asm_error(asm, "Label already defined");
+            }
+            sym.kind = SYM_LABEL;
+            sym.addr = asm.addr;
+            if (match_token(asm, TOKEN_NEWLINE)) {
+                return;
+            }
+            sym = parse_sym(asm);
+        }
+        if (match_token(asm, TOKEN_ASSIGN)) {
+            expr := parse_expr(asm);
+            if (expr.kind == EXPR_CONST) {
+                sym.kind = SYM_CONST;
+                sym.val = expr.val;
+            } else if (expr.kind == EXPR_ADDR) {
+                sym.kind = SYM_LABEL;
+                sym.addr = expr.addr;
+            } else {
+                asm_error(asm, "Right-hand side of assignment must be constant or address");
+            }
+        } else {
+            switch (sym.kind) {
+            case SYM_INSTR:
+                parse_instr(asm, sym.instr);
+            case SYM_CMD:
+                sym.cmd(asm);
+            default:
+                asm_error(asm, "Expected instruction or command");
+            }
+        }
+    }
+    if (!is_token(asm, TOKEN_EOF) && !is_token(asm, TOKEN_NEWLINE)) {
+        asm_error(asm, "Unexpected token %s", token_info(asm.token));
+    }
+    parse_newlines(asm);
+}
+
+func parse_file(asm: Assembler*) {
+    init_pass(asm);
+    while (asm.token.kind) {
+        parse_line(asm);
+    }
+    asm.pass++;
+}
+
+func check_undefined_syms(asm: Assembler*) {
+    syms := &asm.syms;
+    for (i := 0; i < syms.cap; i++) {
+        if (syms.keys[i]) {
+            sym: Sym* = (:Sym*) syms.vals[i];
+            if (sym.kind == SYM_NONE || (sym.kind == SYM_LABEL && sym.addr == -1)) {
+                asm_error(asm, "Symbol '%s' referenced but never defined", sym.name);
+            }
+        }
+    }
+}
+
+func lex_test() {
+    asm := &Assembler{};
+    init_assembler(asm, "<string>", "  123\n 0xffff\n x0 x32 0b1111 1/2 // 987123987123\n '\\n' \"helloworld\" asdf Foo asdf /* whatever */ Hello_world");
+    init_scan(asm);
+    next_token(asm);
+    while (asm.token.kind) {
+        printf("%d: ", asm.line);
+        token := asm.token;
+        switch (token.kind) {
+        case TOKEN_INT:
+            printf("INT: %lld\n", token.val);
+        case TOKEN_STR:
+            printf("STR: %s\n", token.str);
+        case TOKEN_NAME:
+            printf("NAME: %s (%p)\n", token.str, token.str);
+        default:
+            printf("%s\n", token_kind_name(token.kind));
+        }
+        next_token(asm);
+    }
+}
+
+var is_nested: bool;
+
+func breakpoint_callback(hart: Hart*, breakpoint: Breakpoint*, instr: Instruction const*) {
+    printf("Hit breakpoint: 0x%x\n", breakpoint.addr);
+    is_nested = true;
+    cmd_loop(hart);
+    is_nested = false;
+}
+
+func trace_load_callback(hart: Hart*, addr: uint32, size: int) {
+    printf("Load: addr = %d, size = %d\n", addr, size);
+}
+
+func trace_store_callback(hart: Hart*, addr: uint32, data: uint32, size: int) {
+    printf("Store: addr = %d, data = %d, size = %d\n", addr, data, size);
+}
+
+func getline(buf: char*, buf_size: int) {
+    ptr := buf;
+    while (ptr != buf + buf_size) {
+        c := getchar();
+        if (c == EOF || c == '\n') {
+            break;
+        }
+        *ptr++ = c;
+    }
+    if (ptr == buf + buf_size) {
+        #assert(buf_size);
+        ptr[-1] = 0;
+    } else {
+        *ptr = 0;
+    }
+}
+
+func cmd_loop(hart: Hart*) {
+    hart.breakpoint.callback = breakpoint_callback;
+    print_hart_state(hart);
+    for (;;) {
+        line: char[256];
+        getline(line, sizeof(line));
+        if (strcmp(line, "") == 0) {
+            step(hart);
+            print_hart_state(hart);
+        } else if (line[0] == 'b') {
+            if (line[1]) {
+                addr := atoi(line + 1);
+                hart.breakpoint.enabled = true;
+                hart.breakpoint.addr = addr;
+                printf("Breakpoint enabled: %d\n", addr);
+            } else {
+                hart.breakpoint.enabled = false;
+                printf("Breakpoint disabled\n");
+            }
+        } else if (strcmp(line, "tl") == 0) {
+            hart.trace_load_enabled = !hart.trace_load_enabled;
+            printf("Load tracing %s\n", hart.trace_load_enabled ? "enabled" : "disabled");
+        } else if (strcmp(line, "ts") == 0) {
+            hart.trace_store_enabled = !hart.trace_store_enabled;
+            printf("Store tracing %s\n", hart.trace_store_enabled ? "enabled" : "disabled");
+        } else if (strcmp(line, "p") == 0) {
+            print_hart_state(hart);
+        } else if (strcmp(line, "r") == 0) {
+            for (;;) {
+                step(hart);
+            }
+        } else if (strcmp(line, "q") == 0) {
+            return;
+        } else {
+            printf("Unknown command: %s\n", line);
+        }
+    }
+}
+
+func assemble_file(asm: Assembler*, filename: char const*): bool {
+    file := fopen(filename, "rb");
+    if (!file) {
+        return false;
+    }
+    fseek(file, 0, SEEK_END);
+    size := ftell(file);
+    fseek(file, 0, SEEK_SET);
+    buf: char* = malloc(size + 1);
+    if (fread(buf, size, 1, file) != 1) {
+        free(buf);
+        return false;
+    }
+    buf[size] = 0;
+    fclose(file);
+
+    init_assembler(asm, filename, buf);
+    parse_file(asm);
+    parse_file(asm);
+    check_undefined_syms(asm);
+    free(buf);
+
+    return true;
+}
+
+func forth_test() {
+    asm: Assembler;
+    assemble_file(&asm, "forth.asm");
+    bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
+    hart := &Hart{pc = 0, bus = bus};
+    cmd_loop(hart);
+}
+
+func asm_test() {
+    lex_test();
+    asm := &Assembler{};
+
+    src := """
+    .macro fact_rec n, r
+    .if $n == 0
+    .print $r
+    .else
+    $fact_rec ($n)-1, ($r)*($n)
+    .endif
+    .endmacro
+
+    .macro fact_rec_start n
+    $fact_rec $n, 1
+    .endmacro
+
+    .macro fact_iter n
+    .if $n != 0
+    fact_result = ($n) * fact_result
+    $fact_iter ($n) - 1
+    .endif
+    .endmacro
+
+    .macro fact_iter_start n
+    fact_result = 1
+    $fact_iter $n
+    .print fact_result
+    .endmacro
+
+    $fact_rec_start 5
+    $fact_iter_start 5
+
+    .if 1
+    .if 0
+    .print "if 0"
+    .endif
+    .print "if 1"
+    .elseif 0
+    .print "if 2"
+    .else
+    .print "if 3"
+    .endif
+    .print "after if"
+
+    .define x1_comma x1,
+    .define x1_plus_4 [$x1_comma 4]
+    mov x1, 0x1000000
+    // lw x2, val
+    lw x2, $x1_plus_4 // [x1, 4]
+    add x2, x2
+    // sw [x1], x2
+    sw pad + 4, x2, x3
+    lw x3, val
+    // .fill 0x1000000, 1, 0
+
+    .define GETCHAR 0xFFFFFF00
+    .print $GETCHAR
+
+    lw x1, [$GETCHAR]
+    // lw x1, [0xFFFFFF00]
+    .print $
+    sub x1, 48
+    mov x2, 0
+    jmp >2
+1:  add x2, x1
+    sub x1, 1
+2:  bne x1, 0, <1
+
+    .macro test1 arg1, arg2
+    .define x 1
+    .define y 2
+    li x1, $arg1
+    li x2, $arg2
+    // li x3, $arg3
+    .endmacro
+
+    .macro test arg1, arg2, arg3
+    $test1 $arg2, $arg1
+    li x3, $arg3
+    .endmacro
+
+    .macro test2 arg1, arg2
+    $arg1, $arg2
+    .endmacro
+
+    minus_three = 1 - 2*2
+    li x1, minus_three
+
+    .define x 42
+    .define y 84
+    $test $x, $y, 123
+    // li x3, $arg1
+
+    .macro do_mul
+    la x2, getchar
+    lw x2, [x2]
+    sub x2, 48
+    lw x3, getchar
+    sub x3, 48
+    call mul
+    .endmacro
+
+    .print "Before"
+    .print $
+1:  $do_mul
+2:  .print "After"
+    .print $
+
+    lw x3, getchar
+
+    .print $
+
+    .uint32 0
+1:  .print $
+    .fill 1024
+    here = $ + 4
+    .print here
+    .print $ - <1
+
+ mul:
+    mov x4, 0
+    jmp >2
+1:  add x4, x3
+    sub x2, 1
+2:  bne x2, 0, <1
+    ret
+
+    .org 0x1000000
+pad:
+    .uint32 0
+val:
+    .uint8 42
+    .uint8 0
+    .uint8 0
+    .uint8 0
+
+    .org 0xFFFFFF00
+getchar:
+    """;
+    init_assembler(asm, "<string>", src);
+    parse_file(asm);
+    parse_file(asm);
+    check_undefined_syms(asm);
+    bus := &Bus{ram = asm.buf, ram_start = 0, ram_end = asm.buf_size};
+    hart := &Hart{
+        pc = 0,
+        bus = bus,      
+        breakpoint = {callback = breakpoint_callback},
+        trace_load_callback = trace_load_callback,
+        trace_store_callback = trace_store_callback,
+    };
+    cmd_loop(hart);
+}
+

@@ -1,0 +1,43 @@
+#foreign(header = "<time.h>")
+#foreign(preamble = "typedef struct tm tm_t;")
+
+@fake("This only specifies the fields mandated by the C standard")
+@foreign
+struct tm_t {
+    tm_sec: int;
+    tm_min: int;
+    tm_hour: int;
+    tm_mday: int;
+    tm_mon: int;
+    tm_year: int;
+    tm_wday: int;
+    tm_yday: int;
+    tm_isdst: int;
+}
+
+@foreign
+func clock(): clock_t;
+
+@foreign
+func difftime(time1: time_t, time0: time_t): double;
+
+@foreign
+func mktime(timeptr: tm_t*): time_t;
+
+@foreign
+func time(timer: time_t*): time_t;
+
+@foreign
+func asctime(timeptr: tm_t const*): char*;
+
+@foreign
+func ctime(timer: time_t const*): char*;
+
+@foreign
+func gmtime(timer: time_t const*): tm_t*;
+
+@foreign
+func localtime(timer: time_t const*): tm_t*;
+
+@foreign
+func strftime(s: char*, maxsize: usize, format: char const*, timeptr: tm_t const*): usize;

@@ -1,0 +1,806 @@
+import sdl {...}
+import libc {...}
+
+struct int2 {
+    x, y: int;
+}
+
+func int2_eq(a: int2, b: int2): bool {
+    return a.x == b.x && a.y == b.y;
+}
+
+struct float2 {
+    x, y: float;
+}
+
+var noir_key_to_sdl_scancode: int[NUM_KEYS] = {
+    [KEY_RETURN] = SDL_SCANCODE_RETURN,
+    [KEY_SPACE] = SDL_SCANCODE_SPACE,
+    [KEY_BACKSPACE] = SDL_SCANCODE_BACKSPACE,
+    [KEY_TAB] = SDL_SCANCODE_TAB,
+    [KEY_ESCAPE] = SDL_SCANCODE_ESCAPE,
+    [KEY_LEFT] = SDL_SCANCODE_LEFT,
+    [KEY_RIGHT] = SDL_SCANCODE_RIGHT,
+    [KEY_UP] = SDL_SCANCODE_UP,
+    [KEY_DOWN] = SDL_SCANCODE_DOWN,
+    [KEY_LSHIFT] = SDL_SCANCODE_LSHIFT,
+    [KEY_RSHIFT] = SDL_SCANCODE_RSHIFT,
+    [KEY_LCTRL] = SDL_SCANCODE_LCTRL,
+    [KEY_RCTRL] = SDL_SCANCODE_RCTRL,
+    [KEY_LALT] = SDL_SCANCODE_LALT,
+    [KEY_RALT] = SDL_SCANCODE_RALT,
+};
+
+var sdl_scancode_to_noir_key: int[SDL_NUM_SCANCODES];
+
+func check_init(): bool {
+    if (!app.init) {
+        app.error = "Not initialized";
+        return false;
+    }
+    return true;
+}
+
+func init_time() {
+    app.time.ticks_per_sec = SDL_GetPerformanceFrequency();
+    app.time.sdl_start_ticks = SDL_GetPerformanceCounter();
+}
+
+func sdl_audio_callback(userdata: void*, buf: uint8*, len: int) {
+    if (app.audio.callback) {
+        app.audio.callback(app.audio.context, (:float2*)buf, len / sizeof(float2));
+    }
+}
+
+func init_audio(): bool {
+    app.audio.rate = 44100;
+    app.audio.channels = 2;
+    desired_spec := SDL_AudioSpec{
+        freq = app.audio.rate,
+        channels = app.audio.channels,
+        format = AUDIO_F32,
+        samples = 4096,
+        callback = sdl_audio_callback,
+    };
+    obtained_spec: SDL_AudioSpec;
+    sdl_device := SDL_OpenAudioDevice(NULL, 0, &desired_spec, &obtained_spec, 0);
+    if (sdl_device == 0) {
+        sdl_error("SDL_OpenAudioDevice");
+        return false;
+    }
+    app.audio.valid = true;
+    app.audio.sdl_device = sdl_device;
+    return true;
+}
+
+func init_window(): bool {
+    if (!app.window.title) {
+        app.window.title = default_window_title;
+    }
+    x := app.window.pos.x == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : app.window.pos.x;
+    y := app.window.pos.y == DEFAULT_WINDOW_POS  ? SDL_WINDOWPOS_CENTERED : app.window.pos.y;
+    width := app.window.size.x == 0 ? default_window_size.x : app.window.size.x;
+    height := app.window.size.y == 0 ? default_window_size.y : app.window.size.y;
+    flags: SDL_WindowFlags;
+    if (app.window.resizable) {
+        flags |= SDL_WINDOW_RESIZABLE;
+    }
+    if (app.window.hidden) {
+        flags |= SDL_WINDOW_HIDDEN;
+    }
+    sdl_window := SDL_CreateWindow(app.window.title, x, y, width, height, flags);
+    if (!sdl_window) {
+        app.error = "Window creation failed";
+        return false;
+    }
+    app.window.sdl = sdl_window;
+    app.window.synced_pos = app.window.pos;
+    strncpy(app.window.synced_title, app.window.title, sizeof(app.window.synced_title) - 1);
+    update_window();
+    return true;
+}
+
+func init_display(): bool {
+    dpi: float;
+    if (SDL_GetDisplayDPI(0, &dpi, NULL, NULL) != 0) {
+        sdl_error("SDL_GetDisplayDPI");
+        return false;
+    }
+    app.display.dpi = dpi;
+
+    mode: SDL_DisplayMode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) != 0) {
+        sdl_error("SDL_GetCurrentDisplayMode");
+        return false;
+    }
+    app.display.size.x = mode.w;
+    app.display.size.y = mode.h;
+    app.display.rate = mode.refresh_rate;
+    return true;
+}
+
+func init_keys() {
+    for (c := 0; c < 256; c++) {
+        if (isprint(c)) {
+            str: char[] = {c, 0};
+            scancode := SDL_GetScancodeFromName(str);
+            if (scancode != SDL_SCANCODE_UNKNOWN) {
+                noir_key_to_sdl_scancode[uchar(c)] = scancode;
+            }
+        }
+    }
+    for (key := 0; key < NUM_KEYS; key++) {
+        scancode := noir_key_to_sdl_scancode[key];
+        if (scancode) {
+            sdl_scancode_to_noir_key[scancode] = key;
+        }
+    }
+}
+
+func sdl_error(name: char const*) {
+    error := SDL_GetError();
+    if (*error) {
+        snprintf(app.error_buf, sizeof(app.error_buf), "%s: %s", name, error);
+        app.error = app.error_buf;
+    }
+}
+
+func update_events() {
+    for (key := 0; key < NUM_KEYS; key++) {
+        reset_digital_button_events(&app.keys[key]);
+    }
+
+    reset_digital_button_events(&app.mouse.left_button);
+    reset_digital_button_events(&app.mouse.middle_button);
+    reset_digital_button_events(&app.mouse.right_button);
+
+    text_ptr := app.text;
+    text_end := app.text + sizeof(app.text) - 1;
+
+    app.num_events = 0;
+
+    event: SDL_Event;
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+        case SDL_MOUSEMOTION:
+            pos := int2{event.motion.x, event.motion.y};
+            delta_pos := int2{event.motion.xrel, event.motion.yrel};
+            push_event(EVENT_MOUSE_MOVE, EventData{mouse_move = {pos = pos, delta_pos = delta_pos}});
+        case SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP:
+            button: MouseButton;
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                update_digital_button(&app.mouse.left_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_LEFT;
+            } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+                update_digital_button(&app.mouse.middle_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_MIDDLE;
+            } else if (event.button.button == SDL_BUTTON_RIGHT) {
+                update_digital_button(&app.mouse.right_button, event.button.state == SDL_PRESSED);
+                button = MOUSE_BUTTON_RIGHT;
+            }
+            if (button) {
+                kind := event.type == SDL_MOUSEBUTTONDOWN ? EVENT_MOUSE_BUTTON_DOWN : EVENT_MOUSE_BUTTON_UP;
+                push_event(kind, EventData{mouse_button = {button = button, pos = {event.button.x, event.button.y}}});
+            }
+        case SDL_KEYDOWN, SDL_KEYUP:
+            key := sdl_scancode_to_noir_key[event.key.keysym.scancode];
+            if (key) {
+                if (!event.key.repeat) {
+                    update_digital_button(&app.keys[key], event.key.state == SDL_PRESSED);
+                    update_combination_keys();
+                }
+                kind := event.type == SDL_KEYDOWN ? EVENT_KEY_DOWN : EVENT_KEY_UP;
+                push_event(kind, EventData{key = {key = key, repeat = event.key.repeat}});
+            }
+        case SDL_TEXTINPUT:
+            str := event.text.text;
+            while (*str) {
+                if (text_ptr == text_end) {
+                    app.error = "Text buffer overflow";
+                    break;
+                }
+                *text_ptr++ = *str++;
+            }
+        case SDL_QUIT:
+            app.quit = true;
+        }
+    }
+
+    *text_ptr = 0;
+}
+
+func update_window() {
+    if (app.window.fullscreen != app.window.synced_fullscreen) {
+        if (SDL_SetWindowFullscreen(app.window.sdl, app.window.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) < 0) {
+            sdl_error("SDL_SetWindowFullscreen");
+        }
+        app.window.synced_fullscreen = app.window.fullscreen;
+    }
+
+    if (app.window.title != app.window.synced_title && strcmp(app.window.title, app.window.synced_title) != 0) {
+        SDL_SetWindowTitle(app.window.sdl, app.window.title);
+        strncpy(app.window.synced_title, app.window.title, sizeof(app.window.synced_title));
+        app.window.title = app.window.synced_title;
+    }
+
+    if (!int2_eq(app.window.pos, app.window.synced_pos)) {
+        SDL_SetWindowPosition(app.window.sdl, app.window.pos.x, app.window.pos.y);
+    }
+    SDL_GetWindowPosition(app.window.sdl, &app.window.pos.x, &app.window.pos.y);
+    app.window.moved = app.num_updates == 0 || !int2_eq(app.window.pos, app.window.synced_pos);
+    app.window.synced_pos = app.window.pos;
+
+    if (!int2_eq(app.window.size, app.window.synced_size)) {
+        SDL_SetWindowSize(app.window.sdl, app.window.size.x, app.window.size.y);
+    }
+    SDL_GetWindowSize(app.window.sdl, &app.window.size.x, &app.window.size.y);
+    app.window.resized = app.num_updates == 0 || !int2_eq(app.window.size, app.window.synced_size);
+    app.window.synced_size = app.window.size;
+
+    if (app.window.resizable != app.window.synced_resizable) {
+        SDL_SetWindowResizable(app.window.sdl, app.window.resizable);
+    }
+    app.window.synced_resizable = app.window.resizable;
+
+    if (app.window.hidden != app.window.synced_hidden) {
+        if (app.window.hidden) {
+            SDL_HideWindow(app.window.sdl);
+        } else {
+            SDL_ShowWindow(app.window.sdl);
+        }
+    }
+    app.window.synced_hidden = app.window.hidden;
+}
+
+func update_audio() {
+    if (!app.audio.valid) {
+        return;
+    }
+    if (app.audio.synced_play != app.audio.play) {
+        SDL_PauseAudioDevice(app.audio.sdl_device, !app.audio.play);
+    }
+    app.audio.synced_play = app.audio.play;
+}
+
+func update_clipboard() {
+    // TODO: Concerned about performance implications for large clipboard data.
+    if (app.clipboard != app.synced_clipboard) {
+        SDL_free(app.synced_clipboard);
+        app.synced_clipboard = SDL_strdup(app.clipboard);
+        app.clipboard = app.synced_clipboard;
+        SDL_SetClipboardText(app.clipboard);
+    } else {
+        if (SDL_HasClipboardText()) {
+            new_clipboard := SDL_GetClipboardText();
+            if (!app.synced_clipboard || strcmp(new_clipboard, app.synced_clipboard) != 0) {
+                SDL_free(app.synced_clipboard);
+                app.synced_clipboard = new_clipboard;
+                app.clipboard = app.synced_clipboard;
+            } else {
+                SDL_free(new_clipboard);
+            }
+        }
+    }
+}
+
+func update_time() {
+    ticks := SDL_GetPerformanceCounter() - app.time.sdl_start_ticks;
+    app.time.delta_ticks = int(ticks - app.time.ticks);
+    app.time.ticks = ticks;
+
+    app.time.nsecs = (app.time.ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec;
+    app.time.usecs = (app.time.ticks * 1000 * 1000) / app.time.ticks_per_sec;
+    app.time.msecs = (app.time.ticks * 1000) / app.time.ticks_per_sec;
+    app.time.secs = double(app.time.ticks) / double(app.time.ticks_per_sec);
+
+    app.time.delta_nsecs = int((app.time.delta_ticks * 1000 * 1000 * 1000) / app.time.ticks_per_sec);
+    app.time.delta_usecs = int((app.time.delta_ticks * 1000 * 1000) / app.time.ticks_per_sec);
+    app.time.delta_msecs = int((app.time.delta_ticks * 1000) / app.time.ticks_per_sec);
+    app.time.delta_secs = float(app.time.delta_ticks) / float(app.time.ticks_per_sec);
+}
+
+func update_mouse() {
+    if (app.mouse.capture != app.mouse.synced_capture) {
+        if (SDL_CaptureMouse(app.mouse.capture) < 0) {
+            sdl_error("SDL_CaptureMouse");
+        }
+    }
+    app.mouse.synced_capture = app.mouse.capture;
+
+    if (app.mouse.pos.x != app.mouse.synced_pos.x || app.mouse.pos.y != app.mouse.synced_pos.y) {
+        SDL_WarpMouseInWindow(NULL, app.mouse.pos.x, app.mouse.pos.y);
+    }
+    state := SDL_GetMouseState(&app.mouse.pos.x, &app.mouse.pos.y);
+    app.mouse.delta_pos = int2{app.mouse.pos.x - app.mouse.synced_pos.x, app.mouse.pos.y - app.mouse.synced_pos.y};
+    app.mouse.moved = app.mouse.delta_pos.x || app.mouse.delta_pos.y;
+    app.mouse.synced_pos = app.mouse.pos;
+
+    if (app.mouse.global_pos.x != app.mouse.synced_global_pos.x || app.mouse.global_pos.y != app.mouse.synced_global_pos.y) {
+        SDL_WarpMouseGlobal(app.mouse.global_pos.x, app.mouse.global_pos.y);
+    }
+    SDL_GetGlobalMouseState(&app.mouse.global_pos.x, &app.mouse.global_pos.y);
+    app.mouse.global_delta_pos = int2{app.mouse.global_pos.x - app.mouse.synced_global_pos.x, app.mouse.global_pos.y - app.mouse.synced_global_pos.y};
+    app.mouse.global_moved = app.mouse.global_delta_pos.x || app.mouse.global_delta_pos.y;
+    app.mouse.synced_global_pos = app.mouse.global_pos;
+}
+
+func app_init(): bool {
+    if (app.init) {
+        return true;
+    }
+    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+        sdl_error("SDL_Init");
+        return false;
+    }
+    if (!init_display()) {
+        return false;
+    }
+    if (!init_window()) {
+        return false;
+    }
+    init_keys();
+    init_time();
+    init_audio();
+    app.platform = SDL_GetPlatform();
+    app.init = true;
+    return true;
+}
+
+func app_update(): bool {
+    if (!check_init()) {
+        return false;
+    }
+    if (!app.error) {
+        SDL_ClearError();
+    }
+    SDL_PumpEvents();
+    update_events();
+    update_window();
+    update_time();
+    update_mouse();
+    update_clipboard();
+    update_audio();
+    app.num_updates++;
+    return !app.quit;
+}
+
+
+struct DigitalButton {
+    down: bool;
+    pressed: int;
+    released: int;
+}
+
+func reset_digital_button_events(button: DigitalButton*) {
+    button.pressed = 0;
+    button.released = 0;
+}
+
+func update_digital_button(button: DigitalButton*, down: bool) {
+    was_down := button.down;
+    button.down = down;
+    button.pressed += down && !was_down;
+    button.released += !down && was_down;
+}
+
+enum Key {
+    KEY_LSHIFT = 256,
+    KEY_RSHIFT,
+    KEY_SHIFT,
+    KEY_LCTRL,
+    KEY_RCTRL,
+    KEY_CTRL,
+    KEY_LALT,
+    KEY_RALT,
+    KEY_ALT,
+    KEY_CAPS,
+    KEY_RETURN,
+    KEY_SPACE,
+    KEY_BACKSPACE,
+    KEY_ESCAPE,
+    KEY_TAB,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_UP,
+    KEY_DOWN,
+    NUM_KEYS,
+}
+
+const MAX_TEXT = 1024;
+const MAX_ERROR = 256;
+const MAX_TITLE = 256;
+
+struct Time {
+    delta_ticks: int;
+    delta_nsecs: int;
+    delta_usecs: int;
+    delta_msecs: int;
+    delta_secs: float;
+    
+    ticks: uint64;
+    nsecs: uint64;
+    usecs: uint64;
+    msecs: uint64;
+    secs: double;
+
+    ticks_per_sec: uint64;
+
+    sdl_start_ticks: uint64;
+}
+
+struct Mouse {
+    moved: bool;
+    pos: int2;
+    delta_pos: int2;
+
+    global_moved: bool;
+    global_pos: int2;
+    global_delta_pos: int2;
+
+    left_button: DigitalButton;
+    middle_button: DigitalButton;
+    right_button: DigitalButton;
+    capture: bool;
+
+    synced_capture: bool;
+    synced_pos: int2;
+    synced_global_pos: int2;
+}
+
+struct Audio {
+    valid: bool;
+    rate: int;
+    channels: int;
+
+    play: bool;
+    callback: func(context: void*, frames: float2*, num_frames: int);
+    context: void*;
+
+    synced_play: bool;
+
+    sdl_device: int;
+}
+
+struct Window {
+    resizable: bool;
+    hidden: bool;
+    fullscreen: bool;
+
+    title: char const*;
+    pos: int2;
+    size: int2;
+    moved: bool;
+    resized: bool;
+
+    synced_title: char[MAX_TITLE];
+    synced_pos: int2;
+    synced_size: int2;
+    synced_resizable: bool;
+    synced_hidden: bool;
+    synced_fullscreen: bool;
+
+    sdl: SDL_Window*;
+}
+
+struct Display {
+    size: int2;
+    rate: int;
+    dpi: float;
+}
+
+enum MouseButton {
+    MOUSE_BUTTON_NONE,
+    MOUSE_BUTTON_LEFT,
+    MOUSE_BUTTON_MIDDLE,
+    MOUSE_BUTTON_RIGHT,
+}
+
+enum EventKind {
+    EVENT_NONE,
+    EVENT_KEY_DOWN,
+    EVENT_KEY_UP,
+    EVENT_MOUSE_BUTTON_DOWN,
+    EVENT_MOUSE_BUTTON_UP,
+    EVENT_MOUSE_MOVE,
+}
+
+struct KeyEvent {
+    key: int;
+    repeat: bool;
+}
+
+struct MouseButtonEvent {
+    button: MouseButton;
+    pos: int2;
+}
+
+struct MouseMoveEvent {
+    pos: int2;
+    delta_pos: int2;
+}
+
+union EventData {
+    key: KeyEvent;
+    mouse_button: MouseButtonEvent;
+    mouse_move: MouseMoveEvent;
+}
+
+struct Event {
+    kind: EventKind;
+    data: EventData;
+}
+
+const MAX_EVENTS = 256;
+
+struct App {
+    init: bool;
+    quit: bool;
+    num_updates: int;
+    error: char const*;
+    error_buf: char[MAX_ERROR];
+    events: Event[MAX_EVENTS];
+    num_events: int;
+
+    platform: char const*;
+    clipboard: char const*;
+    display: Display;
+    window: Window;
+    keys: DigitalButton[NUM_KEYS];
+    mouse: Mouse;
+    text: char[MAX_TEXT];
+    time: Time;
+    audio: Audio;
+
+    synced_clipboard: char*;
+}
+
+var default_window_title = "Noir";
+var default_window_size = int2{800, 600};
+
+const DEFAULT_WINDOW_POS = 1 << 31;
+
+var app: App = {window = {pos = {DEFAULT_WINDOW_POS , DEFAULT_WINDOW_POS}}};
+
+func update_combination_key(dest_key: int, src_key1: int, src_key2: int) {
+    update_digital_button(&app.keys[dest_key], app.keys[src_key1].down || app.keys[src_key2].down);
+}
+
+func update_combination_keys() {
+    update_combination_key(KEY_SHIFT, KEY_LSHIFT, KEY_RSHIFT);
+    update_combination_key(KEY_CTRL, KEY_LCTRL, KEY_RCTRL);
+    update_combination_key(KEY_ALT, KEY_LALT, KEY_RALT);
+}
+
+func push_event(kind: EventKind, data: EventData) {
+    if (app.num_events == MAX_EVENTS) {
+        app.error = "Event queue overflow";
+        return;
+    }
+    app.events[app.num_events++] = Event{kind = kind, data = data};
+}
+
+// Test program
+
+const PI = 3.14159265358979323846264338327950288;
+const PI2 = PI + PI;
+
+var osc1_freq: float = 440;
+var osc1_amp: float = 0.1;
+var osc1_phase: float;
+
+var osc2_freq: float = 330;
+var osc2_amp: float = 1.0;
+var osc2_phase: float = 0.0;
+
+var mix_gain = 1.0;
+
+func audio_callback(context: void*, frames: float2*, num_frames: int) {
+    delta_osc1_phase := PI2 * osc1_freq / app.audio.rate;
+    delta_osc2_phase := PI2 * osc2_freq / app.audio.rate;
+    for (i := 0; i < num_frames; i++) {
+        val := osc1_amp * cos(osc1_phase + osc2_amp * cos(osc2_phase));
+        // val := osc1_amp * cos(osc1_phase) * osc2_amp * cos(osc2_phase);
+        // val := osc1_amp * cos(osc1_phase) + osc2_amp * cos(osc2_phase);
+        val *= mix_gain;
+        frames[i].x = val;
+        frames[i].y = val;
+        osc1_phase += delta_osc1_phase;
+        osc2_phase += delta_osc2_phase;
+    }
+    osc1_phase = fmod(osc1_phase, PI2);
+    osc2_phase = fmod(osc2_phase, PI2);
+}
+
+func print_and_clear_error() {
+    if (app.error) {
+        printf("Error: %s\n", app.error);
+        app.error = NULL;
+    }
+}
+
+func print_events() {
+    for (i := 0; i < app.num_events; i++) {
+        event := app.events[i];
+        switch (event.kind) {
+        case EVENT_KEY_DOWN:
+            data := event.data.key;
+            printf("EVENT_KEY_DOWN: %d\n", data.key);
+        case EVENT_KEY_UP:
+            data := event.data.key;
+            printf("EVENT_KEY_UP: %d\n", data.key);
+        case EVENT_MOUSE_BUTTON_DOWN:
+            data := event.data.mouse_button;
+            printf("EVENT_MOUSE_BUTTON_DOWN: %d, (%d, %d)\n", data.button, data.pos.x, data.pos.y);
+        case EVENT_MOUSE_BUTTON_UP:
+            data := event.data.mouse_button;
+            printf("EVENT_MOUSE_BUTTON_UP: %d, (%d, %d)\n", data.button, data.pos.x, data.pos.y);
+        case EVENT_MOUSE_MOVE:
+            data := event.data.mouse_move;
+            printf("EVENT_MOUSE_MOVE: (%d, %d), (%d, %d)\n", data.pos.x, data.pos.y, data.delta_pos.x, data.delta_pos.y);
+        }
+    }
+}
+
+func main(argc: int, argv: char**): int {
+    app.audio.callback = audio_callback;
+    if (!app_init()) {
+        print_and_clear_error();
+        return 1;
+    }
+    printf("Platform: %s\n", app.platform);
+    printf("Display: %d x %d, %d Hz, %.2f DPI\n", app.display.size.x, app.display.size.y, app.display.rate, app.display.dpi);
+    title_count := 0;
+    title_buf: char[16];
+    show_time_msecs: uint64 = 0;
+    print_events_enabled := false;
+    while (app_update()) {
+        if (app.error) {
+            print_and_clear_error();
+        }
+        if (print_events_enabled) {
+            print_events();
+        }
+        // printf("Mouse = (%d, %d)\n", app.mouse.pos.x, app.mouse.pos.y);
+        // printf("Time: %fs\n", app.time.secs);
+        // printf("Delta time: %fs\n", app.time.delta_secs);
+        if (app.mouse.moved) {
+            printf("Mouse move: (%d, %d)\n", app.mouse.delta_pos.x, app.mouse.delta_pos.y);
+        }
+        if (app.mouse.global_moved) {
+            printf("Global mouse move: (%d, %d)\n", app.mouse.global_delta_pos.x, app.mouse.global_delta_pos.y);
+        }
+        if (app.window.moved) {
+            printf("Window moved: (%d, %d)\n", app.window.pos.x, app.window.pos.y);
+        }
+        if (app.window.resized) {
+            printf("Window resized: (%d, %d)\n", app.window.size.x, app.window.size.y);
+        }
+        if (*app.text) {
+            printf("Text: %s\n", app.text);
+        }
+        if (app.mouse.left_button.pressed) {
+            printf("Left mouse button pressed\n");
+        }
+        if (app.mouse.left_button.released) {
+            printf("Left mouse button released\n");
+        }
+        lshift := app.keys[KEY_LSHIFT];
+        if (lshift.pressed) {
+            printf("Left shift pressed\n");
+        }
+        if (lshift.released) {
+            printf("Left shift released\n");
+        }
+        rshift := app.keys[KEY_RSHIFT];
+        if (rshift.pressed) {
+            printf("Right shift pressed\n");
+        }
+        if (rshift.released) {
+            printf("Right shift released\n");
+        }
+        shift := app.keys[KEY_SHIFT];
+        alt := app.keys[KEY_ALT];
+        ctrl := app.keys[KEY_CTRL];
+        if (shift.pressed) {
+            printf("Shift pressed\n");
+        }
+        if (shift.released) {
+            printf("Shift released\n");
+        }
+        if (app.keys[KEY_ESCAPE].pressed) {
+            app.quit = true;
+        }
+        if (app.keys['e'].pressed) {
+            print_events_enabled = !print_events_enabled;
+        }
+        if (app.keys['p'].pressed) {
+            app.audio.play = !app.audio.play;
+            printf("%s audio\n", app.audio.play ? "Playing" : "Pausing");
+        }
+        if (alt.down && app.keys[KEY_RETURN].pressed) {
+            printf("Toggling full screen\n");
+            app.window.fullscreen = !app.window.fullscreen;
+        }
+        if (app.keys['t'].pressed) {
+            printf("Changing title\n");
+            title_count++;
+            sprintf(title_buf, "Title %d", title_count);
+            app.window.title = title_buf;
+        }
+        if (app.keys['a'].pressed) {
+            printf("Copying title to clipboard\n");
+            app.clipboard = app.window.title;
+        }
+        if (app.keys['b'].pressed) {
+            printf("Copying clipboard to title\n");
+            app.window.title = app.clipboard;
+        }
+        if (app.keys['c'].pressed) {
+            app.mouse.capture = !app.mouse.capture;
+            printf("Mouse capture %s\n", app.mouse.capture ? "enabled" : "disabled");
+        }
+        if (app.keys['r'].pressed) {
+            app.window.resizable = !app.window.resizable;
+            printf("Window resizing %s\n", app.window.resizable ? "enabled" : "disabled");
+        }
+        if (app.keys['h'].pressed) {
+            app.window.hidden = true;
+            show_time_msecs = app.time.msecs + 1000;
+            printf("Window hidden\n");
+        }
+        if (app.window.hidden && app.time.msecs >= show_time_msecs) {
+            app.window.hidden = false;
+            printf("Window shown\n");
+        }
+        if (app.keys['j'].down) {
+            if (shift.down) {
+                osc2_freq -= 100 * app.time.delta_secs;
+            } else {
+                osc1_freq -= 100 * app.time.delta_secs;
+            }
+        }
+        if (app.keys['l'].down) {
+            if (shift.down) {
+                osc2_freq += 100 * app.time.delta_secs;
+            } else {
+                osc1_freq += 100 * app.time.delta_secs;
+            }
+        }
+        if (app.keys['i'].down) {
+            if (shift.down) {
+                osc2_amp += 0.1 * app.time.delta_secs;
+            } else {
+                osc1_amp += 0.03 * app.time.delta_secs;
+            }
+        }
+        if (app.keys['k'].down) {
+            if (shift.down) {
+                osc2_amp -= 0.1 * app.time.delta_secs;
+            } else {
+                osc1_amp -= 0.03 * app.time.delta_secs;
+            }
+        }
+        dest := &app.window.pos;
+        if (shift.down) {
+            dest = &app.mouse.global_pos;
+        } else if (ctrl.down) {
+            dest = &app.window.size;
+        }
+        if (app.keys[KEY_LEFT].pressed) {
+            dest.x -= 100;
+        }
+        if (app.keys[KEY_RIGHT].pressed) {
+            dest.x += 100;
+        }
+        if (app.keys[KEY_UP].pressed) {
+            dest.y -= 100;
+        }
+        if (app.keys[KEY_DOWN].pressed) {
+            dest.y += 100;
+        }
+    }
+    if (app.error) {
+        print_and_clear_error();
+    }
+    return 0;
+}
