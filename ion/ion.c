@@ -103,6 +103,14 @@ int ion_main(int argc, const char **argv) {
         return 1;
     }
     builtin_package->external_name = str_intern("");
+    enter_package(builtin_package);
+    Sym *any_sym = resolve_name(str_intern("any"));
+    if (!any_sym || any_sym->kind != SYM_TYPE) {
+        printf("error: Any type not defined");
+        return 1;
+    }
+    type_any = any_sym->type;
+    leave_package(builtin_package);
     Package *main_package = import_package(package_name);
     if (!main_package) {
         printf("error: Failed to compile package '%s'\n", package_name);
@@ -149,6 +157,10 @@ int ion_main(int argc, const char **argv) {
             return 1;
         }
         printf("Generated %s\n", c_path);
+        printf("Intern: %.2f MB\n", (float)intern_memory_usage / (1024 * 1024));
+        printf("Source: %.2f MB\n", (float)source_memory_usage / (1024 * 1024));
+        printf("AST:    %.2f MB\n", (float)ast_memory_usage / (1024 * 1024));
+        printf("Ratio:  %.2f\n", (float)(intern_memory_usage + ast_memory_usage) / source_memory_usage);
     }
     return 0;
 }

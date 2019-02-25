@@ -1,0 +1,1100 @@
+import libc
+
+struct File {
+    base: Disposable;
+    libc_file: libc.FILE*;
+}
+
+func file_dispose(data: void*) {
+    self: File* = data;
+    if (self.libc_file) {
+        libc.fclose(self.libc_file);
+    }
+    libc.free(self);
+}
+
+func open(path: char const*): File* {
+    libc_file := libc.fopen(path, "r");
+    if (!libc_file) {
+        return 0;
+    }
+    return new File{make_disposable(file_dispose), libc_file};
+}
+
+typedef DisposeFunc = func(void*);
+typedef DisposeMark = usize;
+
+struct Disposable {
+    dispose: DisposeFunc;
+    mark: DisposeMark;
+}
+
+@threadlocal
+var disposables: Disposable*[];
+
+func make_disposable(dispose: DisposeFunc): Disposable {
+    return {dispose, alen(disposables)};
+}
+
+func secured(data: void*): bool {
+    if (!data) {
+        return false;
+    }
+    self: Disposable* = data;
+    mark := self.mark;
+    return mark < alen(disposables) && disposables[mark] == self;
+}
+
+func secure(data: void*): void* {
+    if (!secured(data)) {
+        self: Disposable* = data;
+        self.mark = apush(disposables, self);
+    }
+    return data;
+}
+
+func unsecure(data: void*): void* {
+    if (data && secured(data)) {
+        self: Disposable* = data;
+        disposables[self.mark] = 0;
+        self.mark = -1;
+    }
+    return data;
+}
+
+func dispose(data: void*) {
+    if (!data) {
+        return;
+    }
+    self: Disposable* = data;
+    mark := self.mark;
+    for (i := alen(disposables); i > mark; i--) {
+        disposable := disposables[i-1];
+        if (disposable) {
+            disposable.dispose(disposable);
+            disposables[i-1] = 0;
+        }
+    }
+    asetlen(disposables, mark);
+}
+
+struct Recover {
+    base: Disposable;
+    libc_env: libc.jmp_buf;
+}
+
+func recover_dispose(data: void*) {
+    dispose(data);
+}
+
+@threadlocal
+var temp_ctx: Recover*;
+
+@foreign
+func recover(ctx: Recover*): bool {
+    make_disposable;
+    recover_dispose;
+    temp_ctx;
+    libc.setjmp;
+    #foreign(preamble = "#define recover(ctx) (std_temp_ctx = (ctx), std_temp_ctx->base = std_make_disposable(std_recover_dispose), setjmp(std_temp_ctx->libc_env) == 0)");
+    return true;
+}
+
+func panic(ctx: Recover*) {
+    dispose(ctx);
+    libc.longjmp(ctx.libc_env, 1);
+}
+
+func noop_free(data: void*, ptr: void*) {
+}
+
+struct TempAllocator {
+    base: Allocator;
+    start: void*;
+    next: void*;
+    end: void*;
+}
+
+struct TempMark {
+    ptr: void*;
+}
+
+// can legally cast TempAllocator* to Allocator* because Allocator is the first field's type in TempAllocator
+
+func temp_alloc(allocator: void*, size: usize, align: usize): void* {
+    self: TempAllocator* = allocator;
+    aligned := (uintptr(self.next) + align - 1) & ~(align - 1);
+    next := aligned + size;
+    if (next > uintptr(self.end)) {
+        return 0;
+    }
+    self.next = (:void*)next;
+    return (:void*)aligned;
+}
+
+func temp_allocator(buf: void*, size: usize): TempAllocator {
+    return {{temp_alloc, noop_free}, buf, buf, buf + size};
+}
+
+func temp_begin(self: TempAllocator*): TempMark {
+    return {self.next};
+}
+
+func temp_end(self: TempAllocator*, mark: TempMark) {
+    ptr := mark.ptr;
+    #assert(self.start <= ptr && ptr <= self.end);
+    self.next = ptr;
+}
+
+struct ArenaAllocator {
+    base: Allocator;
+    allocator: Allocator*;
+    block_size: usize;
+    blocks: char*[];
+    next: char*;
+    end: char*;
+}
+
+const ARENA_MIN_BLOCK_SIZE: usize = sizeof(ullong); // small just to test things, would normally be 1 MB or whatever
+const ARENA_MIN_BLOCK_ALIGN: usize = sizeof(ullong);
+
+func arena_allocator(allocator: void*): ArenaAllocator {
+    return {{arena_alloc, noop_free}, allocator, ARENA_MIN_BLOCK_SIZE};
+}
+
+func arena_alloc_grow(self: ArenaAllocator*, size: usize, align: usize): void* {
+    block_size := 2*self.block_size;
+    if (block_size < size) {
+        block_size = size;
+    }
+    block_align := ARENA_MIN_BLOCK_ALIGN;
+    if (block_align < align) {
+        block_align = align;
+    }
+    block: char* = generic_alloc(self.allocator, block_size, block_align);
+    if (!block) {
+        return 0;
+    }
+    apush(self.blocks, block);
+    self.block_size = block_size;
+    self.next = block + size;
+    self.end = block + block_size;
+    return block;
+}
+
+func arena_alloc(allocator: void*, size: usize, align: usize): void* {
+    self: ArenaAllocator* = allocator;
+    aligned := (uintptr(self.next) + align - 1) & ~(align - 1);
+    next := aligned + size;
+    if (next > uintptr(self.end)) {
+        return arena_alloc_grow(self, size, align);
+    }
+    self.next = (:char*)next;
+    return (:void*)aligned;
+}
+
+func arena_free(self: ArenaAllocator*) {
+    for (i := 0; i < alen(self.blocks); i++) {
+        generic_free(self.allocator, self.blocks[i]);
+    }
+    afree(self.blocks);
+}
+
+enum AllocatorEventKind {
+    EVENT_ALLOC,
+    EVENT_FREE,
+}
+
+struct AllocatorEvent {
+    kind: AllocatorEventKind;
+    time: libc.time_t;
+    ptr: void*;
+    size: usize;
+    align: usize;
+}
+
+struct TraceAllocator {
+    base: Allocator;
+    allocator: Allocator*;
+    events: AllocatorEvent[];
+}
+
+func trace_alloc(allocator: void*, size: usize, align: usize): void* {
+    self: TraceAllocator* = allocator;
+    ptr := generic_alloc(self.allocator, size, align);
+    apush(self.events, {EVENT_ALLOC, libc.time(0), ptr, size, align});
+    return ptr;
+}
+
+func trace_free(allocator: void*, ptr: void*) {
+    self: TraceAllocator* = allocator;
+    generic_free(self.allocator, ptr);
+    apush(self.events, {EVENT_FREE, libc.time(0), ptr});
+}
+
+func trace_allocator(allocator: Allocator*): TraceAllocator {
+    events: AllocatorEvent[];
+    ainit(events, allocator);
+    return {{trace_alloc, trace_free}, allocator, events};
+}
+
+struct NameNode {
+    len: uint32;
+    buf: char[1];
+}
+
+struct NameMap {
+    arena: ArenaAllocator;
+    nodes: {uint64, NameNode*}[];
+    collisions: NameNode*[];
+}
+
+func namemap_init(self: NameMap*, allocator: Allocator*) {
+    self.arena = arena_allocator(allocator);
+    ainit(self.nodes, &self.arena);
+    ainit(self.collisions, &self.arena);
+}
+
+func namemap_free(self: NameMap*) {
+    arena_free(&self.arena);
+    afree(self.nodes);
+    afree(self.collisions);
+}
+
+func namemap_getn(self: NameMap*, buf: char const*, len: usize): char const* {
+    #assert(len <= UINT32_MAX);
+    h := hash(buf, len);
+    node := aget(self.nodes, h);
+    if (node) {
+        if (node.len == len && libc.memcmp(node.buf, buf, len) == 0) {
+            return node.buf;
+        }
+        for (i := 0; i < alen(self.collisions); i++) {
+            if (node2 := self.collisions[i]; node2.len == len && libc.memcmp(node2.buf, buf, len) == 0) {
+                return node2.buf;
+            }
+        }
+    }
+    new_node: NameNode* = arena_alloc(&self.arena, offsetof(NameNode, buf) + len + 1, alignof(NameNode));
+    new_node.len = len;
+    libc.memcpy(new_node.buf, buf, len);
+    new_node.buf[len] = 0;
+    if (node) {
+        apush(self.collisions, new_node);
+    } else {
+        aput(self.nodes, h, new_node);
+    }
+    return new_node.buf;
+}
+
+func namemap_get(self: NameMap*, str: char const*): char const* {
+    return namemap_getn(self, str, libc.strlen(str));
+}
+
+var intern_namemap: NameMap;
+
+func intern(str: char const*): char const* {
+    return namemap_get(&intern_namemap, str);
+}
+
+func internn(str: char const*, buf: char const*, len: usize): char const* {
+    return namemap_getn(&intern_namemap, buf, len);
+}
+
+struct Indexer {
+    get: func(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize;
+    put: func(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize;
+    del: func(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize;
+    set: func(data: void*, a: void const*, x: void const *, xi: usize, len: usize, stride: usize, size: usize);
+    free: func(data: void*);
+}
+
+struct Index {
+    data: void*;
+    indexer: Indexer*;
+}
+
+@inline
+func index_get(index: Index, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    return index.indexer.get(index.data, a, x, len, stride, size);
+}
+
+@inline
+func index_put(index: Index, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    return index.indexer.put(index.data, a, x, len, stride, size);
+}
+
+@inline
+func index_del(index: Index, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    return index.indexer.del(index.data, a, x, len, stride, size);
+}
+
+@inline
+func index_set(index: Index, a: void const*, x: void const*, xi: usize, len: usize, stride: usize, size: usize) {
+    #assert(xi < len);
+    index.indexer.set(index.data, a, x, xi, len, stride, size);
+}
+
+@inline
+func index_free(index: Index) {
+    index.indexer.free(index.data);
+}
+
+func null_set(data: void*, a: void const*, x: void const*, xi: usize, len: usize, stride: usize, size: usize) {
+}
+
+func null_free(data: void*) {
+}
+
+func linear_get(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    for (i := 0; i < len; i++) {
+        if (libc.memcmp(a + i*stride, x, size) == 0) {
+            return i;
+        }
+    }
+    return len;
+}
+
+var linear_indexer_const = Indexer{
+    get = linear_get,
+    put = linear_get,
+    del = linear_get,
+    set = null_set,
+    free = null_free,
+};
+
+var linear_indexer = &linear_indexer_const;
+
+struct HashSlot {
+    i: uint32;
+    h: uint32;
+}
+
+struct HashIndex {
+    allocator: Allocator*;
+    slots: HashSlot[];
+    mask: uint32;
+    occupied: uint32;
+    max_occupied: uint32;
+}
+
+const HASH_EMPTY: uint32 = 0xffffffff;
+const HASH_DELETED: uint32 = 0xfffffffe;
+const HASH_MIN_SLOTS: uint32 = 16;
+
+func hash(buf: void const*, size: usize): uint64 {
+    h: uint64 = 0xcbf29ce484222325;
+    ptr: char const* = buf;
+    for (i := 0; i < size; i++) {
+        h ^= *ptr++;
+        h *= 0x100000001b3;
+        h ^= h >> 32;
+    }
+    return h;
+}
+
+func next_pow2(x: uint32): uint32 {
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
+    return x;
+}
+
+func hash_init(index: HashIndex*, len: uint32, allocator: Allocator*) {
+    num_slots := next_pow2(len + len/2);
+    if (num_slots < HASH_MIN_SLOTS) {
+        num_slots = HASH_MIN_SLOTS;
+    }
+    *index = {mask = num_slots - 1, max_occupied = num_slots/2 + num_slots/4, allocator = allocator};
+    ainit(index.slots, allocator);
+    afill(index.slots, {HASH_EMPTY}, num_slots);
+}
+
+func hash_get_slot(index: HashIndex*, a: void const*, x: void const*, h: uint32, stride: usize, size: usize): HashSlot* {
+    for (i := h) {
+        i &= index.mask;
+        slot := &index.slots[i]; 
+        if (slot.i == HASH_EMPTY || (slot.h == h && libc.memcmp(a + slot.i*stride, x, size) == 0)) {
+            return slot;
+        }
+        i++;
+    }
+    return 0;
+}
+
+func hash_put_slot(index: HashIndex*, new_slot: HashSlot) {
+    for (i := new_slot.h) {
+        i &= index.mask;
+        if (slot := &index.slots[i]; slot.i == HASH_EMPTY) {
+            *slot = new_slot;
+            index.occupied++;
+            return;
+        }
+        i++;
+    }
+}
+
+func hash_get(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    index: HashIndex* = data;
+    h := hash(x, size);
+    slot := hash_get_slot(index, a, x, h, stride, size);
+    if (slot.i == HASH_EMPTY) {
+        return len;
+    } else {
+        return slot.i;
+    }
+}
+
+func hash_put(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    index: HashIndex* = data;
+    h := hash(x, size);
+    slot := hash_get_slot(index, a, x, h, stride, size);
+    if (slot.i == HASH_EMPTY) {
+        *slot = {len, h};
+        index.occupied++;
+        if (index.occupied >= index.max_occupied) {
+            hash_rehash(index, len + 1);
+        }
+        return len;
+    } else {
+        return slot.i;
+    }
+}
+
+func hash_del(data: void*, a: void const*, x: void const*, len: usize, stride: usize, size: usize): usize {
+    index: HashIndex* = data;
+    h := hash(x, size);
+    slot := hash_get_slot(index, a, x, h, stride, size);
+    i := slot.i;
+    if (i != HASH_EMPTY) {
+        *slot = {HASH_DELETED};
+        return i;
+    } else {
+        return len;
+    }
+}
+
+func hash_set(data: void*, a: void const*, x: void const*, xi: usize, len: usize, stride: usize, size: usize) {
+    index: HashIndex* = data;
+    h := hash(x, size);
+    slot := hash_get_slot(index, a, x, h, stride, size);
+    i := slot.i;
+    *slot = {xi, h};
+    if (i == HASH_EMPTY) {
+        index.occupied++;
+        if (index.occupied >= index.max_occupied) {
+            hash_rehash(index, len + 1);
+        }
+    }
+}
+
+func hash_free(data: void*) {
+    index: HashIndex* = data;
+    afree(index.slots);
+    generic_free(index.allocator, index);
+}
+
+func hash_rehash(index: HashIndex*, len: uint32) {
+    new_index: HashIndex;
+    hash_init(&new_index, len, index.allocator);
+    for (i := 0; i < alen(index.slots); i++) {
+        slot := index.slots[i];
+        if (slot.i < HASH_DELETED) {
+            hash_put_slot(&new_index, slot);
+        }
+    }
+    afree(index.slots);
+    *index = new_index;
+}
+
+var hash_indexer = &Indexer{
+    get = hash_get,
+    put = hash_put,
+    del = hash_del,
+    set = hash_set,
+    free = hash_free,
+};
+
+func hash_index(allocator: Allocator*): Index {
+    index: HashIndex* = new(allocator) HashIndex{};
+    hash_init(index, 0, allocator);
+    return {data = index, indexer = hash_indexer};
+}
+
+var default_indexer = &Indexer {
+    get = linear_get,
+    put = linear_get,
+    del = linear_get,
+    set = null_set,
+    free = null_free,
+};
+
+// General functions
+// func ainit<T>(a: T[], allocator: Allocator*)
+// func afree<T>(a: T[])
+// func alen<T>(a: T[]): usize
+// func acap<T>(a: T[]): usize
+// func aclear<T>(a: T)
+// func afit<T>(a: T[], mincap: usize)
+// func asetlen<T>(a: T[], newlen: usize)
+// func asetcap<T>(a: T[], newcap: usize)
+// func afill<T>(a: T[], v: T, n: usize)
+// func adeli<T>(a: T[], i: usize)
+// func adeln<T>(a: T[], i: usize, len: usize)
+// func acat<T>(a: T[], src: T const[])
+// func acatn<T>(a: T[], src: T const[], srclen: usize)
+// func apush<T>(a: T[], v: T)
+// func apop<T>(a: T[])
+// func adefault<T>(a: T[], v: T)
+// func aprintf(a: char[], fmt: char const*, ...)
+
+// Key-indexed functions
+// func aget<K, V>(a: {K, V}[], k: K): V
+// func agetp<K, V>(a: {K, V}[], k: K): V*
+// func ageti<K, V>(a: {K, V}[], k: K): usize
+// func aput<K, V>(a: {K, V}[], k: K, v: V)
+// func adel<K, V>(a: {K, V}[], k: K)
+
+// Value-indexed functions
+// func agetv<T>(a: T[], v: T): bool
+// func agetvi<T>(a: T[], v: T): usize
+// func aputv<T>(a: T[], v: T)
+// func adelv<T>(a: T[], v: T)
+
+// func aindexv<T>(a: T[], new_index: Index)
+// func aindex<T>(a: T[], new_index: Index)
+
+// func ahdrsize<T>(a: T[]): usize
+// func ahdralign<T>(a: T[]): usize
+// func ahdrsize<T>(a: T[]): AHdr*
+
+struct Ahdr {
+    allocator: Allocator*;
+    len: usize;
+    cap: usize;
+    index: Index;
+    buf: char[1];
+}
+
+@inline
+func ahdrsize_func(elem_size: usize, elem_align: usize): usize {
+    return (offsetof(Ahdr, buf) + elem_align - 1) & ~(elem_align - 1);
+}
+
+@inline
+func ahdralign_func(elem_size: usize, elem_align: usize): usize {
+    return elem_align > alignof(Ahdr) ? elem_align : alignof(Ahdr);
+}
+
+@inline
+func ahdr_func(a: void*, elem_size: usize, elem_align: usize): Ahdr* {
+    return a ? (:Ahdr*)(a - ahdrsize_func(elem_size, elem_align)) : 0;
+}
+
+@inline
+func alen_func(a: void*, elem_size: usize, elem_align: usize): usize {
+    return a ? ahdr_func(a, elem_size, elem_align).len : 0;
+}
+
+@inline
+func acap_func(a: void*, elem_size: usize, elem_align: usize): usize {
+    return a ? ahdr_func(a, elem_size, elem_align).cap : 0;
+}
+
+@inline
+func amem_func(a: void*, elem_size: usize, elem_align: usize): void* {
+    return a ? a - ahdrsize_func(elem_size, elem_align) - elem_size : 0;
+}
+
+@inline
+func amemsize_func(a: void*, elem_size: usize, elem_align: usize) {
+    hdrsize := ahdrsize_func(elem_size, elem_align);
+    cap := acap_func(a, elem_size, elem_align);
+    return a ? elem_size + hdrsize + cap*elem_size : 0;
+}
+
+@inline
+func asetlen_func(a: void*, new_len: usize, elem_size: usize, elem_align: usize): usize {
+    if (!a) {
+        return 0;
+    }
+    cap := acap_func(a, elem_size, elem_align);
+    if (new_len > cap) {
+        new_len = cap;
+    }
+    ahdr_func(a, elem_size, elem_align).len = new_len;
+    return new_len;
+}
+
+@inline
+func aclear_func(a: void*, elem_size: usize, elem_align: usize) {
+    if (a) {
+        asetlen_func(a, 0, elem_size, elem_align);
+    }
+}
+
+@inline
+func afree_func(ap: void**, elem_size: usize, elem_align: usize) {
+    if (a := *ap; a) {
+        hdr := ahdr_func(a, elem_size, elem_align);
+        index_free(hdr.index);
+        generic_free(hdr.allocator, amem_func(a, elem_size, elem_align));
+    }
+    *ap = 0;
+}
+
+@inline
+func ainit_func(ap: void**, allocator: Allocator*, elem_size: usize, elem_align: usize) {
+    if (!*ap) {
+        size := elem_size + ahdrsize_func(elem_size, elem_align);
+        align := ahdralign_func(elem_size, elem_align);
+        mem := generic_alloc(allocator, size, align);
+        hdr := (:Ahdr*)(mem + elem_size);
+        hdr.allocator = allocator;
+        hdr.len = 0;
+        hdr.cap = 0;
+        hdr.index = {indexer = default_indexer};
+        libc.memset(mem, 0, elem_size);
+        *ap = hdr.buf;
+    }
+}
+
+@inline
+func apop_func(a: void*, elem_size: usize, elem_align: usize) {
+    if (alen_func(a, elem_size, elem_align) > 0) {
+        ahdr_func(a, elem_size, elem_align).len--;
+    }
+}
+
+func afill_func(ap: void**, x: void const*, n: usize, elem_size: usize, elem_align: usize) {
+    len := alen_func(*ap, elem_size, elem_align);
+    afit_func(ap, len + n, elem_size, elem_align);
+    a := *ap;
+    p := a + len*elem_size;
+    for (i := 0; i < n; i++) {
+        libc.memcpy(p, x, elem_size);
+        p += elem_size;
+    }
+    ahdr_func(a, elem_size, elem_align).len += n;
+}
+
+@inline
+func apush_func(ap: void**, x: void const*, elem_size: usize, elem_align: usize): usize {
+    a := *ap;
+    i := alen_func(a, elem_size, elem_align);
+    if (i >= acap_func(a, elem_size, elem_align)) {
+        asetcap_func(ap, i+1, elem_size, elem_align);
+        a = *ap;
+    }
+    ahdr_func(a, elem_size, elem_align).len++;
+    libc.memcpy(a + i*elem_size, x, elem_size);
+    return i;
+}
+
+func adeln_func(a: void*, i: usize, n: usize, elem_size: usize, elem_align: usize) {
+    len := alen_func(a, elem_size, elem_align);
+    if (i >= len) {
+        return;
+    }
+    if (i + n > len) {
+        n = len - i;
+    }
+    libc.memmove(a + i*elem_size, a + (i + n)*elem_size, (len - (i + n))*elem_size);
+    ahdr_func(a, elem_size, elem_align).len -= n;
+}
+
+func acatn_func(ap: void**, src: void const*, src_len: usize, elem_size: usize, elem_align: usize) {
+    a := *ap;
+    len := alen_func(a, elem_size, elem_align);
+    afit_func(ap, len + src_len, elem_size, elem_align);
+    if (a != *ap && a <= src && src <= a + len*elem_size) {
+        src = *ap + (src - a);
+    }
+    a = *ap;
+    libc.memmove(a + len*elem_size, src, src_len*elem_size);
+    ahdr_func(a, elem_size, elem_align).len += src_len;
+}
+
+func acat_func(ap: void**, src: void*, elem_size: usize, elem_align: usize) {
+    acatn_func(ap, src, alen_func(src, elem_size, elem_align), elem_size, elem_align);
+}
+
+func aprintf_func(ap: void**, fmt: char const*, ...) {
+    a := *ap;
+    args: libc.va_list;
+    libc.va_start(args, fmt);
+    cap := acap_func(a, sizeof(char), alignof(char));
+    len := alen_func(a, sizeof(char), alignof(char));
+    slack := cap - len;
+    printed := libc.vsnprintf(a + len, slack, fmt, args) + 1;
+    libc.va_end(args);
+    if (printed > slack) {
+        afit_func(ap, len + printed, sizeof(char), alignof(char));
+        a = *ap;
+        libc.va_start(args, fmt);
+        cap = acap_func(a, sizeof(char), alignof(char));
+        len = alen_func(a, sizeof(char), alignof(char));
+        slack = cap - len;
+        printed = libc.vsnprintf(a + len, slack, fmt, args) + 1;
+        libc.va_end(args);
+    }
+    ahdr_func(a, sizeof(char), alignof(char)).len += printed - 1;
+    *ap = a;
+}
+
+@noinline
+func asetcap_func(ap: void**, new_cap: usize, elem_size: usize, elem_align: usize) {
+    a := *ap;
+    cap := acap_func(a, elem_size, elem_align);
+    if (new_cap > cap) {
+        if (new_cap < 16) {
+            new_cap = 16;
+        }
+        if (2*new_cap < 3*cap) {
+            new_cap = cap + cap/2;
+        }
+    }
+    hdrsize := ahdrsize_func(elem_size, elem_align);
+    size := elem_size + hdrsize + new_cap*elem_size;
+    align := ahdralign_func(elem_size, elem_align);
+    new_mem: void*;
+    new_hdr: Ahdr*;
+    if (a) {
+        hdr := ahdr_func(a, elem_size, elem_align);
+        new_len := hdr.len;
+        if (new_len > new_cap) {
+            new_len = new_cap;
+        }
+        mem := amem_func(a, elem_size, elem_align);
+        new_mem = generic_alloc(hdr.allocator, size, align);
+        new_hdr = (:Ahdr*)(new_mem + elem_size);
+        libc.memcpy(new_mem, mem, elem_size + hdrsize + new_len*elem_size);
+        new_hdr.len = new_len;
+        generic_free(hdr.allocator, mem);
+    } else {
+        new_mem = alloc(size, align);
+        new_hdr = (:Ahdr*)(new_mem + elem_size);
+        new_hdr.allocator = current_allocator;
+        new_hdr.len = 0;
+        new_hdr.index = {indexer = default_indexer};
+        libc.memset(new_mem, 0, elem_size);
+    }
+    new_hdr.cap = new_cap;
+    *ap = new_hdr.buf;
+}
+
+@inline
+func adefault_func(a: void*, elem_size: usize, elem_align: usize): void* {
+    return a ? amem_func(a, elem_size, elem_align) : 0;
+}
+
+func asetdefault_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize) {
+    if (!*ap) {
+        ainit_func(ap, 0, elem_size, elem_align);
+    }
+    a := *ap;
+    libc.memcpy(amem_func(a, elem_size, elem_align) + key_size, x, elem_size - key_size);
+}
+
+@inline
+func afit_func(ap: void**, min_cap: usize, elem_size: usize, elem_align: usize) {
+    if (min_cap > acap_func(*ap, elem_size, elem_align)) {
+        asetcap_func(ap, min_cap, elem_size, elem_align);
+    }
+}
+
+func aindex_func(ap: void**, new_index: Index, key_size: usize, elem_size: usize, elem_align: usize) {
+    a := *ap;
+    if (!a) {
+        ainit_func(ap, 0, elem_size, elem_align);
+        a = *ap;
+    }
+    hdr := ahdr_func(a, elem_size, elem_align);
+    index := hdr.index;
+    index_free(index);
+    hdr.index = new_index;
+    for (i := 0; i < hdr.len; i++) {
+        index_set(new_index, a, a + i*elem_size, i, hdr.len, elem_size, key_size);
+    }
+}
+
+func ageti_func(a: void*, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): usize {
+    if (!a) {
+        return 0;
+    }
+    hdr := ahdr_func(a, elem_size, elem_align);
+    return index_get(hdr.index, a, x, hdr.len, elem_size, key_size);
+}
+
+func agetp_func(a: void*, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): void* {
+    i := ageti_func(a, x, key_size, elem_size, elem_align);
+    return i != alen_func(a, elem_size, elem_align) ? a + i*elem_size + (elem_size - key_size) : 0;
+}
+
+func aget_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): void* {
+    if (!*ap) {
+        ainit_func(ap, 0, elem_size, elem_align);
+    }
+    a := *ap;
+    i := ageti_func(a, x, key_size, elem_size, elem_align);
+    len := alen_func(a, elem_size, elem_align);
+    def := adefault_func(a, elem_size, elem_align);
+    return i != len ? a + i*elem_size + (elem_size - key_size) : def + (elem_size - key_size);
+}
+
+func aput_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): usize {
+    a := *ap;
+    if (!a) {
+        ainit_func(ap, 0, elem_size, elem_align);
+        a = *ap;
+    }
+    hdr := ahdr_func(a, elem_size, elem_align);
+    i := index_put(hdr.index, a, x, hdr.len, elem_size, key_size);
+    if (i == hdr.len) {
+        afit_func(ap, hdr.len + 1, elem_size, elem_align);
+        a = *ap;
+        ahdr_func(a, elem_size, elem_align).len++;
+    }
+    libc.memcpy(a + i*elem_size, x, elem_size);
+    return i;
+}
+
+func adel_func(a: void*, x: void const*, key_size: usize, elem_size: usize, elem_align: usize) {
+    if (!a) {
+        return;
+    }
+    hdr := ahdr_func(a, elem_size, elem_align);
+    i := index_del(hdr.index, a, x, hdr.len, elem_size, key_size);
+    if (i == hdr.len) {
+        return;
+    }
+    if (i < hdr.len-1) {
+        p := a + i*elem_size;
+        q := a + (hdr.len-1)*elem_size;
+        index_set(hdr.index, a, q, i, hdr.len, elem_size, key_size);
+        libc.memmove(p, q, elem_size);
+    }
+    hdr.len--;
+}
+
+// Intrinsics for indexed arrays. These are just a simple type-parameterized interface to the corresponding functions.
+
+// (a, ...)
+
+@foreign
+func aprintf(a: char*, fmt: char const*, ...) {
+    aprintf_func;
+    #foreign(preamble = "#define aprintf(a, fmt, ...) std_aprintf_func(&(a), (fmt), __VA_ARGS__)");
+}
+
+// (t, a, _)
+
+@foreign @intrinsic
+func apush(a: void*, v: void): usize {
+    apush_func;
+    #foreign(preamble = "#define apush(t, a, v) (std_apush_func((void **)&(a), (t[]){(v)}, sizeof(t), alignof(t)))");
+    return 0;
+}
+
+@foreign @intrinsic
+func aputv(a: void*, v: void) {
+    aput_func;
+    #foreign(preamble = "#define aputv(t, a, v) std_aput_func(&(a), (t[]){(v)}, sizeof(t), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func adelv(a: void*, v: void) {
+    adel_func;
+    #foreign(preamble = "#define adelv(t, a, v) std_adel_func((a), (t[]){(v)}, sizeof(t), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func agetvi(a: void*, v: void): usize {
+    ageti_func;
+    #foreign(preamble = "#define agetvi(t, a, v) std_ageti_func((a), (t[]){(v)}, sizeof(t), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func agetv(a: void*, v: void): bool {
+    agetp_func;
+    #foreign(preamble = "#define agetv(t, a, v) (std_agetp_func((a), (t[]){(v)}, sizeof(t), sizeof(t), alignof(t)) != NULL)");
+    return 0;
+}
+
+@foreign @intrinsic
+func asetcap(a: void*, new_cap: usize) {
+    asetcap_func;
+    #foreign(preamble = "#define asetcap(t, a, n) std_asetcap_func((void **)&(a), (n), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func afit(a: void*, min_cap: usize) {
+    afit_func;
+    #foreign(preamble = "#define afit(t, a, n) std_afit_func((void **)&(a), (n), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func acat(a: void*, src: void const*) {
+    acat_func;
+    #foreign(preamble = "#define acat(t, a, b) std_acat_func(&(a), (b), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func adeli(a: void*, i: usize) {
+    adeln_func;
+    #foreign(preamble = "#define adeli(t, a, i) std_adeln_func((a), (i), 1, sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func aindexv(a: void*, new_index: Index) {
+    aindex_func;
+    #foreign(preamble = "#define aindexv(t, a, new_index) std_aindex_func(&(a), (new_index), sizeof(t), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func asetlen(a: void*, new_len: usize): usize {
+    asetlen_func;
+    #foreign(preamble = "#define asetlen(t, a, new_len) std_asetlen_func((a), (new_len), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func ainit(a: void*, allocator: Allocator*) {
+    ainit_func;
+    #foreign(preamble = "#define ainit(t, a, allocator) std_ainit_func((void **)&(a), (allocator), sizeof(t), alignof(t))");
+}
+
+// (t, tv, a, v)
+
+@foreign @intrinsic
+func adefault(a: void*, v: void) {
+    asetdefault_func;
+    #foreign(preamble = "#define adefault(t, tv, a, v) std_asetdefault_func(&(a), (t[]){(v)}, sizeof(tv), sizeof(t), alignof(t))");
+}
+
+// (t, a, v, n)
+
+@foreign @intrinsic
+func afill(a: void*, v: void, n: usize) {
+    afill_func;
+    #foreign(preamble = "#define afill(t, a, v, n) std_afill_func((void **)&(a), (t[]){(v)}, (n), sizeof(t), alignof(t))");
+}
+
+// (t, a, _, _)
+
+@foreign @intrinsic
+func acatn(a: void*, src: void*, srclen: usize) {
+    acatn_func;
+    #foreign(preamble = "#define acatn(t, a, b, n) std_acatn_func(&(a), (b), (n), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func adeln(a: void*, i: usize, len: usize) {
+    adeln_func;
+    #foreign(preamble = "#define adeln(t, a, i, n) std_adeln_func((a), (i), (n), sizeof(t), alignof(t))");
+}
+
+// (t, tk, a, _)
+
+@foreign @intrinsic
+func aindex(a: void*, new_index: Index) {
+    aindex_func;
+    #foreign(preamble = "#define aindex(t, tk, a, new_index) std_aindex_func(&(a), (new_index), sizeof(tk), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func ageti(a: void*, k: void): usize {
+    ageti_func;
+    #foreign(preamble = "#define ageti(t, tk, a, k) std_ageti_func((a), (t[]){(k)}, sizeof(tk), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func adel(a: void*, k: void) {
+    adel_func;
+    #foreign(preamble = "#define adel(t, tk, a, k) std_adel_func((a), (tk[]){(k)}, sizeof(tk), sizeof(t), alignof(t))");
+}
+
+// (t, tk, tv, a, k)
+
+@foreign @intrinsic
+func agetp(a: void*, k: void): usize {
+    agetp_func;
+    #foreign(preamble = "#define agetp(t, tk, tv, a, k) ((tv *)std_agetp_func((a), (tk[]){(k)}, sizeof(tk), sizeof(t), alignof(t)))");
+    return 0;
+}
+
+@foreign @intrinsic
+func aget(a: void*, k: void): void {
+    aget_func;
+    #foreign(preamble = "#define aget(t, tk, tv, a, k) (*(tv *)std_aget_func(&(a), (tk[]){(k)}, sizeof(tk), sizeof(t), alignof(t)))");
+    return 0;
+}
+
+// (t, tv, a, k, v)
+
+@foreign @intrinsic
+func aput(a: void*, k: void, v: void) {
+    aput_func;
+    #foreign(preamble = "#define aput(t, tk, a, k, v) std_aput_func(&(a), &(t){(k), (v)}, sizeof(tk), sizeof(t), alignof(t))");
+}
+
+// (t, a)
+
+@foreign @intrinsic
+func ahdrsize(a: void*): usize {
+    ahdrsize_func;
+    #foreign(preamble = "#define ahdrsize(t, a) std_ahdrsize_func(sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func ahdralign(a: void*): usize {
+    ahdralign_func;
+    #foreign(preamble = "#define ahdralign(t, a) std_ahdralign_func(sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func ahdr(a: void*): Ahdr* {
+    ahdr_func;
+    #foreign(preamble = "#define ahdr(t, a) std_ahdr_func((a), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func alen(a: void*): usize {
+    alen_func;
+    #foreign(preamble = "#define alen(t, a) std_alen_func((a), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func acap(a: void*): usize {
+    acap_func;
+    #foreign(preamble = "#define acap(t, a) std_acap_func((a), sizeof(t), alignof(t))");
+    return 0;
+}
+
+@foreign @intrinsic
+func afree(a: void*) {
+    afree_func;
+    #foreign(preamble = "#define afree(t, a) std_afree_func((void **)&(a), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func aclear(a: void*) {
+    aclear_func;
+    #foreign(preamble = "#define aclear(t, a) std_aclear_func((a), sizeof(t), alignof(t))");
+}
+
+@foreign @intrinsic
+func apop(a: void*) {
+    apop_func;
+    #foreign(preamble = "#define apop(t, a) std_apop_func((a), sizeof(t), alignof(t))");
+}

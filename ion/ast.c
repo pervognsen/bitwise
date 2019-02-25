@@ -1,9 +1,12 @@
 Arena ast_arena;
 
+size_t ast_memory_usage;
+
 void *ast_alloc(size_t size) {
     assert(size != 0);
     void *ptr = arena_alloc(&ast_arena, size);
     memset(ptr, 0, size);
+    ast_memory_usage += size;
     return ptr;
 }
 
@@ -57,10 +60,10 @@ Typespec *new_typespec_const(SrcPos pos, Typespec *base) {
     return t;
 }
 
-Typespec *new_typespec_array(SrcPos pos, Typespec *elem, Expr *size) {
+Typespec *new_typespec_array(SrcPos pos, Typespec *base, Expr *num_elems) {
     Typespec *t = new_typespec(TYPESPEC_ARRAY, pos);
-    t->base = elem;
-    t->num_elems = size;
+    t->base = base;
+    t->num_elems = num_elems;
     return t;
 }
 
@@ -70,6 +73,13 @@ Typespec *new_typespec_func(SrcPos pos, Typespec **args, size_t num_args, Typesp
     t->func.num_args = num_args;
     t->func.ret = ret;
     t->func.has_varargs = has_varargs;
+    return t;
+}
+
+Typespec *new_typespec_tuple(SrcPos pos, Typespec **fields, size_t num_fields) {
+    Typespec *t = new_typespec(TYPESPEC_TUPLE, pos);
+    t->tuple.fields = AST_DUP(fields);
+    t->tuple.num_fields = num_fields;
     return t;
 }
 
@@ -89,6 +99,9 @@ Decl *new_decl(DeclKind kind, SrcPos pos, const char *name) {
 }
 
 Note *get_decl_note(Decl *decl, const char *name) {
+    if (!decl) {
+        return NULL;
+    }
     for (size_t i = 0; i < decl->notes.num_notes; i++) {
         Note *note = decl->notes.notes + i;
         if (note->name == name) {
@@ -98,8 +111,12 @@ Note *get_decl_note(Decl *decl, const char *name) {
     return NULL;
 }
 
+bool is_decl_threadlocal(Decl *decl) {
+    return decl && get_decl_note(decl, str_intern("threadlocal")) != NULL;
+}
+
 bool is_decl_foreign(Decl *decl) {
-    return get_decl_note(decl, foreign_name) != NULL;
+    return decl && get_decl_note(decl, foreign_name) != NULL;
 }
 
 Decl *new_decl_enum(SrcPos pos, const char *name, Typespec *type, EnumItem *items, size_t num_items) {
@@ -133,12 +150,13 @@ Decl *new_decl_var(SrcPos pos, const char *name, Typespec *type, Expr *expr) {
     return d;
 }
 
-Decl *new_decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool has_varargs, StmtList block) {
+Decl *new_decl_func(SrcPos pos, const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool has_varargs, Typespec *varargs_type, StmtList block) {
     Decl *d = new_decl(DECL_FUNC, pos, name);
     d->func.params = AST_DUP(params);
     d->func.num_params = num_params;
     d->func.ret_type = ret_type;
     d->func.has_varargs = has_varargs;
+    d->func.varargs_type = varargs_type;
     d->func.block = block;
     return d;
 }
@@ -325,6 +343,14 @@ Expr *new_expr_ternary(SrcPos pos, Expr *cond, Expr *then_expr, Expr *else_expr)
     e->ternary.cond = cond;
     e->ternary.then_expr = then_expr;
     e->ternary.else_expr = else_expr;
+    return e;
+}
+
+Expr *new_expr_new(SrcPos pos, Expr *alloc, Expr *len, Expr *arg) {
+    Expr *e = new_expr(EXPR_NEW, pos);
+    e->new_expr.alloc = alloc;
+    e->new_expr.len = len;
+    e->new_expr.arg = arg;
     return e;
 }
 

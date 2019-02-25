@@ -46,6 +46,20 @@ Typespec *parse_type_func(void) {
     return new_typespec_func(pos, args, buf_len(args), ret, has_varargs);
 }
 
+Typespec *parse_type_tuple(void) {
+    SrcPos pos = token.pos;
+    Typespec **fields = NULL;
+    while (!is_token(TOKEN_RBRACE)) {
+        Typespec *field = parse_type();
+        buf_push(fields, field);
+        if (!match_token(TOKEN_COMMA)) {
+            break;
+        }
+    }
+    expect_token(TOKEN_RBRACE);
+    return new_typespec_tuple(pos, fields, buf_len(fields));
+}
+
 Typespec *parse_type_base(void) {
     if (is_token(TOKEN_NAME)) {
         SrcPos pos = token.pos;
@@ -62,6 +76,8 @@ Typespec *parse_type_base(void) {
         Typespec *type = parse_type();
         expect_token(TOKEN_RPAREN);
         return type;
+    } else if (match_token(TOKEN_LBRACE)) {
+        return parse_type_tuple();
     } else {
         fatal_error_here("Unexpected token %s in type", token_info());
         return NULL;
@@ -124,6 +140,21 @@ Expr *parse_expr_compound(Typespec *type) {
     return new_expr_compound(pos, type, fields, buf_len(fields));
 }
 
+Expr *parse_expr_new(SrcPos pos) {
+    Expr *alloc = NULL;
+    if (match_token(TOKEN_LPAREN)) {
+        alloc = parse_expr();
+        expect_token(TOKEN_RPAREN);
+    }
+    Expr *len = NULL;
+    if (match_token(TOKEN_LBRACKET)) {
+        len = parse_expr();
+        expect_token(TOKEN_RBRACKET);
+    }
+    Expr *arg = parse_expr();
+    return new_expr_new(pos, alloc, len, arg);
+}
+
 Expr *parse_expr_unary(void);
 
 Expr *parse_expr_operand(void) {
@@ -154,6 +185,8 @@ Expr *parse_expr_operand(void) {
         } else {
             return new_expr_name(pos, name);
         }
+    } else if (match_keyword(new_keyword)) {
+        return parse_expr_new(pos);
     } else if (match_keyword(sizeof_keyword)) {
         expect_token(TOKEN_LPAREN);
         if (match_token(TOKEN_COLON)) {
@@ -463,26 +496,29 @@ Stmt *parse_simple_stmt(void) {
 }
 
 Stmt *parse_stmt_for(SrcPos pos) {
-    expect_token(TOKEN_LPAREN);
     Stmt *init = NULL;
-    if (!is_token(TOKEN_SEMICOLON)) {
-        init = parse_simple_stmt();
-    }
-    expect_token(TOKEN_SEMICOLON);
     Expr *cond = NULL;
-    if (!is_token(TOKEN_SEMICOLON)) {
-        cond = parse_expr();
-    }
     Stmt *next = NULL;
-    if (match_token(TOKEN_SEMICOLON)) {
-        if (!is_token(TOKEN_RPAREN)) {
-            next = parse_simple_stmt();
-            if (next->kind == STMT_INIT) {
-                error_here("Init statements not allowed in for-statement's next clause");
+    if (!is_token(TOKEN_LBRACE)) {
+        expect_token(TOKEN_LPAREN);
+        if (!is_token(TOKEN_SEMICOLON)) {
+            init = parse_simple_stmt();
+        }
+        if (match_token(TOKEN_SEMICOLON)) {
+            if (!is_token(TOKEN_SEMICOLON)) {
+                cond = parse_expr();
+            }
+            if (match_token(TOKEN_SEMICOLON)) {
+                if (!is_token(TOKEN_RPAREN)) {
+                    next = parse_simple_stmt();
+                    if (next->kind == STMT_INIT) {
+                        error_here("Init statements not allowed in for-statement's next clause");
+                    }
+                }
             }
         }
+        expect_token(TOKEN_RPAREN);
     }
-    expect_token(TOKEN_RPAREN);
     return new_stmt_for(pos, init, cond, next, parse_stmt_block());
 }
 
@@ -735,12 +771,16 @@ Decl *parse_decl_func(SrcPos pos) {
     expect_token(TOKEN_LPAREN);
     FuncParam *params = NULL;
     bool has_varargs = false;
+    Typespec *varargs_type = NULL;
     if (!is_token(TOKEN_RPAREN)) {
         buf_push(params, parse_decl_func_param());
         while (match_token(TOKEN_COMMA)) {
             if (match_token(TOKEN_ELLIPSIS)) {
                 if (has_varargs) {
                     error_here("Multiple ellipsis in function declaration");
+                }
+                if (!is_token(TOKEN_RPAREN)) {
+                    varargs_type = parse_type();
                 }
                 has_varargs = true;
             } else {
@@ -764,7 +804,7 @@ Decl *parse_decl_func(SrcPos pos) {
         block = parse_stmt_block();
         is_incomplete = false;
     }
-    Decl *decl = new_decl_func(pos, name, params, buf_len(params), ret_type, has_varargs, block);
+    Decl *decl = new_decl_func(pos, name, params, buf_len(params), ret_type, has_varargs, varargs_type, block);
     decl->is_incomplete = is_incomplete;
     return decl;
 }

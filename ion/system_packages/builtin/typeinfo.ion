@@ -23,6 +23,7 @@ enum TypeKind {
     TYPE_STRUCT,
     TYPE_UNION,
     TYPE_FUNC,
+    TYPE_TUPLE,
 }
 
 struct TypeFieldInfo {
@@ -43,7 +44,7 @@ struct TypeInfo {
 }
 
 @foreign
-var typeinfos: TypeInfo const**;
+var typeinfos: TypeInfo**;
 
 @foreign
 var num_typeinfos: int;
@@ -69,7 +70,7 @@ func get_typeinfo(type: typeid): TypeInfo const* {
     }
 }
 
-struct Any {
+struct any {
     ptr: void*;
     type: typeid;
 }

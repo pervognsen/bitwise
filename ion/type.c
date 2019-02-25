@@ -23,6 +23,7 @@ typedef enum TypeKind {
     TYPE_ARRAY,
     TYPE_STRUCT,
     TYPE_UNION,
+    TYPE_TUPLE,
     TYPE_CONST,
     NUM_TYPE_KINDS,
 } TypeKind;
@@ -45,15 +46,20 @@ struct Type {
     int typeid;
     bool nonmodifiable;
     union {
-        size_t num_elems;
+        struct {
+            size_t num_elems;
+            bool incomplete_elems;
+        };
         struct {
             TypeField *fields;
             size_t num_fields;
         } aggregate;
         struct {
+            bool intrinsic;
             Type **params;
             size_t num_params;
             bool has_varargs;
+            Type *varargs_type;
             Type *ret;
         } func;
     };
@@ -84,11 +90,16 @@ Type *type_ullong = &(Type){TYPE_ULLONG};
 Type *type_float = &(Type){TYPE_FLOAT};
 Type *type_double = &(Type){TYPE_DOUBLE};
 
+Type *type_char_ptr;
+Type *type_alloc_func;
+
 int next_typeid = 1;
 
 Type *type_uintptr;
 Type *type_usize;
 Type *type_ssize;
+
+Type *type_any;
 
 void complete_type(Type *type);
 
@@ -114,27 +125,27 @@ Type *type_alloc(TypeKind kind) {
 }
 
 bool is_ptr_type(Type *type) {
-    return type->kind == TYPE_PTR;
+    return type && type->kind == TYPE_PTR;
 }
 
 bool is_func_type(Type *type) {
-    return type->kind == TYPE_FUNC;
+    return type && type->kind == TYPE_FUNC;
 }
 
 bool is_ptr_like_type(Type *type) {
-    return type->kind == TYPE_PTR || type->kind == TYPE_FUNC;
+    return type && (type->kind == TYPE_PTR || type->kind == TYPE_FUNC);
 }
 
 bool is_const_type(Type *type) {
-    return type->kind == TYPE_CONST;
+    return type && type->kind == TYPE_CONST;
 }
 
 bool is_array_type(Type *type) {
-    return type->kind == TYPE_ARRAY;
+    return type && type->kind == TYPE_ARRAY;
 }
 
 bool is_incomplete_array_type(Type *type) {
-    return is_array_type(type) && type->num_elems == 0;
+    return type && is_array_type(type) && type->incomplete_elems;
 }
 
 bool is_integer_type(Type *type) {
@@ -154,7 +165,7 @@ bool is_scalar_type(Type *type) {
 }
 
 bool is_aggregate_type(Type *type) {
-    return type->kind == TYPE_STRUCT || type->kind == TYPE_UNION;
+    return type->kind == TYPE_STRUCT || type->kind == TYPE_UNION || type->kind == TYPE_TUPLE;
 }
 
 bool is_signed_type(Type *type) {
@@ -288,6 +299,15 @@ Type *unqualify_type(Type *type) {
     }
 }
 
+Type *qualify_type(Type *type, Type *qual) {
+    type = unqualify_type(type);
+    while (qual->kind == TYPE_CONST) {
+        type = type_const(type);
+        qual = qual->base;
+    }
+    return type;
+}
+
 typedef struct CachedArrayType {
     Type *type;
     struct CachedArrayType *next;
@@ -295,14 +315,16 @@ typedef struct CachedArrayType {
 
 Map cached_array_types;
 
-Type *type_array(Type *base, size_t num_elems) {
+Type *type_array(Type *base, size_t num_elems, bool incomplete_elems) {
     uint64_t hash = hash_mix(hash_ptr(base), hash_uint64(num_elems));
     uint64_t key = hash ? hash : 1;
     CachedArrayType *cached = map_get_from_uint64(&cached_array_types, key);
-    for (CachedArrayType *it = cached; it; it = it->next) {
-        Type *type = it->type;
-        if (type->base == base && type->num_elems == num_elems) {
-            return type;
+    if (!incomplete_elems) {
+        for (CachedArrayType *it = cached; it; it = it->next) {
+            Type *type = it->type;
+            if (type->base == base && type->num_elems == num_elems) {
+                return type;
+            }
         }
     }
     complete_type(base);
@@ -312,28 +334,31 @@ Type *type_array(Type *base, size_t num_elems) {
     type->align = type_alignof(base);
     type->base = base;
     type->num_elems = num_elems;
-    CachedArrayType *new_cached = xmalloc(sizeof(CachedArrayType));
-    new_cached->type = type;
-    new_cached->next = cached;
-    map_put_from_uint64(&cached_array_types, key, new_cached);
+    type->incomplete_elems = incomplete_elems;
+    if (!incomplete_elems) {
+        CachedArrayType *new_cached = xmalloc(sizeof(CachedArrayType));
+        new_cached->type = type;
+        new_cached->next = cached;
+        map_put_from_uint64(&cached_array_types, key, new_cached);
+    }
     return type;
 }
 
-typedef struct CachedFuncType {
+typedef struct TypeLink {
     Type *type;
-    struct CachedFuncType *next;
-} CachedFuncType;
+    struct TypeLink *next;
+} TypeLink;
 
 Map cached_func_types;
 
-Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
+Type *type_func(Type **params, size_t num_params, Type *ret, bool intrinsic, bool has_varargs, Type *varargs_type) {
     size_t params_size = num_params * sizeof(*params);
     uint64_t hash = hash_mix(hash_bytes(params, params_size), hash_ptr(ret));
     uint64_t key = hash ? hash : 1;
-    CachedFuncType *cached = map_get_from_uint64(&cached_func_types, key);
-    for (CachedFuncType *it = cached; it; it = it->next) {
+    TypeLink *cached = map_get_from_uint64(&cached_func_types, key);
+    for (TypeLink *it = cached; it; it = it->next) {
         Type *type = it->type;
-        if (type->func.num_params == num_params && type->func.ret == ret && type->func.has_varargs == has_varargs) {
+        if (type->func.num_params == num_params && type->func.ret == ret && type->func.intrinsic == intrinsic && type->func.has_varargs == has_varargs && type->func.varargs_type == varargs_type) {
             if (memcmp(type->func.params, params, params_size) == 0) {
                 return type;
             }
@@ -344,14 +369,17 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool has_varargs) {
     type->align = type_metrics[TYPE_PTR].align;
     type->func.params = memdup(params, params_size);
     type->func.num_params = num_params;
+    type->func.intrinsic = intrinsic;
     type->func.has_varargs = has_varargs;
+    type->func.varargs_type = varargs_type;
     type->func.ret = ret;
-    CachedFuncType *new_cached = xmalloc(sizeof(CachedFuncType));
+    TypeLink *new_cached = xmalloc(sizeof(TypeLink));
     new_cached->type = type;
     new_cached->next = cached;
     map_put_from_uint64(&cached_func_types, key, new_cached);
     return type;
 }
+
 
 bool has_duplicate_fields(Type *type) {
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
@@ -422,6 +450,34 @@ void type_complete_union(Type *type, TypeField *fields, size_t num_fields) {
     type->nonmodifiable = nonmodifiable;
 }
 
+void type_complete_tuple(Type *type, Type **fields, size_t num_fields) {
+    type->kind = TYPE_TUPLE;
+    type->size = 0;
+    type->align = 0;
+    bool nonmodifiable = false;
+    TypeField *new_fields = NULL;
+    for (size_t i = 0; i < num_fields; i++) {
+        Type *field = fields[i];
+        assert(IS_POW2(type_alignof(field)));
+        complete_type(fields[i]);
+        char name[64];
+        snprintf(name, sizeof(name), "_%d", (int)i);
+        TypeField new_field = {
+            .name = str_intern(name),
+            .type = fields[i],
+            .offset = type->size,
+        };
+        buf_push(new_fields, new_field);
+        type->align = MAX(type->align, type_alignof(field));
+        type->size = type_sizeof(field) + ALIGN_UP(type->size, type_alignof(field));
+        nonmodifiable = field->nonmodifiable || nonmodifiable;
+    }
+    type->size = ALIGN_UP(type->size, type->align);
+    type->aggregate.fields = new_fields;
+    type->aggregate.num_fields = buf_len(new_fields);
+    type->nonmodifiable = nonmodifiable;
+}
+
 Type *type_incomplete(Sym *sym) {
     Type *type = type_alloc(TYPE_INCOMPLETE);
     type->sym = sym;
@@ -460,6 +516,10 @@ void init_builtin_types(void) {
     init_builtin_type(type_ullong);
     init_builtin_type(type_float);
     init_builtin_type(type_double);
+
+    type_char_ptr = type_ptr(type_char);
+
+    type_alloc_func = type_func((Type*[]){type_usize, type_usize}, 2, type_ptr(type_void), false, false, type_void);
 }
 
 int aggregate_item_field_index(Type *type, const char *name) {
@@ -487,3 +547,44 @@ Type *aggregate_item_field_type_from_name(Type *type, const char *name) {
     return aggregate_item_field_type_from_index(type, index);
 }
 
+Map cached_tuple_types;
+int num_tuple_types;
+
+Type *type_tuple(Type **fields, size_t num_fields) {
+    size_t fields_size = num_fields * sizeof(*fields);
+    uint64_t hash = hash_bytes(fields, fields_size);
+    uint64_t key = hash ? hash : 1;
+    TypeLink *cached = map_get_from_uint64(&cached_tuple_types, key);
+    for (TypeLink *it = cached; it; it = it->next) {
+        Type *cached_type = it->type;
+        if (cached_type->aggregate.num_fields == num_fields) {
+            for (size_t i = 0; i < num_fields; i++) {
+                if (cached_type->aggregate.fields[i].type != fields[i]) {
+                    goto next;
+                }
+            }
+            return cached_type;
+        }
+        next: ;
+    }
+    Type *type = type_alloc(TYPE_TUPLE);
+    type_complete_tuple(type, fields, num_fields);
+    TypeLink *new_cached = xmalloc(sizeof(TypeLink));
+    new_cached->type = type;
+    new_cached->next = cached;
+    map_put_from_uint64(&cached_tuple_types, key, new_cached);
+    char name[64];
+    snprintf(name, sizeof(name), "tuple%d", num_tuple_types);
+    extern Sym *sym_global_tuple(const char *name, Type *type);
+    Sym *sym = sym_global_tuple(str_intern(name), type);
+    type->sym = sym;
+    num_tuple_types++;
+    return type;
+}
+
+Type *unqualify_ptr_type(Type *type) {
+    if (type->kind == TYPE_PTR) {
+        type = type_ptr(unqualify_type(type->base));
+    }
+    return type;
+}

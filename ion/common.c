@@ -355,6 +355,7 @@ typedef struct Intern {
 
 Arena intern_arena;
 Map interns;
+size_t intern_memory_usage;
 
 const char *str_intern_range(const char *start, const char *end) {
     size_t len = end - start;
@@ -372,6 +373,7 @@ const char *str_intern_range(const char *start, const char *end) {
     memcpy(new_intern->str, start, len);
     new_intern->str[len] = 0;
     map_put_from_uint64(&interns, key, new_intern);
+    intern_memory_usage += sizeof(Intern) + len + 1 + 16; /* 16 is estimate of hash table cost */
     return new_intern->str;
 }
 

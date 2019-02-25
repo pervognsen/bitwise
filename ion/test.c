@@ -137,7 +137,7 @@ void parse_test(void) {
 };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++) {
         init_stream(NULL, *it);
-        Decl *decl = parse_decl();
+//        Decl *decl = parse_decl();
         printf("\n");
     }
 }

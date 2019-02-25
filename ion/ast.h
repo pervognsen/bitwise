@@ -34,6 +34,7 @@ typedef enum TypespecKind {
     TYPESPEC_ARRAY,
     TYPESPEC_PTR,
     TYPESPEC_CONST,
+    TYPESPEC_TUPLE,
 } TypespecKind;
 
 struct Typespec {
@@ -51,6 +52,10 @@ struct Typespec {
             bool has_varargs;
             Typespec *ret;
         } func;
+        struct {
+            Typespec **fields;
+            size_t num_fields;
+        } tuple;
         Expr *num_elems;
     };
 };
@@ -138,6 +143,7 @@ struct Decl {
             size_t num_params;
             Typespec *ret_type;
             bool has_varargs;
+            Typespec *varargs_type;
             StmtList block;
         } func;
         struct {
@@ -190,6 +196,7 @@ typedef enum ExprKind {
     EXPR_ALIGNOF_EXPR,
     EXPR_ALIGNOF_TYPE,
     EXPR_OFFSETOF,
+    EXPR_NEW,
 } ExprKind;
 
 typedef enum CompoundFieldKind {
@@ -282,6 +289,11 @@ struct Expr {
             Expr *expr;
             const char *name;
         } field;
+        struct {
+            Expr *alloc;
+            Expr *len;
+            Expr *arg;
+        } new_expr;
     };
 };
 

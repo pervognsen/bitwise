@@ -22,6 +22,7 @@ const char *case_keyword;
 const char *default_keyword;
 const char *import_keyword;
 const char *goto_keyword;
+const char *new_keyword;
 
 const char *first_keyword;
 const char *last_keyword;
@@ -29,10 +30,13 @@ const char **keywords;
 
 const char *always_name;
 const char *foreign_name;
+const char *inline_name;
 const char *complete_name;
 const char *assert_name;
+const char *intrinsic_name;
 const char *declare_note_name;
 const char *static_assert_name;
+const char *void_name;
 
 #define KEYWORD(name) name##_keyword = str_intern(#name); buf_push(keywords, name##_keyword)
 
@@ -55,6 +59,7 @@ void init_keywords(void) {
     KEYWORD(alignof);
     KEYWORD(typeof);
     KEYWORD(offsetof);
+    KEYWORD(new);
     KEYWORD(break);
     KEYWORD(continue);
     KEYWORD(return);
@@ -72,10 +77,13 @@ void init_keywords(void) {
 
     always_name = str_intern("always");
     foreign_name = str_intern("foreign");
+    inline_name = str_intern("inline");
     complete_name = str_intern("complete");
     assert_name = str_intern("assert");
+    intrinsic_name = str_intern("intrinsic");
     declare_note_name = str_intern("declare_note");
     static_assert_name = str_intern("static_assert");
+    void_name = str_intern("void");
 
     inited = true;
 }
@@ -316,7 +324,7 @@ void error(SrcPos pos, const char *fmt, ...) {
 #define fatal_error(...) (error(__VA_ARGS__), exit(1))
 #define error_here(...) (error(token.pos, __VA_ARGS__))
 #define warning_here(...) (error(token.pos, __VA_ARGS__))
-#define fatal_error_here(...) (error_here(__VA_ARGS__), exit(1))
+#define fatal_error_here(...) (error_here(__VA_ARGS__), exit(1)) // should be abort()
 
 const char *token_info(void) {
     if (token.kind == TOKEN_NAME || token.kind == TOKEN_KEYWORD) {

@@ -1,11 +1,13 @@
-@foreign("va_start_ptr")
-func va_start(args: va_list*, arg: void const*);
+// TODO: va_start, va_end, va_copy should be intrinsics as well, for lvalueness checking.
 
-@foreign("va_arg_ptr")
-func va_arg(args: va_list*, arg: Any);
+@foreign @intrinsic
+func va_start(args: va_list, arg: void);
 
-@foreign("va_end_ptr")
-func va_end(args: va_list*);
+@foreign @intrinsic
+func va_end(args: va_list);
 
-@foreign("va_copy_ptr")
-func va_copy(dest: va_list*, src: va_list const*);
+@foreign @intrinsic
+func va_copy(args: va_list, src: va_list);
+
+@foreign @intrinsic
+func va_arg(args: va_list, arg: void);

@@ -13,10 +13,10 @@ var stdout: FILE*;
 var stderr: FILE*;
 
 @foreign
-typedef va_list = char*;
+struct fpos_t;
 
 @foreign
-struct fpos_t;
+typedef va_list = char*;
 
 @foreign const EOF      = -1;
 @foreign const SEEK_SET = 0;
@@ -27,7 +27,7 @@ struct fpos_t;
 func remove(filename: char const*): int;
 
 @foreign
-func rename(old: char const*, new: char const*): int;
+func rename(oldname: char const*, newname: char const*): int;
 
 @foreign
 func tmpfile(): FILE*;

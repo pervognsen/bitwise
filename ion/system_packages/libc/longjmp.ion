@@ -1,0 +1,18 @@
+#foreign(header = "<setjmp.h>")
+
+@foreign @notypeinfo
+struct jmp_buf {
+    Frame: int64;
+}
+
+@foreign
+func setjmp(env: jmp_buf): int;
+
+
+@foreign
+func prepjmp(env: jmp_buf) {
+    #foreign(preamble = "#define prepjmp(env) (((_JUMP_BUFFER *)&(env))->Frame = 0)");
+}
+
+@foreign
+func longjmp(env: jmp_buf, status: int);

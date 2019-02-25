@@ -1,0 +1,26 @@
+@foreign
+typedef AllocFunc = func(allocator: void*, size: usize, align: usize): void*;
+
+@foreign
+typedef FreeFunc = func(allocator: void*, ptr: void*);
+
+@foreign
+struct Allocator {
+    alloc: AllocFunc;
+    free: FreeFunc;
+}
+
+@foreign @threadlocal
+var current_allocator: Allocator*;
+
+@foreign("tls_alloc")
+func alloc(size: usize, align: usize): void*;
+
+@foreign("tls_free")
+func free(ptr: void*);
+
+@foreign
+func generic_alloc(allocator: Allocator*, size: usize, align: usize): void*;
+
+@foreign
+func generic_free(allocator: Allocator*, ptr: void*);
