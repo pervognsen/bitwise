@@ -79,7 +79,7 @@ void gen_str(const char *str, bool multiline) {
     }
 }
 
-bool gen_nosync = true;
+bool gen_nosync;
 
 void gen_buf_pos(char **pbuf, SrcPos pos) {
     if (gen_nosync) {
@@ -252,7 +252,6 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
 void gen_func_decl(Decl *decl) {
     assert(decl->kind == DECL_FUNC);
     char *result = NULL;
-    genlnf("static");
     buf_printf(result, "%s(", get_gen_name(decl));
     if (decl->func.num_params == 0) {
         buf_printf(result, "void");

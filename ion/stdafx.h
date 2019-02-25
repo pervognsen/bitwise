@@ -1,9 +1,7 @@
-#if 0
 #if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L
 // Visual Studio 2015 supports enough C99/C11 features for us.
 #else
 #error "C11 support required or Visual Studio 2015 or later"
-#endif
 #endif
 
 #define __USE_MINGW_ANSI_STDIO 1

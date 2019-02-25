@@ -1,5 +1,12 @@
 #include "stdafx.h"
 
+enum Flags {
+    A = 1,
+    B = A*2,
+    C = B*2
+    // ...
+};
+
 bool flag_verbose;
 bool flag_lazy;
 bool flag_notypeinfo;
@@ -23,4 +30,4 @@ int main(int argc, const char **argv) {
     //    main_test();
     return ion_main(argc, argv);
 }
-    
+                
