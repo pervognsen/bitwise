@@ -2007,6 +2007,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must have aggregate base type with 2 fields", sym->name);
         }
         Type *base_key_type = base_type->aggregate.fields[0].type;
+        if (type_padding(base_key_type)) {
+            fatal_error(expr->call.args[1]->pos, "Key type of %s must contain no padding", sym->name);
+        }
         Operand key = resolve_expected_expr_rvalue(expr->call.args[1], base_key_type);
         if (!convert_operand(&key, base_key_type)) {
             fatal_error(expr->call.args[1]->pos, "Argument 2 of %s not convertible to argument 1's key type", sym->name);
@@ -2033,6 +2036,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must have aggregate base type with 2 fields", sym->name);
         }
         Type *base_key_type = base_type->aggregate.fields[0].type;
+        if (type_padding(base_key_type)) {
+            fatal_error(expr->call.args[1]->pos, "Key type of %s must contain no padding", sym->name);
+        }
         Operand key = resolve_expected_expr_rvalue(expr->call.args[1], base_key_type);
         if (!convert_operand(&key, base_key_type)) {
             fatal_error(expr->call.args[1]->pos, "Argument 2 of %s not convertible to argument 1's key type", sym->name);
@@ -2054,6 +2060,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must have aggregate base type with 2 fields", sym->name);
         }
         Type *base_key_type = base_type->aggregate.fields[0].type;
+        if (type_padding(base_key_type)) {
+            fatal_error(expr->call.args[1]->pos, "Key type of %s must contain no padding", sym->name);
+        }
         Operand key = resolve_expected_expr_rvalue(expr->call.args[1], base_key_type);
         if (!convert_operand(&key, base_key_type)) {
             fatal_error(expr->call.args[1]->pos, "Argument 2 of %s not convertible to argument 1's key type", sym->name);
@@ -2075,6 +2084,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must have aggregate base type with 2 fields", sym->name);
         }
         Type *base_key_type = base_type->aggregate.fields[0].type;
+        if (type_padding(base_key_type)) {
+            fatal_error(expr->call.args[1]->pos, "Key type of %s must contain no padding", sym->name);
+        }
         Operand key = resolve_expected_expr_rvalue(expr->call.args[1], base_key_type);
         if (!convert_operand(&key, base_key_type)) {
             fatal_error(expr->call.args[1]->pos, "Argument 2 of %s not convertible to argument 1's key type", sym->name);
@@ -2090,6 +2102,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
         }
         if (!array.is_lvalue) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must be lvalue", sym->name);
+        }
+        if (sym->name != str_intern("apush") && type_padding(array.type->base)) {
+            fatal_error(expr->call.args[1]->pos, "Base type of %s must contain no padding", sym->name);
         }
         Operand elem = resolve_expected_expr_rvalue(expr->call.args[1], array.type->base);
         if (!convert_operand(&elem, array.type->base)) {
@@ -2107,6 +2122,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
         if (!array.is_lvalue) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must be lvalue", sym->name);
         }
+        if (type_padding(array.type->base)) {
+            fatal_error(expr->call.args[1]->pos, "Base type of %s must contain no padding", sym->name);
+        }
         Operand elem = resolve_expected_expr_rvalue(expr->call.args[1], array.type->base);
         if (!convert_operand(&elem, array.type->base)) {
             fatal_error(expr->call.args[1]->pos, "Argument 2 of %s not convertible to argument 1 base type", sym->name);
@@ -2122,6 +2140,9 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
         }
         if (!array.is_lvalue) {
             fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must be lvalue", sym->name);
+        }
+        if (type_padding(array.type->base)) {
+            fatal_error(expr->call.args[1]->pos, "Base type of %s must contain no padding", sym->name);
         }
         Operand elem = resolve_expected_expr_rvalue(expr->call.args[1], array.type->base);
         if (!convert_operand(&elem, array.type->base)) {

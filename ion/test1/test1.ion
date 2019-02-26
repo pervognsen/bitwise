@@ -1023,6 +1023,12 @@ func test_index_arrays() {
     aputv(b, {4, 5, 6});
     l = agetvi(b, {4, 5, 6});
     l = agetvi(b, {7, 8, 9});
+    // c: {{char, int}, float}[];
+    // aput(c, {1, 2}, 3.14);
+    // error: Key type of aput must contain no padding
+    // d: {char, int}[];
+    // aputv(d, {1, 2});
+    // error: Base type of aputv must contain no padding
 }
 
 func test_hashing() {

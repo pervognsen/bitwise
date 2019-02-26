@@ -41,6 +41,7 @@ struct Type {
     TypeKind kind;
     size_t size;
     size_t align;
+    size_t padding;
     Sym *sym;
     Type *base;
     int typeid;
@@ -258,6 +259,11 @@ size_t type_alignof(Type *type) {
     return type->align;
 }
 
+size_t type_padding(Type *type) {
+    assert(type->kind > TYPE_COMPLETING);
+    return type->padding;
+}
+
 Map cached_ptr_types;
 
 Type *type_ptr(Type *base) {
@@ -406,6 +412,7 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
     type->size = 0;
     type->align = 0;
     bool nonmodifiable = false;
+    size_t field_sizes = 0;
     TypeField *new_fields = NULL;
     for (TypeField *it = fields; it != fields + num_fields; it++) {
         assert(IS_POW2(type_alignof(it->type)));
@@ -415,11 +422,13 @@ void type_complete_struct(Type *type, TypeField *fields, size_t num_fields) {
         } else {
             add_type_fields(&new_fields, it->type, type->size);
         }
+        field_sizes += type_sizeof(it->type);
         type->align = MAX(type->align, type_alignof(it->type));
         type->size = type_sizeof(it->type) + ALIGN_UP(type->size, type_alignof(it->type));
         nonmodifiable = it->type->nonmodifiable || nonmodifiable;
     }
     type->size = ALIGN_UP(type->size, type->align);
+    type->padding = type->size - field_sizes;
     type->aggregate.fields = new_fields;
     type->aggregate.num_fields = buf_len(new_fields);
     type->nonmodifiable = nonmodifiable;
@@ -455,6 +464,7 @@ void type_complete_tuple(Type *type, Type **fields, size_t num_fields) {
     type->size = 0;
     type->align = 0;
     bool nonmodifiable = false;
+    size_t elem_sizes = 0;
     TypeField *new_fields = NULL;
     for (size_t i = 0; i < num_fields; i++) {
         Type *field = fields[i];
@@ -468,11 +478,13 @@ void type_complete_tuple(Type *type, Type **fields, size_t num_fields) {
             .offset = type->size,
         };
         buf_push(new_fields, new_field);
+        elem_sizes += type_sizeof(field);
         type->align = MAX(type->align, type_alignof(field));
         type->size = type_sizeof(field) + ALIGN_UP(type->size, type_alignof(field));
         nonmodifiable = field->nonmodifiable || nonmodifiable;
     }
     type->size = ALIGN_UP(type->size, type->align);
+    type->padding = type->size - elem_sizes;
     type->aggregate.fields = new_fields;
     type->aggregate.num_fields = buf_len(new_fields);
     type->nonmodifiable = nonmodifiable;
