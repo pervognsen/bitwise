@@ -9,6 +9,7 @@ func file_dispose(data: void*) {
     self: File* = data;
     if (self.libc_file) {
         libc.fclose(self.libc_file);
+        self.libc_file = 0;
     }
     libc.free(self);
 }
@@ -198,6 +199,63 @@ func arena_free(self: ArenaAllocator*) {
         generic_free(self.allocator, self.blocks[i]);
     }
     afree(self.blocks);
+}
+
+struct PoolElem {
+    next: PoolElem*;
+}
+
+struct PoolAllocator {
+    base: Allocator;
+    allocator: Allocator*;
+    size: usize;
+    align: usize;
+    block_len: usize;
+    free: PoolElem*;
+    blocks: char*[];
+}
+
+const POOL_BLOCK_SIZE = 64 * 1024;
+
+func pool_allocator(size: usize, align: usize, allocator: Allocator*): PoolAllocator {
+    if (size <= sizeof(PoolElem)) {
+        size = sizeof(PoolElem);
+    }
+    return {{pool_alloc, pool_free}, allocator, size, align, (POOL_BLOCK_SIZE + size - 1) / size};
+}
+
+func pool_alloc(allocator: void*, size: usize, align: usize): void* {
+    self: PoolAllocator* = allocator;
+    #assert(self.size == size && self.align == align);
+    if (!self.free && !pool_grow(self)) {
+        return 0;
+    }
+    elem := self.free;
+    self.free = elem.next;
+    return elem;
+}
+
+func pool_free(allocator: void*, ptr: void*) {
+    self: PoolAllocator* = allocator;
+    elem: PoolElem* = ptr;
+    elem.next = self.free;
+    self.free = elem;    
+}
+
+func pool_grow(self: PoolAllocator*): bool {
+    block := generic_alloc(self.allocator, self.block_len*self.size, self.align);
+    if (!block) {
+        return false;
+    }
+    apush(self.blocks, block);
+    next := self.free;
+    for (i := 0; i < self.block_len; i++) {
+        elem := (:PoolElem*)(block + i*self.size);
+        elem.next = next;
+        next = elem;
+    }
+    self.free = next;
+    return true;
 }
 
 enum AllocatorEventKind {
@@ -534,43 +592,43 @@ var default_indexer = &Indexer {
 };
 
 // General functions
-// func ainit<T>(a: T[], allocator: Allocator*)
-// func afree<T>(a: T[])
-// func alen<T>(a: T[]): usize
-// func acap<T>(a: T[]): usize
-// func aclear<T>(a: T)
-// func afit<T>(a: T[], mincap: usize)
-// func asetlen<T>(a: T[], newlen: usize)
-// func asetcap<T>(a: T[], newcap: usize)
-// func afill<T>(a: T[], v: T, n: usize)
-// func adeli<T>(a: T[], i: usize)
-// func adeln<T>(a: T[], i: usize, len: usize)
-// func acat<T>(a: T[], src: T const[])
-// func acatn<T>(a: T[], src: T const[], srclen: usize)
-// func apush<T>(a: T[], v: T)
-// func apop<T>(a: T[])
-// func adefault<T>(a: T[], v: T)
+// func ainit<T>(a: ref T[], allocator: Allocator*)
+// func afree<T>(a: ref T[])
+// func alen<T>(a: ref T[]): usize
+// func acap<T>(a: ref T[]): usize
+// func aclear<T>(a: ref T)
+// func afit<T>(a: ref T[], mincap: usize)
+// func asetlen<T>(a: ref T[], newlen: usize)
+// func asetcap<T>(a: ref T[], newcap: usize)
+// func afill<T>(a: ref T[], v: T, n: usize)
+// func adeli<T>(a: ref T[], i: usize)
+// func adeln<T>(a: ref T[], i: usize, len: usize)
+// func acat<T>(a: ref T[], src: T const[])
+// func acatn<T>(a: ref T[], src: T const[], srclen: usize)
+// func apush<T>(a: ref T[], v: T)
+// func apop<T>(a: ref T[])
+// func adefault<T>(a: ref T[], v: T)
 // func aprintf(a: char[], fmt: char const*, ...)
 
 // Key-indexed functions
-// func aget<K, V>(a: {K, V}[], k: K): V
-// func agetp<K, V>(a: {K, V}[], k: K): V*
-// func ageti<K, V>(a: {K, V}[], k: K): usize
-// func aput<K, V>(a: {K, V}[], k: K, v: V)
-// func adel<K, V>(a: {K, V}[], k: K)
+// func aget<K, V>(a: ref {K, V}[], k: K): V
+// func agetp<K, V>(a: ref {K, V}[], k: K): V*
+// func ageti<K, V>(a: ref {K, V}[], k: K): usize
+// func aput<K, V>(a: ref {K, V}[], k: K, v: V)
+// func adel<K, V>(a: ref {K, V}[], k: K)
 
 // Value-indexed functions
-// func agetv<T>(a: T[], v: T): bool
-// func agetvi<T>(a: T[], v: T): usize
-// func aputv<T>(a: T[], v: T)
-// func adelv<T>(a: T[], v: T)
+// func agetv<T>(a: ref T[], v: T): bool
+// func agetvi<T>(a: ref T[], v: T): usize
+// func aputv<T>(a: ref T[], v: T)
+// func adelv<T>(a: ref T[], v: T)
 
-// func aindexv<T>(a: T[], new_index: Index)
-// func aindex<T>(a: T[], new_index: Index)
+// func aindexv<T>(a: ref T[], new_index: Index)
+// func aindex<T>(a: ref T[], new_index: Index)
 
-// func ahdrsize<T>(a: T[]): usize
-// func ahdralign<T>(a: T[]): usize
-// func ahdrsize<T>(a: T[]): AHdr*
+// func ahdrsize<T>(a: ref T[]): usize
+// func ahdralign<T>(a: ref T[]): usize
+// func ahdrsize<T>(a: ref T[]): AHdr*
 
 struct Ahdr {
     allocator: Allocator*;
