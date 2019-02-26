@@ -560,7 +560,7 @@ Type *aggregate_item_field_type_from_name(Type *type, const char *name) {
 }
 
 Map cached_tuple_types;
-int num_tuple_types;
+Type **tuple_types;
 
 Type *type_tuple(Type **fields, size_t num_fields) {
     size_t fields_size = num_fields * sizeof(*fields);
@@ -585,12 +585,7 @@ Type *type_tuple(Type **fields, size_t num_fields) {
     new_cached->type = type;
     new_cached->next = cached;
     map_put_from_uint64(&cached_tuple_types, key, new_cached);
-    char name[64];
-    snprintf(name, sizeof(name), "tuple%d", num_tuple_types);
-    extern Sym *sym_global_tuple(const char *name, Type *type);
-    Sym *sym = sym_global_tuple(str_intern(name), type);
-    type->sym = sym;
-    num_tuple_types++;
+    buf_push(tuple_types, type);
     return type;
 }
 

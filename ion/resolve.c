@@ -798,7 +798,6 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
             buf_push(fields, field);
         }
         result = type_tuple(fields, buf_len(fields));
-        set_resolved_sym(typespec, result->sym);
         break;
     }
     default:

@@ -1221,15 +1221,31 @@ func test_panic(ctx: Recover*, i: int) {
     }
 }
 
+struct OtherStruct {
+    x: int;
+
+}
+
+typedef SillyTuple = {double, double};
+
+struct SillyStruct {
+    x: SillyTuple;
+//    x: {double, int};
+}
+
+var x: SillyStruct;
+
 // imagine you're writing top-level parse() entry point to the parser module
 func test_disposable(): File* {
+    x;
     ctx: Recover;
     if (recover(&ctx)) {
         file1 := open("c:/projects/sandbox/dummy.txt");
         secure(file1);
         file2 := open("c:/projects/sandbox/dummy.txt");
         secure(file2);
-        // test_panic(&ctx, 10);
+        test_panic(&ctx, 10);
+        #assert(0);
         // panic(&ctx);
 //        unsecure(file1);
         dispose(&ctx);

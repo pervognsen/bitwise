@@ -116,6 +116,8 @@ const char *cdecl_name(Type *type) {
     const char *type_name = type_names[type->kind];
     if (type_name) {
         return type_name;
+    } else if (type->kind == TYPE_TUPLE) {
+        return strf("tuple%d", type->typeid);
     } else {
         assert(type->sym);
         return get_gen_name(type->sym);
@@ -202,7 +204,10 @@ const char *get_gen_name_or_default(const void *ptr, const char *default_name) {
 }
 
 const char *get_gen_name(const void *ptr) {
-    return get_gen_name_or_default(ptr, "ERROR");
+    const char *error = "ERROR";
+    const char *name = get_gen_name_or_default(ptr, "error");
+    assert(name != error);
+    return name;
 }
 
 char *typespec_to_cdecl(Typespec *typespec, const char *str) {
@@ -239,8 +244,10 @@ char *typespec_to_cdecl(Typespec *typespec, const char *str) {
         buf_printf(result, ")");
         return typespec_to_cdecl(typespec->func.ret, result);
     }
-    case TYPESPEC_TUPLE:
-        return strf("%s %s", get_gen_name(typespec), str);
+    case TYPESPEC_TUPLE: {
+        Type *type = get_resolved_type(typespec);
+        return strf("tuple%d %s", type->typeid, str);
+    }
     default:
         assert(0);
         return NULL;
@@ -279,13 +286,12 @@ bool gen_reachable(Sym *sym) {
 }
 
 void gen_forward_decls(void) {
+    for (int i = 0; i < buf_len(tuple_types); i++) {
+        Type *type = tuple_types[i];
+        genlnf("typedef struct tuple%d tuple%d;", type->typeid, type->typeid);
+    }
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
-        if (sym->kind == SYM_TYPE && sym->type->kind == TYPE_TUPLE) {
-            const char *name = get_gen_name(sym);
-            genlnf("typedef struct %s %s;", name, name);
-            continue;
-        }
         Decl *decl = sym->decl;
         if (!decl || !gen_reachable(sym)) {
             continue;
@@ -305,17 +311,6 @@ void gen_forward_decls(void) {
             break;
         }
     }
-}
-
-void gen_tuple_decl(Type *type) {
-    genlnf("struct %s {", get_gen_name(type->sym));
-    gen_indent++;
-    for (size_t i = 0; i < type->aggregate.num_fields; i++) {
-        TypeField field = type->aggregate.fields[i];
-        genlnf("%s;", type_to_cdecl(field.type, field.name));
-    }
-    gen_indent--;
-    genlnf("};");
 }
 
 void gen_aggregate_items(Aggregate *aggregate) {
@@ -1029,10 +1024,6 @@ void gen_stmt(Stmt *stmt) {
 }
 
 void gen_decl(Sym *sym) {
-    if (sym->kind == SYM_TYPE && sym->type->kind == TYPE_TUPLE) {
-        gen_tuple_decl(sym->type);
-        return;
-    }
     Decl *decl = sym->decl;
     if (!decl || is_decl_foreign(decl)) {
         return;
@@ -1091,6 +1082,17 @@ void gen_decl(Sym *sym) {
 }
 
 void gen_sorted_decls(void) {
+    for (int i = 0; i < buf_len(tuple_types); i++) {
+        Type *type = tuple_types[i];
+        genlnf("struct tuple%d {", type->typeid);
+        gen_indent++;
+        for (size_t i = 0; i < type->aggregate.num_fields; i++) {
+            TypeField field = type->aggregate.fields[i];
+            genlnf("%s;", type_to_cdecl(field.type, field.name));
+        }
+        gen_indent--;
+        genlnf("};");
+    }
     for (size_t i = 0; i < buf_len(sorted_syms); i++) {
         if (sorted_syms[i]->reachable == REACHABLE_NATURAL) {
             gen_decl(sorted_syms[i]);
