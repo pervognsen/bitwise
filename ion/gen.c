@@ -79,10 +79,8 @@ void gen_str(const char *str, bool multiline) {
     }
 }
 
-bool gen_nosync;
-
 void gen_buf_pos(char **pbuf, SrcPos pos) {
-    if (gen_nosync) {
+    if (flag_nolinesync) {
         return;
     }
     char *buf = *pbuf;
@@ -97,7 +95,7 @@ void gen_buf_pos(char **pbuf, SrcPos pos) {
 }
 
 void gen_sync_pos(SrcPos pos) {
-    if (gen_nosync) {
+    if (flag_nolinesync) {
         return;
     }
     if (gen_pos.line != pos.line || gen_pos.name != pos.name) {

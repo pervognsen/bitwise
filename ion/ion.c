@@ -84,6 +84,7 @@ int ion_main(int argc, const char **argv) {
     add_flag_bool("lazy", &flag_lazy, "Only compile what's reachable from the main package");
     add_flag_bool("notypeinfo", &flag_notypeinfo, "Don't generate any typeinfo tables");
     add_flag_bool("fullgen", &flag_fullgen, "Force full code generation even for non-reachable symbols");
+    add_flag_bool("nolinesync", &flag_fullgen, "Disable #line synchronization between Ion code and generated C code.");
     add_flag_bool("verbose", &flag_verbose, "Extra diagnostic information");
     const char *program_name = parse_flags(&argc, &argv);
     if (argc != 1) {
