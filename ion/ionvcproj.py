@@ -132,8 +132,15 @@ if len(sys.argv) < 2:
 
 package = sys.argv[1]
 flags = sys.argv[2:]
-ionhome = os.getenv("IONHOME");
-ionpath = os.getenv("IONPATH");
+
+ionhome = os.getenv("IONHOME")
+if not ionhome:
+  print("Error: IONHOME is not set")
+  sys.exit(1)
+
+ionpath = os.getenv("IONPATH")
+if not ionpath:
+  print("Error: IONPATH is not set")
 
 packagepath = package.replace('.', '\\')
 for base in ionpath.split(';'):
@@ -142,7 +149,7 @@ for base in ionpath.split(';'):
         packagepath = path
         break
 else:
-    print("Package %s not found in %%IONPATH%%" % package)
+    print("Error: Package %s not found in IONPATH" % package)
     sys.exit(1)
 
 template = string.Template(template)
@@ -151,7 +158,7 @@ cfile = ntpath.join(ntpath.abspath(os.getcwd()), package, "%s.c" % (package))
 flags = ' '.join(["-o " + cfile] + flags)
 ionfilelist = glob.glob(ntpath.join(packagepath, "*.ion"))
 ionfiles = '\n'.join("""    <Text Include="%s" />""" % ionfile for ionfile in ionfilelist)
-template = template.substitute(
+vcxproj_str = template.substitute(
   guid=guid,
   package=package,
   ionhome=ionhome,
@@ -165,5 +172,5 @@ if not os.path.isdir(package):
     os.mkdir(package)
 
 vcxproj = open("%s/%s.vcxproj" % (package, package), "w")
-vcxproj.write(template)
+vcxproj.write(vcxproj_str)
 
