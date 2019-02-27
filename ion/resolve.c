@@ -808,7 +808,9 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
             buf_push(fields, field);
         }
         result = type_tuple(fields, buf_len(fields));
-        set_reachable(result);
+        if (!get_reachable(result)) {
+            set_reachable(result);
+        }
         break;
     }
     default:
