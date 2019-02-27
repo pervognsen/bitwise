@@ -31,6 +31,8 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
     <ProjectGuid>{$guid}</ProjectGuid>
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
     <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <CustomBuildBeforeTargets>ClCompile</CustomBuildBeforeTargets>
+    <CustomBuildAfterTargets>Build</CustomBuildAfterTargets>
   </PropertyGroup>
   <Import Project="$$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -108,6 +110,7 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
         cd $ionhome
         ion $flags $package
       </Command>
+      <Outputs>$package.c</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <Import Project="$$(VCTargetsPath)\Microsoft.Cpp.targets" />
