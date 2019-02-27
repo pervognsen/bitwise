@@ -479,8 +479,7 @@ void gen_intrinsic(Sym *sym, Expr *expr) {
     } else if (sym->name == str_intern("apush") || sym->name == str_intern("aputv") || sym->name == str_intern("adelv") ||
         sym->name == str_intern("agetvi") || sym->name == str_intern("agetvp") || sym->name == str_intern("agetv") ||
         sym->name == str_intern("asetcap") || sym->name == str_intern("afit") || sym->name == str_intern("acat") ||
-        sym->name == str_intern("adeli") || sym->name == str_intern("aindexv") || sym->name == str_intern("asetlen") ||
-        sym->name == str_intern("ainit")) {
+        sym->name == str_intern("adeli") || sym->name == str_intern("aindexv") || sym->name == str_intern("asetlen")) {
         // (t, a, v)
         genf("%s(%s, (", sym->name, type_to_cdecl(base, ""));
         gen_expr(expr->call.args[0]);
@@ -537,6 +536,12 @@ void gen_intrinsic(Sym *sym, Expr *expr) {
         genf("%s(%s, (", sym->name, type_to_cdecl(base, ""));
         gen_expr(expr->call.args[0]);
         genf("))");
+    } else if (sym->name == str_intern("anew")) {
+        Type *result_type = get_resolved_type(expr);
+        assert(is_ptr_type(result_type));
+        genf("%s(%s, ", sym->name, type_to_cdecl(result_type->base, ""));
+        gen_expr(expr->call.args[0]);
+        genf(")");
     } else {
         fatal_error(expr->pos, "Call to unimplemented intrinsic %s", sym->name);
     }
@@ -787,15 +792,24 @@ void gen_simple_stmt(Stmt *stmt) {
                 Type *init_type = get_resolved_type(stmt->init.type);
                 genf("%s = 0", type_to_cdecl(type_decay(init_type), stmt->init.name));
             } else {
-                if (incomplete) {
-                    Expr *size = new_expr_int(init_typespec->pos, get_resolved_type(stmt->init.expr)->num_elems, 0, 0);
-                    init_typespec = new_typespec_array(init_typespec->pos, init_typespec->base, size);
-                }
-                genf("%s = ", typespec_to_cdecl(stmt->init.type, stmt->init.name));
-                if (stmt->init.expr) {
-                    gen_expr(stmt->init.expr);
+                if (incomplete && is_ptr_type(get_resolved_type(stmt->init.expr))) {
+                    genf("%s = ", type_to_cdecl(get_resolved_type(stmt->init.expr), stmt->init.name));
+                    if (stmt->init.expr) {
+                        gen_expr(stmt->init.expr);
+                    } else {
+                        genf("{0}");
+                    }
                 } else {
-                    genf("{0}");
+                    if (incomplete) {
+                        Expr *size = new_expr_int(init_typespec->pos, get_resolved_type(stmt->init.expr)->num_elems, 0, 0);
+                        init_typespec = new_typespec_array(init_typespec->pos, init_typespec->base, size);
+                    }
+                    genf("%s = ", typespec_to_cdecl(stmt->init.type, stmt->init.name));
+                    if (stmt->init.expr) {
+                        gen_expr(stmt->init.expr);
+                    } else {
+                        genf("{0}");
+                    }
                 }
             }
         } else {

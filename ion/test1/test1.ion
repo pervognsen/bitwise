@@ -932,7 +932,7 @@ struct float2 {
 }
 
 func test_dynamic_arrays() {
-    a: int[];
+    a: int[] = anew(0);
     apush(a, 42);
     apush(a, 36);
     len := alen(a);

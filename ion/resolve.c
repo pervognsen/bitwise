@@ -538,6 +538,10 @@ bool convert_operand(Operand *operand, Type *type) {
 
 #undef CASE
 
+
+Type *type_allocator;
+Type *type_allocator_ptr;
+
 bool is_null_ptr(Operand operand) {
     if (operand.is_const && (is_ptr_type(operand.type) || is_integer_type(operand.type))) {
         cast_operand(&operand, type_ullong);
@@ -895,23 +899,27 @@ void complete_type(Type *type) {
 Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
     Type *expected_type = unqualify_type(type);
     Operand operand = resolve_expected_expr(expr, expected_type);
-    if (is_incomplete_array_type(type) && is_array_type(operand.type) && type->base == operand.type->base) {
-        // Incomplete array size, so infer the size from the initializer expression's type.
-        type->num_elems = operand.type->num_elems;
-        type->size = operand.type->size;
-        type->incomplete_elems = false;
-        set_resolved_expected_type(expr, type);
-        return type;
-    } else {
-        if (type && is_ptr_type(type)) {
-            operand = operand_decay(operand);
+    if (is_incomplete_array_type(type)) {
+        if (is_array_type(operand.type) && type->base == operand.type->base) {
+            // Incomplete array size, so infer the size from the initializer expression's type.
+            type->num_elems = operand.type->num_elems;
+            type->size = operand.type->size;
+            type->incomplete_elems = false;
+            set_resolved_expected_type(expr, type);
+            return type;
+        } else if (is_ptr_type(operand.type) && type->base == operand.type->base) {
+            set_resolved_expected_type(expr, operand.type);
+            return operand.type;
         }
-        if (!convert_operand(&operand, expected_type)) {
-            return NULL;
-        }
-        set_resolved_expected_type(expr, operand.type);
-        return operand.type;
     }
+    if (type && is_ptr_type(type)) {
+        operand = operand_decay(operand);
+    }
+    if (!convert_operand(&operand, expected_type)) {
+        return NULL;
+    }
+    set_resolved_expected_type(expr, operand.type);
+    return operand.type;
 }
 
 Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const) {
@@ -1990,7 +1998,7 @@ Operand resolve_expr_call_default(Operand func, Expr *expr) {
     return operand_rvalue(func.type->func.ret);
 } 
 
-Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
+Operand resolve_expr_call_intrinsic(Operand func, Expr *expr, Type *expected_type) {
     Sym *sym = get_resolved_sym(expr->call.expr);
     assert(sym);
     if (sym->name == str_intern("va_arg")) {
@@ -2239,12 +2247,26 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr) {
             fatal_error(expr->call.args[1]->pos, "Argument 1 and 2 of acatn don't have identical base types");
         }
         return operand_rvalue(func.type->func.ret);
+    } else if (sym->name == str_intern("anew")) {
+        assert(expr->call.num_args == 1);
+        Operand allocator = resolve_expr_rvalue(expr->call.args[0]);
+        if (!convert_operand(&allocator, type_allocator_ptr)) {
+            fatal_error(expr->call.args[0]->pos, "Argument 1 of %s must have type Allocator*", sym->name);
+        }
+        if (!expected_type || (!is_ptr_type(expected_type) && !is_array_type(expected_type))) {
+            fatal_error(expr->pos, "anew can only be used when its inferred type is array or pointer type");
+        }
+        complete_type(expected_type->base);
+        if (type_sizeof(expected_type->base) == 0) {
+            fatal_error(expr->pos, "anew base type cannot be incomplete or have size 0");
+        }
+        return operand_rvalue(type_ptr(expected_type->base));
     } else {
         return resolve_expr_call_default(func, expr);
     }
 }
 
-Operand resolve_expr_call(Expr *expr) {
+Operand resolve_expr_call(Expr *expr, Type *expected_type) {
     assert(expr->kind == EXPR_CALL);
     if (expr->call.expr->kind == EXPR_NAME) {
         Sym *sym = resolve_name(expr->call.expr->name);
@@ -2272,7 +2294,7 @@ Operand resolve_expr_call(Expr *expr) {
         fatal_error(expr->pos, "Function call with too many arguments");
     }
     if (func.type->func.intrinsic) {
-        return resolve_expr_call_intrinsic(func, expr);
+        return resolve_expr_call_intrinsic(func, expr, expected_type);
     } else {
         return resolve_expr_call_default(func, expr);
     }
@@ -2341,7 +2363,7 @@ Operand resolve_expr_index(Expr *expr) {
 Operand resolve_expr_cast(Expr *expr) {
     assert(expr->kind == EXPR_CAST);
     Type *type = resolve_typespec(expr->cast.type);
-    Operand operand = resolve_expr_rvalue(expr->cast.expr);
+    Operand operand = resolve_expected_expr_rvalue(expr->cast.expr, type);
     if (!cast_operand(&operand, type)) {
         fatal_error(expr->pos, "Invalid type cast from %s to %s", get_type_name(operand.type), get_type_name(type));
     }
@@ -2496,10 +2518,8 @@ void try_const_cast(Operand *operand, Expr *expr) {
     }
 }
 
-Type *type_allocator;
-Type *type_allocator_ptr;
-
 Operand resolve_expr_new(Expr *expr, Type *expected_type) {
+    #if 0
     if (!type_allocator) {
         Package *saved = enter_package(builtin_package);
         Sym *sym = resolve_name(str_intern("Allocator"));
@@ -2509,6 +2529,7 @@ Operand resolve_expr_new(Expr *expr, Type *expected_type) {
         type_allocator_ptr = type_ptr(type_allocator);
         leave_package(saved);
     }
+    #endif
     if (expr->new_expr.alloc) {
         Operand alloc = resolve_expr(expr->new_expr.alloc);
         if (!convert_operand(&alloc, type_allocator_ptr)) {
@@ -2560,7 +2581,7 @@ Operand resolve_expected_expr(Expr *expr, Type *expected_type) {
         result = resolve_expr_cast(expr);
         break;
     case EXPR_CALL:
-        result = resolve_expr_call(expr);
+        result = resolve_expr_call(expr, expected_type);
         break;
     case EXPR_INDEX:
         result = resolve_expr_index(expr);
@@ -2717,6 +2738,16 @@ void init_builtin_syms() {
     sym_global_type("ullong", type_ullong);
     sym_global_type("float", type_float);
     sym_global_type("double", type_double);
+}
+
+void postinit_builtin(void) {
+    assert(current_package == builtin_package);
+    Sym *sym = resolve_name(str_intern("Allocator"));
+    if (sym) {
+        assert(sym->kind == SYM_TYPE);
+        type_allocator = sym->type;
+        type_allocator_ptr = type_ptr(type_allocator);
+    }
 }
 
 void add_package_decls(Package *package) {

@@ -320,8 +320,7 @@ func trace_free(allocator: void*, ptr: void*) {
 
 func trace_allocator(allocator: Allocator*): TraceAllocator {
     events: AllocatorEvent[];
-    ainit(events, allocator);
-    return {{trace_alloc, trace_free}, allocator, events};
+    return {{trace_alloc, trace_free}, allocator, anew(allocator)};
 }
 
 struct NameNode {
@@ -337,8 +336,8 @@ struct NameMap {
 
 func namemap_init(self: NameMap*, allocator: Allocator*) {
     self.arena = arena_allocator(allocator);
-    ainit(self.nodes, &self.arena);
-    ainit(self.collisions, &self.arena);
+    self.nodes = anew(&self.arena);
+    self.collisions = anew(&self.arena);
 }
 
 func namemap_free(self: NameMap*) {
@@ -496,7 +495,7 @@ func hash_init(index: HashIndex*, len: uint32, allocator: Allocator*) {
         num_slots = HASH_MIN_SLOTS;
     }
     *index = {mask = num_slots - 1, max_occupied = num_slots/2 + num_slots/4, allocator = allocator};
-    ainit(index.slots, allocator);
+    index.slots = anew(allocator);
     afill(index.slots, {HASH_EMPTY}, num_slots);
 }
 
@@ -620,7 +619,7 @@ var default_indexer = &Indexer {
 };
 
 // General functions
-// func ainit<T>(a: ref T[], allocator: Allocator*)
+// func new<T>(allocator: Allocator*): T*
 // func afree<T>(a: ref T[])
 // func alen<T>(a: ref T[]): usize
 // func acap<T>(a: ref T[]): usize
@@ -734,19 +733,17 @@ func afree_func(ap: void**, elem_size: usize, elem_align: usize) {
 }
 
 @inline
-func ainit_func(ap: void**, allocator: Allocator*, elem_size: usize, elem_align: usize) {
-    if (!*ap) {
-        size := elem_size + ahdrsize_func(elem_size, elem_align);
-        align := ahdralign_func(elem_size, elem_align);
-        mem := generic_alloc(allocator, size, align);
-        hdr := (:Ahdr*)(mem + elem_size);
-        hdr.allocator = allocator;
-        hdr.len = 0;
-        hdr.cap = 0;
-        hdr.index = {indexer = default_indexer};
-        libc.memset(mem, 0, elem_size);
-        *ap = hdr.buf;
-    }
+func anew_func(allocator: Allocator*, elem_size: usize, elem_align: usize): void* {
+    size := elem_size + ahdrsize_func(elem_size, elem_align);
+    align := ahdralign_func(elem_size, elem_align);
+    mem := generic_alloc(allocator, size, align);
+    hdr := (:Ahdr*)(mem + elem_size);
+    hdr.allocator = allocator;
+    hdr.len = 0;
+    hdr.cap = 0;
+    hdr.index = {indexer = default_indexer};
+    libc.memset(mem, 0, elem_size);
+    return hdr.buf;
 }
 
 @inline
@@ -880,7 +877,7 @@ func adefault_func(a: void*, elem_size: usize, elem_align: usize): void* {
 
 func asetdefault_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize) {
     if (!*ap) {
-        ainit_func(ap, 0, elem_size, elem_align);
+        *ap = anew_func(0, elem_size, elem_align);
     }
     a := *ap;
     libc.memcpy(amem_func(a, elem_size, elem_align) + key_size, x, elem_size - key_size);
@@ -896,7 +893,7 @@ func afit_func(ap: void**, min_cap: usize, elem_size: usize, elem_align: usize) 
 func aindex_func(ap: void**, new_index: Index, key_size: usize, elem_size: usize, elem_align: usize) {
     a := *ap;
     if (!a) {
-        ainit_func(ap, 0, elem_size, elem_align);
+        *ap = anew_func(0, elem_size, elem_align);
         a = *ap;
     }
     hdr := ahdr_func(a, elem_size, elem_align);
@@ -923,7 +920,7 @@ func agetp_func(a: void*, x: void const*, key_size: usize, elem_size: usize, ele
 
 func aget_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): void* {
     if (!*ap) {
-        ainit_func(ap, 0, elem_size, elem_align);
+        *ap = anew_func(0, elem_size, elem_align);
     }
     a := *ap;
     i := ageti_func(a, x, key_size, elem_size, elem_align);
@@ -932,16 +929,14 @@ func aget_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, el
     return i != len ? a + i*elem_size + (elem_size - key_size) : def + (elem_size - key_size);
 }
 
-const AUTOHASH_THRESHOLD = 16;
-
 func aput_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): usize {
     a := *ap;
     if (!a) {
-        ainit_func(ap, 0, elem_size, elem_align);
+        *ap = anew_func(0, elem_size, elem_align);
         a = *ap;
     }
     hdr := ahdr_func(a, elem_size, elem_align);
-    if (hdr.len >= AUTOHASH_THRESHOLD && hdr.index.indexer == default_indexer) {
+    if (hdr.len >= 32 && hdr.index.indexer == default_indexer) {
         aindex_func(ap, hash_index(hdr.allocator), key_size, elem_size, elem_align);
     }
     i := index_put(hdr.index, a, x, hdr.len, elem_size, key_size);
@@ -1052,12 +1047,6 @@ func asetlen(a: void*, new_len: usize): usize {
     asetlen_func;
     #foreign(preamble = "#define asetlen(t, a, new_len) std_asetlen_func((a), (new_len), sizeof(t), alignof(t))");
     return 0;
-}
-
-@foreign @intrinsic
-func ainit(a: void*, allocator: Allocator*) {
-    ainit_func;
-    #foreign(preamble = "#define ainit(t, a, allocator) std_ainit_func((void **)&(a), (allocator), sizeof(t), alignof(t))");
 }
 
 // (t, tv, a, v)
@@ -1188,4 +1177,13 @@ func aclear(a: void*) {
 func apop(a: void*) {
     apop_func;
     #foreign(preamble = "#define apop(t, a) std_apop_func((a), sizeof(t), alignof(t))");
+}
+
+// (t)
+
+@foreign @intrinsic
+func anew(allocator: Allocator*): void* {
+    anew_func;
+    #foreign(preamble = "#define anew(t, allocator) (std_anew_func((allocator), sizeof(t), alignof(t)))");
+    return 0;
 }

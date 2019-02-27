@@ -92,7 +92,7 @@ int ion_main(int argc, const char **argv) {
         print_flags_usage();
         return 1;
     }
-    const char *package_name = argv[0];
+    char *package_name = strdup(argv[0]);
     if (flag_verbose) {
         printf("Target operating system: %s\n", os_names[target_os]);
         printf("Target architecture: %s\n", arch_names[target_arch]);
@@ -105,6 +105,7 @@ int ion_main(int argc, const char **argv) {
     }
     builtin_package->external_name = str_intern("");
     enter_package(builtin_package);
+    postinit_builtin();
     Sym *any_sym = resolve_name(str_intern("any"));
     if (!any_sym || any_sym->kind != SYM_TYPE) {
         printf("error: Any type not defined");
@@ -112,6 +113,11 @@ int ion_main(int argc, const char **argv) {
     }
     type_any = any_sym->type;
     leave_package(builtin_package);
+    for (char *ptr = package_name; *ptr; ptr++) {
+        if (*ptr == '.') {
+            *ptr = '/';
+        }
+    }
     Package *main_package = import_package(package_name);
     if (!main_package) {
         printf("error: Failed to compile package '%s'\n", package_name);
