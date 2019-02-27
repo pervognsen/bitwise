@@ -440,6 +440,8 @@ bool is_excluded_typeinfo(Type *type) {
         } else {
             return !is_sym_reachable(type->sym);
         }
+    } else if (type->kind == TYPE_TUPLE) {
+        return !is_tuple_reachable(type);
     } else {
         return !type->sym && (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
     }
