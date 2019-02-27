@@ -1,5 +1,5 @@
 import sdl {...}
-import libc {...}
+import libc {printf, sprintf, snprintf, strncpy, isprint, strcmp, cos, fmod}
 
 struct int2 {
     x, y: int;
@@ -363,7 +363,6 @@ func app_update(): bool {
     app.num_updates++;
     return !app.quit;
 }
-
 
 struct DigitalButton {
     down: bool;
