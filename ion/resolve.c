@@ -620,6 +620,16 @@ void set_resolved_val(void *ptr, Val val) {
     map_put_uint64(&resolved_val_map, ptr, u64);
 }
 
+Map reachable_map;
+
+void set_reachable(void *ptr) {
+    map_put(&reachable_map, ptr, (void *)reachable_phase);
+}
+
+uint8_t get_reachable(void *ptr) {
+    return (int)(intptr_t)map_get(&reachable_map, ptr);
+}
+
 Map resolved_type_map;
 
 Type *get_resolved_type(void *ptr) {
@@ -798,6 +808,7 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
             buf_push(fields, field);
         }
         result = type_tuple(fields, buf_len(fields));
+        set_reachable(result);
         break;
     }
     default:

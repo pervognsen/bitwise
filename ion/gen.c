@@ -281,19 +281,29 @@ void gen_func_decl(Decl *decl) {
     }
 }
 
-bool gen_reachable(Sym *sym) {
-    return flag_fullgen || sym->reachable == REACHABLE_NATURAL;
+bool is_reachable(int reachable) {
+    return flag_fullgen || reachable == REACHABLE_NATURAL;
+}
+
+bool is_sym_reachable(Sym *sym) {
+    return is_reachable(sym->reachable);
+}
+
+bool is_tuple_reachable(Type *type) {
+    return is_reachable(get_reachable(type));
 }
 
 void gen_forward_decls(void) {
     for (int i = 0; i < buf_len(tuple_types); i++) {
         Type *type = tuple_types[i];
-        genlnf("typedef struct tuple%d tuple%d;", type->typeid, type->typeid);
+        if (is_tuple_reachable(type)) {
+            genlnf("typedef struct tuple%d tuple%d;", type->typeid, type->typeid);
+        }
     }
     for (Sym **it = sorted_syms; it != buf_end(sorted_syms); it++) {
         Sym *sym = *it;
         Decl *decl = sym->decl;
-        if (!decl || !gen_reachable(sym)) {
+        if (!decl || !is_sym_reachable(sym)) {
             continue;
         }
         if (is_decl_foreign(decl)) {
@@ -428,7 +438,7 @@ bool is_excluded_typeinfo(Type *type) {
         if (get_decl_note(type->sym->decl, str_intern("notypeinfo"))) {
             return true;
         } else {
-            return !gen_reachable(type->sym);
+            return !is_sym_reachable(type->sym);
         }
     } else {
         return !type->sym && (type->kind == TYPE_STRUCT || type->kind == TYPE_UNION);
@@ -1084,6 +1094,9 @@ void gen_decl(Sym *sym) {
 void gen_sorted_decls(void) {
     for (int i = 0; i < buf_len(tuple_types); i++) {
         Type *type = tuple_types[i];
+        if (!is_tuple_reachable(type)) {
+            continue;
+        }
         genlnf("struct tuple%d {", type->typeid);
         gen_indent++;
         for (size_t i = 0; i < type->aggregate.num_fields; i++) {
