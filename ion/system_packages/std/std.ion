@@ -1,5 +1,33 @@
 import libc
 
+func zero(dest: void*, size: usize): void* {
+    return libc.memset(dest, 0, size);
+}
+
+func fill(dest: void*, val: char, size: usize): void* {
+    return libc.memset(dest, val, size);
+}
+
+func copy(dest: void*, src: void const*, size: usize): void* {
+    return libc.memmove(dest, src, size);
+}
+
+func cmp(p: void const*, q: void const*, size: usize): int {
+    return libc.memcmp(p, q, size);
+}
+
+func sdup(str: char const*): char* {
+    len := slen(str);
+    buf: char* = alloc(len+1, 1);
+    copy(buf, str, len);
+    buf[len] = 0;
+    return buf;
+}
+
+func slen(str: char const*): usize {
+    return libc.strlen(str);
+}
+
 struct File {
     base: Disposable;
     libc_file: libc.FILE*;
@@ -904,6 +932,8 @@ func aget_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, el
     return i != len ? a + i*elem_size + (elem_size - key_size) : def + (elem_size - key_size);
 }
 
+const AUTOHASH_THRESHOLD = 16;
+
 func aput_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, elem_align: usize): usize {
     a := *ap;
     if (!a) {
@@ -911,6 +941,9 @@ func aput_func(ap: void**, x: void const*, key_size: usize, elem_size: usize, el
         a = *ap;
     }
     hdr := ahdr_func(a, elem_size, elem_align);
+    if (hdr.len >= AUTOHASH_THRESHOLD && hdr.index.indexer == default_indexer) {
+        aindex_func(ap, hash_index(hdr.allocator), key_size, elem_size, elem_align);
+    }
     i := index_put(hdr.index, a, x, hdr.len, elem_size, key_size);
     if (i == hdr.len) {
         afit_func(ap, hdr.len + 1, elem_size, elem_align);
