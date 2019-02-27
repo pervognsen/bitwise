@@ -59,6 +59,7 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
+      <CompileAs>CompileAsC</CompileAs>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <WarningLevel>Level3</WarningLevel>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -72,6 +73,7 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
     </ClCompile>
     <ClCompile Condition="'$$(Configuration)'=='Debug'">
       <Optimization>Disabled</Optimization>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -91,10 +93,13 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
       <AdditionalOptions Condition="'$$(VisualStudioVersion)' &gt;= '12.0' Or '$$(PlatformToolsetVersion)' &gt;= '120' Or '$$(MSBuildToolsVersion)' &gt;= '12.0'">/Gw %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
       <SubSystem>Console</SubSystem>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+    </Link>
+    <Link Condition="'$$(Configuration)'=='Debug'">
+      <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
     </Link>
     <Link Condition="'$$(Configuration)'=='Release'">
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
