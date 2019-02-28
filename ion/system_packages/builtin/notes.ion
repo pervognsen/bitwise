@@ -27,7 +27,7 @@
 #define INLINE static inline __attribute__((always_inline))
 #define NOINLINE __attribute__((noinline))
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored -Wvarargs
+#pragma GCC diagnostic ignored "-Wvarargs"
 #endif
 
 #include <stdbool.h>
