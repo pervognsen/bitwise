@@ -789,6 +789,9 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
             if (arg == type_void) {
                 fatal_error(typespec->pos, "Function parameter type cannot be void");
             }
+			if (is_incomplete_array_type(arg)) {
+				arg = type_decay(arg);
+			}
             buf_push(args, arg);
         }
         Type *ret = type_void;
@@ -922,20 +925,28 @@ Type *resolve_typed_init(SrcPos pos, Type *type, Expr *expr) {
     return operand.type;
 }
 
-Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const) {
-    Type *type;
-    if (typespec) {
-        Type *declared_type = resolve_typespec_strict(typespec, was_const);
-        type = declared_type;
+Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const, bool is_undef) {
+    Type *type = NULL;
+    Type *inferred_type = NULL;
+    Type *declared_type = NULL;
+    if (is_undef) {
+        if (typespec) {
+            declared_type = type = resolve_typespec_strict(typespec, was_const);
+        }
+        if (!type) {
+            fatal_error(pos, "Cannot use undef initializer without declared type");
+        }
+    } else if (typespec) {
+        declared_type = type = resolve_typespec_strict(typespec, was_const);
         if (expr) {
-            type = resolve_typed_init(pos, declared_type, expr);
-            if (!type) {
+            inferred_type = type = resolve_typed_init(pos, declared_type, expr);
+            if (!inferred_type) {
                 fatal_error(pos, "Invalid type in initialization. Expected %s", get_type_name(declared_type));
             }
         }
     } else {
         assert(expr);
-        type = unqualify_type(resolve_expr(expr).type);
+        inferred_type = type = unqualify_type(resolve_expr(expr).type);
         if (is_array_type(type) && expr->kind != EXPR_COMPOUND) {
             type = type_decay(type);
             set_resolved_type(expr, type);
@@ -943,8 +954,8 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const) {
         set_resolved_expected_type(expr, type);
     }
     complete_type(type);
-    if (is_incomplete_array_type(type)) {
-        return type_decay(type);
+    if (is_incomplete_array_type(declared_type) && (!expr || is_ptr_type(inferred_type))) {
+        type = type_decay(type);
     }
     if (type->size == 0) {
         fatal_error(pos, "Cannot declare variable of size 0");
@@ -954,7 +965,7 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const) {
 
 Type *resolve_decl_var(Decl *decl) {
     assert(decl->kind == DECL_VAR);
-    return resolve_init(decl->pos, decl->var.type, decl->var.expr, is_decl_foreign(decl));
+    return resolve_init(decl->pos, decl->var.type, decl->var.expr, is_decl_foreign(decl), false);
 }
 
 Type *resolve_decl_const(Decl *decl, Val *val) {
@@ -981,6 +992,9 @@ Type *resolve_decl_func(Decl *decl) {
     Type **params = NULL;
     for (size_t i = 0; i < decl->func.num_params; i++) {
         Type *param = resolve_typespec_strict(decl->func.params[i].type, with_const);
+		if (is_incomplete_array_type(param)) {
+			param = type_decay(param);
+		}
         complete_type(param);
         if (param == type_void && !foreign) {
             fatal_error(decl->pos, "Function parameter type cannot be void");
@@ -1133,7 +1147,7 @@ void resolve_stmt_assign(Stmt *stmt) {
 
 void resolve_stmt_init(Stmt *stmt) {
     assert(stmt->kind == STMT_INIT);
-    Type *type = resolve_init(stmt->pos, stmt->init.type, stmt->init.expr, false);
+    Type *type = resolve_init(stmt->pos, stmt->init.type, stmt->init.expr, false, stmt->init.is_undef);
     if (!sym_push_var(stmt->init.name, type)) {
         fatal_error(stmt->pos, "Shadowed definition of local symbol");
     }
@@ -2518,23 +2532,12 @@ void try_const_cast(Operand *operand, Expr *expr) {
     }
 }
 
+
 Operand resolve_expr_new(Expr *expr, Type *expected_type) {
-    #if 0
-    if (!type_allocator) {
-        Package *saved = enter_package(builtin_package);
-        Sym *sym = resolve_name(str_intern("Allocator"));
-        assert(sym);
-        assert(sym->kind == SYM_TYPE);
-        type_allocator = sym->type;
-        type_allocator_ptr = type_ptr(type_allocator);
-        leave_package(saved);
-    }
-    #endif
     if (expr->new_expr.alloc) {
         Operand alloc = resolve_expr(expr->new_expr.alloc);
         if (!convert_operand(&alloc, type_allocator_ptr)) {
-//            if (!(is_ptr_type(alloc.type) && alloc.type->base->kind == TYPE_STRUCT && alloc.type->base->aggregate.fields[0].type == type_allocator)) {
-                fatal_error(expr->new_expr.alloc->pos, "Allocator of new must have type Allocator* or be pointer to struct with leading field of type Allocator");
+            fatal_error(expr->new_expr.alloc->pos, "Allocator of new must have type Allocator* or be pointer to struct with leading field of type Allocator");
         }
     }
     if (expr->new_expr.len) {
@@ -2547,15 +2550,29 @@ Operand resolve_expr_new(Expr *expr, Type *expected_type) {
     if (is_ptr_type(expected_type)) {
         expected_base = expected_type->base;
     }
-    Operand arg = resolve_expected_expr(expr->new_expr.arg, expected_base);
-    if (!arg.is_lvalue) {
-        fatal_error(expr->new_expr.arg->pos, "Argument to new must be lvalue");
+    if (!expr->new_expr.arg) {
+        expected_type = type_decay(expected_type);
+        if (!is_ptr_type(expected_type)) {
+            fatal_error(expr->pos, "New with void argument must have expected pointer type");
+        }
+        return operand_rvalue(expected_type);
+    } else {
+        Operand arg = resolve_expected_expr(expr->new_expr.arg, expr->new_expr.len ? expected_type : expected_base);
+        if (expr->new_expr.len) {
+            if (!is_ptr_type(arg.type)) {
+                fatal_error(expr->new_expr.arg->pos, "Argument to new[] must have pointer type");
+            }
+        } else {
+            if (!arg.is_lvalue) {
+                fatal_error(expr->new_expr.arg->pos, "Argument to new must be lvalue");
+            }
+        }
+        complete_type(arg.type);
+        if (type_sizeof(arg.type) == 0) {
+            fatal_error(expr->new_expr.arg->pos, "Type of argument to new has zero size");
+        }
+        return operand_rvalue(expr->new_expr.len ? arg.type : type_ptr(arg.type));
     }
-    complete_type(arg.type);
-    if (type_sizeof(arg.type) == 0) {
-        fatal_error(expr->new_expr.arg->pos, "Type of argument to new has zero size");
-    }
-    return operand_rvalue(type_ptr(arg.type));
 }
 
 Operand resolve_expected_expr(Expr *expr, Type *expected_type) {

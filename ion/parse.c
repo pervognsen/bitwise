@@ -151,7 +151,10 @@ Expr *parse_expr_new(SrcPos pos) {
         len = parse_expr();
         expect_token(TOKEN_RBRACKET);
     }
-    Expr *arg = parse_expr();
+    Expr *arg = NULL;
+    if (!match_keyword(undef_keyword)) {
+        arg = parse_expr();
+    }
     return new_expr_new(pos, alloc, len, arg);
 }
 
@@ -461,7 +464,7 @@ Stmt *parse_init_stmt(Expr *left) {
             fatal_error_here(":= must be preceded by a name");
             return NULL;
         }
-        return new_stmt_init(left->pos, left->name, NULL, parse_expr());
+        return new_stmt_init(left->pos, left->name, NULL, parse_expr(), false);
     } else if (match_token(TOKEN_COLON)) {
         if (left->kind != EXPR_NAME) {
             fatal_error_here(": must be preceded by a name");
@@ -470,10 +473,14 @@ Stmt *parse_init_stmt(Expr *left) {
         const char *name = left->name;
         Typespec *type = parse_type();
         Expr *expr = NULL;
+        bool is_undef = false;
         if (match_token(TOKEN_ASSIGN)) {
-            expr = parse_expr();
+            is_undef = match_keyword(undef_keyword);
+            if (!is_undef) {
+                expr = parse_expr();
+            }
         }
-        return new_stmt_init(left->pos, name, type, expr);
+        return new_stmt_init(left->pos, name, type, expr, is_undef);
     } else {
         return NULL;
     }

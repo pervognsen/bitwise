@@ -555,28 +555,59 @@ void gen_expr_new(Expr *expr) {
     const char *base_cdecl = type_to_cdecl(type->base, "");
     if (expr->new_expr.alloc) {
         if (expr->new_expr.len) {
-            genf("((%s)generic_alloc_copyn((Allocator *)(", type_cdecl);
-            gen_expr(expr->new_expr.alloc);
-            genf("), ");
-            gen_expr(expr->new_expr.len);
-            genf(", sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl);
+            if (!expr->new_expr.arg) {
+                genf("((%s)generic_alloc((Allocator *)(", type_cdecl);
+                gen_expr(expr->new_expr.alloc);
+                genf("), ");
+                gen_expr(expr->new_expr.len);
+                genf("* sizeof(%s), alignof(%s)))", base_cdecl, base_cdecl);
+            } else {
+                genf("((%s)generic_alloc_copy((Allocator *)(", type_cdecl);
+                gen_expr(expr->new_expr.alloc);
+                genf("), ");
+                gen_expr(expr->new_expr.len);
+                genf(" * sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl);
+                gen_expr(expr->new_expr.arg);
+                genf(")))");
+            }
         } else {
-            genf("((%s)generic_alloc_copy((Allocator *)(", type_cdecl);
-            gen_expr(expr->new_expr.alloc);
-            genf("), ");
-            genf("sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl, base_cdecl);
+            if (!expr->new_expr.arg) {
+                genf("((%s)generic_alloc((Allocator *)(", type_cdecl);
+                gen_expr(expr->new_expr.alloc);
+                genf("), ");
+                genf("sizeof(%s), alignof(%s)))", base_cdecl, base_cdecl);
+            } else {
+                genf("((%s)generic_alloc_copy((Allocator *)(", type_cdecl);
+                gen_expr(expr->new_expr.alloc);
+                genf("), ");
+                genf("sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl, base_cdecl);
+                gen_expr(expr->new_expr.arg);
+                genf(")))");
+            }
         }
     } else {
         if (expr->new_expr.len) {
-            genf("((%s)alloc_copyn(", type_cdecl);
-            gen_expr(expr->new_expr.len);
-            genf(", sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl);
+            if (!expr->new_expr.arg) {
+                genf("((%s)tls_alloc(", type_cdecl);
+                gen_expr(expr->new_expr.len);
+                genf(" * sizeof(%s), alignof(%s)))", base_cdecl, base_cdecl);
+            } else {
+                genf("((%s)alloc_copy(", type_cdecl);
+                gen_expr(expr->new_expr.len);
+                genf(" * sizeof(%s), alignof(%s), &(", base_cdecl, base_cdecl);
+                gen_expr(expr->new_expr.arg);
+                genf(")))");
+            }
         } else {
-            genf("((%s)alloc_copy(sizeof(%s), alignof(%s), &(", type_cdecl, base_cdecl, base_cdecl);
+            if (!expr->new_expr.arg) {
+                genf("((%s)tls_alloc(sizeof(%s), alignof(%s)))", type_cdecl, base_cdecl, base_cdecl);
+            } else {
+                genf("((%s)alloc_copy(sizeof(%s), alignof(%s), &(", type_cdecl, base_cdecl, base_cdecl);
+                gen_expr(expr->new_expr.arg);
+                genf(")))");
+            }
         }
     }
-        gen_expr(expr->new_expr.arg);
-    genf(")))");
 }
 
 void gen_expr(Expr *expr) {
@@ -793,22 +824,28 @@ void gen_simple_stmt(Stmt *stmt) {
                 genf("%s = 0", type_to_cdecl(type_decay(init_type), stmt->init.name));
             } else {
                 if (incomplete && is_ptr_type(get_resolved_type(stmt->init.expr))) {
-                    genf("%s = ", type_to_cdecl(get_resolved_type(stmt->init.expr), stmt->init.name));
+                    genf("%s", type_to_cdecl(get_resolved_type(stmt->init.expr), stmt->init.name));
                     if (stmt->init.expr) {
-                        gen_expr(stmt->init.expr);
+                        if (!stmt->init.is_undef) {
+                            genf(" = ");
+                            gen_expr(stmt->init.expr);
+                        }
                     } else {
-                        genf("{0}");
+                        genf(" = {0}");
                     }
                 } else {
                     if (incomplete) {
                         Expr *size = new_expr_int(init_typespec->pos, get_resolved_type(stmt->init.expr)->num_elems, 0, 0);
                         init_typespec = new_typespec_array(init_typespec->pos, init_typespec->base, size);
                     }
-                    genf("%s = ", typespec_to_cdecl(stmt->init.type, stmt->init.name));
+                    genf("%s", typespec_to_cdecl(stmt->init.type, stmt->init.name));
                     if (stmt->init.expr) {
-                        gen_expr(stmt->init.expr);
-                    } else {
-                        genf("{0}");
+                        if (!stmt->init.is_undef) {
+                            genf(" = ");
+                            gen_expr(stmt->init.expr);
+                        }
+                    } else if (!stmt->init.is_undef) {
+                        genf(" = {0}");
                     }
                 }
             }

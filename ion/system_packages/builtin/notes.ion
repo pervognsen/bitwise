@@ -107,27 +107,9 @@ void *generic_alloc_copy(Allocator *allocator, size_t size, size_t align, const 
     return ptr;
 }
 
-INLINE
-void *generic_alloc_copyn(Allocator *allocator, size_t len, size_t size, size_t align, const void *src) {
-    if (!allocator) {
-        allocator = current_allocator;
-    } 
-    void *ptr = allocator->alloc(allocator, len * size, align);
-    if (!ptr) {
-        return 0;
-    }
-    char *dest = ptr;
-    for (size_t i = 0; i < len; i++) {
-        memcpy(dest, src, size);
-        dest += size;
-    }
-    return ptr;
-}
-
 #define tls_alloc(size, align) (generic_alloc(current_allocator, (size), (align)))
 #define tls_free(ptr) (generic_free(current_allocator, (ptr)))
 #define alloc_copy(size, align, src) (generic_alloc_copy(current_allocator, (size), (align), (src)))
-#define alloc_copyn(len, size, align, src) (generic_alloc_copyn(current_allocator, (len), (size), (align), (src)))
 """)
 
 #foreign(postamble=

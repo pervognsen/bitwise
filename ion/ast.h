@@ -375,6 +375,7 @@ struct Stmt {
             const char *name;
             Typespec *type;
             Expr *expr;
+            bool is_undef;
         } init;
         const char *label;
     };

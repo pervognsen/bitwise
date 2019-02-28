@@ -319,8 +319,7 @@ func trace_free(allocator: void*, ptr: void*) {
 }
 
 func trace_allocator(allocator: Allocator*): TraceAllocator {
-    events: AllocatorEvent[];
-    return {{trace_alloc, trace_free}, allocator, anew(allocator)};
+    return {{trace_alloc, trace_free}, allocator = allocator, events = anew(allocator)};
 }
 
 struct NameNode {
@@ -834,9 +833,11 @@ func asetcap_func(ap: void**, new_cap: usize, elem_size: usize, elem_align: usiz
     a := *ap;
     cap := acap_func(a, elem_size, elem_align);
     if (new_cap > cap) {
+/*
         if (new_cap < 16) {
             new_cap = 16;
         }
+*/
         if (2*new_cap < 3*cap) {
             new_cap = cap + cap/2;
         }

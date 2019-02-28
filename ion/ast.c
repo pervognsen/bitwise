@@ -465,11 +465,12 @@ Stmt *new_stmt_assign(SrcPos pos, TokenKind op, Expr *left, Expr *right) {
     return s;
 }
 
-Stmt *new_stmt_init(SrcPos pos, const char *name, Typespec *type, Expr *expr) {
+Stmt *new_stmt_init(SrcPos pos, const char *name, Typespec *type, Expr *expr, bool is_undef) {
     Stmt *s = new_stmt(STMT_INIT, pos);
     s->init.name = name;
     s->init.type = type;
     s->init.expr = expr;
+    s->init.is_undef = is_undef;
     return s;
 }
 

@@ -720,26 +720,26 @@ func test_complete() {
     // x := 2;
     y := 0;
     @complete
-        if (x == 0) {
-            y = 1;
-        } else if (x == 1) {
-            y = 2;
-        }
+    if (x == 0) {
+        y = 1;
+    } else if (x == 1) {
+        y = 2;
+    }
 
-        x = 1;
-        // x = -1;
-        #assert(x >= 0);
+    x = 1;
+    // x = -1;
+    #assert(x >= 0);
 
-        x = 0;
-        // x = 1;
-        // x = 2;
-        @complete
-            switch (x) {
-            case 0:
-                y = 3;
-            case 1:
-                y = 4;
-            }
+    x = 0;
+    // x = 1;
+    // x = 2;
+    @complete
+    switch (x) {
+    case 0:
+        y = 3;
+    case 1:
+        y = 4;
+    }
 }
 
 func test_limits() {
@@ -1190,7 +1190,6 @@ func test_new() {
     a := new Person{};
     b := new *a;
     c := new Person{name = "Per", age = 37};
-    d := new[libc.rand()] float{3.14};
     current := current_allocator;
     trace := trace_allocator(current);
     current_allocator = &trace;
@@ -1208,7 +1207,6 @@ func test_new() {
     e := new(&temp) Person{name = "Per", age = 37};
     mark := temp_begin(&temp);
     arena := arena_allocator(&temp);
-    f := new(&arena)[libc.rand() % 1000] float{3.14};
     // arena_free(&arena);
     temp_end(&temp, mark);
     g := new(&temp) float{1.42};
@@ -1264,6 +1262,7 @@ func test_autohash() {
     for (i := 0; i < 100; i++) {
         aputv(a, i);
     }
+    #assert(ahdr(a).index.indexer == hash_indexer);
     for (i := 0; i < 100; i++) {
         #assert(agetv(a, i));
     }
@@ -1271,9 +1270,38 @@ func test_autohash() {
     for (i := 0; i < 100; i++) {
         aput(m, i, i);
     }
+    #assert(ahdr(m).index.indexer == hash_indexer);
     for (i := 0; i < 100; i++) {
         #assert(aget(m, i) == i);
     }
+}
+
+func test_undef() {
+    x: int = undef;
+    block: char[1024];
+    temp := temp_allocator(block, sizeof(block));
+    a: int* = new undef;
+    b: int* = new(&temp) undef;
+    c: int[] = new[1024] undef;
+    d: int[] = new(&temp)[1024] undef;
+    e: int[] = {1, 2, 3, 4};
+    f := new[4] e;
+    for (i := 0; i < 4; i++) {
+        printf("%d ", f[i]);
+    }
+}
+
+func f_incomplete_array_param(a: int[]) {
+}
+
+func f_pointer_param(a: int*) {
+}
+
+func test_incomplete_array_param() {
+	f := f_incomplete_array_param;
+	f = f_pointer_param;
+	g := f_pointer_param;
+	g = f_incomplete_array_param;
 }
 
 func main(argc: int, argv: char**): int {
@@ -1327,6 +1355,7 @@ func main(argc: int, argv: char**): int {
     test_aget();
     test_tuple_deps();
     test_autohash();
+    test_undef();
     // gc();
     // C.getchar();
     subtest1.LIBC.getchar();

@@ -23,6 +23,7 @@ const char *default_keyword;
 const char *import_keyword;
 const char *goto_keyword;
 const char *new_keyword;
+const char *undef_keyword;
 
 const char *first_keyword;
 const char *last_keyword;
@@ -71,9 +72,10 @@ void init_keywords(void) {
     KEYWORD(switch);
     KEYWORD(case);
     KEYWORD(default);
+    KEYWORD(undef);
     assert(intern_arena.end == arena_end);
     first_keyword = typedef_keyword;
-    last_keyword = default_keyword;
+    last_keyword = undef_keyword;
 
     always_name = str_intern("always");
     foreign_name = str_intern("foreign");
