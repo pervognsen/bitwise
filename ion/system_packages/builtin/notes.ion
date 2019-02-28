@@ -15,14 +15,17 @@
 
 #if _MSC_VER >= 1900 || __STDC_VERSION__ >= 201112L
 // Visual Studio 2015 supports enough C99/C11 features for us.
-#define THREADLOCAL __declspec(thread)
-#define INLINE static inline __forceinline
-#define NOINLINE __declspec(noinline)
 #else
 #error C11 support required or Visual Studio 2015 or later
 #endif
 
-#ifdef __GNUC__
+#if _MSC_VER
+#define THREADLOCAL __declspec(thread)
+#define INLINE static inline __forceinline
+#define NOINLINE __declspec(noinline)
+#endif
+
+#if __GNUC__
 #define THREADLOCAL __thread
 #define INLINE static inline __attribute__((always_inline))
 #define NOINLINE __attribute__((noinline))
