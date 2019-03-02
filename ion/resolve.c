@@ -374,6 +374,14 @@ Type *type_decay(Type *type) {
     return type;
 }
 
+Type *incomplete_decay(Type *type) {
+    if (is_incomplete_array_type(type) || is_ptr_type(type)) {
+        return type_ptr(incomplete_decay(type->base));
+    } else {
+        return type;
+    }
+}
+
 Operand operand_decay(Operand operand) {
     operand.type = type_decay(operand.type);
     operand.is_lvalue = false;
@@ -789,9 +797,7 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
             if (arg == type_void) {
                 fatal_error(typespec->pos, "Function parameter type cannot be void");
             }
-			if (is_incomplete_array_type(arg)) {
-				arg = type_decay(arg);
-			}
+            arg = incomplete_decay(arg);
             buf_push(args, arg);
         }
         Type *ret = type_void;
@@ -838,9 +844,7 @@ Type *complete_aggregate_strict(Type *type, Aggregate *aggregate, bool with_cons
         AggregateItem item = aggregate->items[i];
         if (item.kind == AGGREGATE_ITEM_FIELD) {
             Type *item_type = resolve_typespec_strict(item.type, with_const);
-            if (is_incomplete_array_type(item_type)) {
-                item_type = type_decay(item_type);
-            }
+            item_type = incomplete_decay(item_type);
             complete_type(item_type);
             if (type_sizeof(item_type) == 0) {
                 if (!is_array_type(item_type) || type_sizeof(item_type->base) == 0) {
@@ -954,8 +958,8 @@ Type *resolve_init(SrcPos pos, Typespec *typespec, Expr *expr, bool was_const, b
         set_resolved_expected_type(expr, type);
     }
     complete_type(type);
-    if (is_incomplete_array_type(declared_type) && (!expr || is_ptr_type(inferred_type))) {
-        type = type_decay(type);
+    if (!expr || is_ptr_type(inferred_type)) {
+        type = incomplete_decay(type);
     }
     if (type->size == 0) {
         fatal_error(pos, "Cannot declare variable of size 0");
@@ -992,9 +996,7 @@ Type *resolve_decl_func(Decl *decl) {
     Type **params = NULL;
     for (size_t i = 0; i < decl->func.num_params; i++) {
         Type *param = resolve_typespec_strict(decl->func.params[i].type, with_const);
-		if (is_incomplete_array_type(param)) {
-			param = type_decay(param);
-		}
+        param = incomplete_decay(param);
         complete_type(param);
         if (param == type_void && !foreign) {
             fatal_error(decl->pos, "Function parameter type cannot be void");
@@ -1333,6 +1335,7 @@ void resolve_func_body(Sym *sym) {
     for (size_t i = 0; i < decl->func.num_params; i++) {
         FuncParam param = decl->func.params[i];
         Type *param_type = resolve_typespec(param.type);
+        param_type = incomplete_decay(param_type);
         if (is_array_type(param_type)) {
             param_type = type_ptr(param_type->base);
         }
