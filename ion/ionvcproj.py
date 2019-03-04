@@ -110,8 +110,9 @@ template = r"""<?xml version="1.0" encoding="utf-8"?>
     </Link>
     <PreBuildEvent>
       <Command>
-        cd $ionhome
-        ion $flags $package
+        set IONHOME=$ionhome
+        cd $packagepathparent 
+        $ioncmd $flags $package
       </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
@@ -135,12 +136,14 @@ flags = sys.argv[2:]
 
 ionhome = os.getenv("IONHOME")
 if not ionhome:
-  print("Error: IONHOME is not set")
-  sys.exit(1)
+    print("Error: IONHOME is not set")
+    sys.exit(1)
+else:
+    ioncmd = ntpath.join(ionhome, "ion")  # assumes executable is named 'ion'
 
 ionpath = os.getenv("IONPATH")
 if not ionpath:
-  print("Error: IONPATH is not set")
+    print("Error: IONPATH is not set")
 
 packagepath = package.replace('.', '\\')
 for base in ionpath.split(';'):
@@ -152,20 +155,24 @@ else:
     print("Error: Package %s not found in IONPATH" % package)
     sys.exit(1)
 
+packagepathparent = os.path.dirname(packagepath)
 template = string.Template(template)
 guid = uuid.uuid3(base_guid, package)
 cfile = ntpath.join(ntpath.abspath(os.getcwd()), package, "%s.c" % (package))
 flags = ' '.join(["-o " + cfile] + flags)
 ionfilelist = glob.glob(ntpath.join(packagepath, "*.ion"))
-ionfiles = '\n'.join("""    <Text Include="%s" />""" % ionfile for ionfile in ionfilelist)
+ionfiles = '\n'.join("""    <Text Include="%s" />""" %
+                     ionfile for ionfile in ionfilelist)
 vcxproj_str = template.substitute(
-  guid=guid,
-  package=package,
-  ionhome=ionhome,
-  cfile=cfile,
-  packagepath=packagepath,
-  ionfiles=ionfiles,
-  flags = flags,
+    guid=guid,
+    package=package,
+    ionhome=ionhome,
+    cfile=cfile,
+    packagepath=packagepath,
+    packagepathparent=packagepathparent,
+    ionfiles=ionfiles,
+    flags=flags,
+    ioncmd=ioncmd
 )
 
 if not os.path.isdir(package):
@@ -173,4 +180,3 @@ if not os.path.isdir(package):
 
 vcxproj = open("%s/%s.vcxproj" % (package, package), "w")
 vcxproj.write(vcxproj_str)
-
