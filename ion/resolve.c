@@ -2263,6 +2263,10 @@ Operand resolve_expr_call_intrinsic(Operand func, Expr *expr, Type *expected_typ
         if (dest.type->base != unqualify_type(src.type->base)) {
             fatal_error(expr->call.args[1]->pos, "Argument 1 and 2 of acatn don't have identical base types");
         }
+        Operand len = resolve_expr_rvalue(expr->call.args[2]);
+        if (!convert_operand(&len, type_usize)) {
+            fatal_error(expr->call.args[2]->pos, "Argument 3 of acatn not convertible to usize");
+        }
         return operand_rvalue(func.type->func.ret);
     } else if (sym->name == str_intern("anew")) {
         assert(expr->call.num_args == 1);
