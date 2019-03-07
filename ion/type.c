@@ -386,7 +386,6 @@ Type *type_func(Type **params, size_t num_params, Type *ret, bool intrinsic, boo
     return type;
 }
 
-
 bool has_duplicate_fields(Type *type) {
     for (size_t i = 0; i < type->aggregate.num_fields; i++) {
         for (size_t j = i+1; j < type->aggregate.num_fields; j++) {
@@ -468,8 +467,8 @@ void type_complete_tuple(Type *type, Type **fields, size_t num_fields) {
     TypeField *new_fields = NULL;
     for (size_t i = 0; i < num_fields; i++) {
         Type *field = fields[i];
-        assert(IS_POW2(type_alignof(field)));
         complete_type(fields[i]);
+        assert(IS_POW2(type_alignof(field)));
         char name[64];
         snprintf(name, sizeof(name), "_%d", (int)i);
         TypeField new_field = {
