@@ -802,7 +802,7 @@ Type *resolve_typespec_strict(Typespec *typespec, bool with_const) {
         }
         Type *ret = type_void;
         if (typespec->func.ret) {
-            ret = resolve_typespec_strict(typespec->func.ret, with_const);
+            ret = incomplete_decay(resolve_typespec_strict(typespec->func.ret, with_const));
         }
         if (is_array_type(ret)) {
             fatal_error(typespec->pos, "Function return type cannot be array");
@@ -1005,7 +1005,7 @@ Type *resolve_decl_func(Decl *decl) {
     }
     Type *ret_type = type_void;
     if (decl->func.ret_type) {
-        ret_type = resolve_typespec_strict(decl->func.ret_type, with_const );
+        ret_type = incomplete_decay(resolve_typespec_strict(decl->func.ret_type, with_const));
         complete_type(ret_type);
     }
     if (is_array_type(ret_type)) {
@@ -1013,7 +1013,7 @@ Type *resolve_decl_func(Decl *decl) {
     }
     Type *varargs_type = type_void;
     if (decl->func.varargs_type) {
-        varargs_type = resolve_typespec_strict(decl->func.varargs_type, with_const);
+        varargs_type = incomplete_decay(resolve_typespec_strict(decl->func.varargs_type, with_const));
         complete_type(varargs_type);
         if (is_integer_type(varargs_type) && type_rank(varargs_type) < type_rank(type_int)) {
             fatal_error(decl->pos, "Integer varargs type must have same or higher rank than int");
@@ -1341,7 +1341,7 @@ void resolve_func_body(Sym *sym) {
         }
         sym_push_var(param.name, param_type);
     }
-    Type *ret_type = resolve_typespec(decl->func.ret_type);
+    Type *ret_type = incomplete_decay(resolve_typespec(decl->func.ret_type));
     assert(!is_array_type(ret_type));
     bool returns = resolve_stmt_block(decl->func.block, ret_type, (StmtCtx){0});
     resolve_labels();
