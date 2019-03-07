@@ -266,7 +266,7 @@ void gen_func_decl(Decl *decl) {
             if (i != 0) {
                 buf_printf(result, ", ");
             }
-            buf_printf(result, "%s", typespec_to_cdecl(param.type, param.name));
+            buf_printf(result, "%s", type_to_cdecl(incomplete_decay(get_resolved_type(param.type)), param.name));
         }
     }
     if (decl->func.has_varargs) {
@@ -275,7 +275,7 @@ void gen_func_decl(Decl *decl) {
     buf_printf(result, ")");
     gen_sync_pos(decl->pos);
     if (decl->func.ret_type) {
-        genlnf("%s", typespec_to_cdecl(decl->func.ret_type, result));
+        genlnf("%s", type_to_cdecl(incomplete_decay(get_resolved_type(decl->func.ret_type)), result));
     } else {
         genlnf("void %s", result);
     }
