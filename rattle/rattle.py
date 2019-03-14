@@ -402,8 +402,8 @@ def make_memoized_slice_node(operand, start, stop):
         raise TypeError("Slice start must be greater than slice stop")
     if stop < 0:
         raise TypeError("Slice start must be nonnegative")
-    if start > operand.type.width:
-        raise TypeError("Slice stop must be less than operand width")
+    if stop > operand.type.width:
+        raise TypeError("Slice stop must be less than or equal to operand width")
     if isinstance(operand, SliceNode):
         return make_memoized_slice_node(operand.operand, start + operand.start, stop + operand.start)
     return SliceNode(operand, start, stop)
@@ -479,7 +479,7 @@ class RegisterNode(Node):
         self._enable = node
 
 def register(type, init=None, next=None, enable=None):
-    return RegisterNode(type, init, next, enable=None)
+    return RegisterNode(type, init, next, enable)
 
 class ConstantNode(Node):
     def __init__(self, type, value):
